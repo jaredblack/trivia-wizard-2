@@ -1,0 +1,30 @@
+{
+    "host": "createGame"
+}
+
+{
+    "host": {
+        "scoreAnswer": {
+            "teamName": "bonzo",
+            "answer": "bingo"
+        }
+    }
+}
+
+{
+    "team": {
+        "joinGame": {
+            "gameCode": "hello",
+            "teamName": "bonzo"
+        }
+    }
+}
+
+{
+    "team": {
+        "submitAnswer": {
+            "teamName": "bonzo",
+            "answer": "bingo"
+        }
+    }
+}
