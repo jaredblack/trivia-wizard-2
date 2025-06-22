@@ -17,6 +17,41 @@ The home page is very simple. It is a menu with three buttons:
 - This page will start with one button - "Start New Game". This button will initiate a WebSocket connection with the server, with the role Host.
 - The server will send back a Game Code. The button will disappear and will be replaced with the Host View.
 
+# API Descriptions
+## Host
+### CreateGame
+- Input: token?
+- Generate a 5 letter word as game code
+- Insert a new entry into the game map
+- Write a new game to the database
+### RejoinGame
+- Input: game code, token?
+### UpdateGameSettings
+### ToggleAllowSubmission
+### TimerUpdate
+### ScoreAnswer
+### UpdateScoreboard
+### OverrideScore
+### NextQuestion
+### UpdateQuestionSettings
+## Server-Host
+### GameCreated
+### PlayerJoined
+### PlayerDisconnected
+### Success
+### AnswerSubmitted
+### QuestionInfo
+## Server-Team
+### JoinedGame
+### AllowSubmissionToggled
+### TimerUpdate
+### Success
+### ScoreUpdate
+### QuestionInfo
+## Team
+### JoinGame
+### SubmitAnswer
+
 
 
 # API Shapes
