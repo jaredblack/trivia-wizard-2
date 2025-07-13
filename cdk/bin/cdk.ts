@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib';
 import { HostingStack } from '../lib/HostingStack';
+import { AuthStack } from '../lib/AuthStack';
 
 const app = new cdk.App();
 new HostingStack(app, 'TriviaAppHostingStack', {
@@ -18,3 +19,5 @@ new HostingStack(app, 'TriviaAppHostingStack', {
 
   /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
 });
+
+new AuthStack(app, 'TriviaAppAuthStack');
