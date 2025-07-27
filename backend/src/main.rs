@@ -1,3 +1,4 @@
+use axum::{Router, routing::get};
 use futures_util::{SinkExt, StreamExt};
 use log::*;
 use model::{
@@ -15,6 +16,9 @@ use tokio_tungstenite::{
     tungstenite::{Error, Message, Result},
 };
 
+use crate::infra::ServiceDiscovery;
+
+mod infra;
 mod model;
 
 type Games = Arc<Mutex<HashMap<String, Game>>>;
@@ -167,6 +171,13 @@ async fn handle_host(
         _ = write_task => {},
         _ = read_task => {},
     }
+
+    /*
+    here, call cleanup function, which should
+    1. drop the game from the map
+    2. start the timer. timer can get a signal which will cause it to cancel the timer. that signal is sent every time a new host connects
+    3. timer should shut 'er down. call into infra.rs -- update_task_count or something
+     */
 }
 
 async fn join_game(
@@ -261,12 +272,8 @@ async fn handle_team(
     }
 }
 
-#[tokio::main]
-async fn main() {
-    env_logger::init();
-    info!("Starting Trivia Wizard 2 backend");
-
-    let addr = "127.0.0.1:9002";
+async fn start_ws_server() {
+    let addr = "0.0.0.0:9002";
     let listener = TcpListener::bind(&addr).await.expect("Can't listen");
     info!("Listening on: {}", addr);
 
@@ -280,4 +287,36 @@ async fn main() {
 
         tokio::spawn(accept_connection(peer, stream, games.clone()));
     }
+}
+
+async fn health_check() -> &'static str {
+    "OK"
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
+    info!("Starting Trivia Wizard 2 backend");
+
+    let service_discovery = ServiceDiscovery::new(
+        "TriviaWizardServer".to_string(),
+        "Z02007853E9RZODID8U1C".to_string(),
+        "ws.trivia.jarbla.com.".to_string(),
+    )
+    .await?;
+    // Register the service on startup
+    service_discovery.register().await?;
+
+    let ws_server = start_ws_server();
+
+    let health_app = Router::new().route("/health", get(health_check));
+
+    let health_listener = TcpListener::bind("0.0.0.0:8080").await.unwrap();
+
+    tokio::select! {
+        _ = ws_server => {},
+        _ = axum::serve(health_listener, health_app) => {},
+    }
+
+    Ok(())
 }

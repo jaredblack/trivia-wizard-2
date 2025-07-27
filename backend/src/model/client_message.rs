@@ -8,7 +8,7 @@ pub enum HostAction {
     ScoreAnswer {
         team_name: String,
         answer: String,
-    }
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -21,10 +21,7 @@ pub enum TeamAction {
     },
 
     #[serde(rename_all = "camelCase")]
-    SubmitAnswer {
-        team_name: String,
-        answer: String,
-    },
+    SubmitAnswer { team_name: String, answer: String },
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -19,7 +19,9 @@ pub enum HostServerMessage {
 #[serde(rename_all = "camelCase")]
 pub enum TeamServerMessage {
     #[serde(rename_all = "camelCase")]
-    GameJoined { game_code: String },
+    GameJoined {
+        game_code: String,
+    },
     AnswerSubmitted,
 }
 
@@ -34,8 +36,7 @@ pub enum ServerMessage {
 pub fn send_msg(tx: &Tx, msg: ServerMessage) {
     info!("Sending server message: {:?}", msg);
     let msg = serde_json::to_string(&msg).unwrap_or_else(|e| {
-        format!("Catastrophic! Serde error when trying to serialize serverside: {e}")
-            .to_string()
+        format!("Catastrophic! Serde error when trying to serialize serverside: {e}").to_string()
     });
     tx.send(Message::text(&msg)).unwrap_or_else(|e| {
         error!("Sending server message through channel failed: {e}");

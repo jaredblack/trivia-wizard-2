@@ -1,5 +1,59 @@
 {
   "acknowledged-issue-numbers": [
     34892
-  ]
+  ],
+  "vpc-provider:account=623560468325:filter.isDefault=true:region=us-east-1:returnAsymmetricSubnets=true": {
+    "vpcId": "vpc-0e08dfa660691b953",
+    "vpcCidrBlock": "172.31.0.0/16",
+    "ownerAccountId": "623560468325",
+    "availabilityZones": [],
+    "subnetGroups": [
+      {
+        "name": "Public",
+        "type": "Public",
+        "subnets": [
+          {
+            "subnetId": "subnet-0afba8f68a2e65d6e",
+            "cidr": "172.31.32.0/20",
+            "availabilityZone": "us-east-1a",
+            "routeTableId": "rtb-03b062c0099642f9c"
+          },
+          {
+            "subnetId": "subnet-04700fb67740755d7",
+            "cidr": "172.31.0.0/20",
+            "availabilityZone": "us-east-1b",
+            "routeTableId": "rtb-03b062c0099642f9c"
+          },
+          {
+            "subnetId": "subnet-07613b41ef744c64a",
+            "cidr": "172.31.80.0/20",
+            "availabilityZone": "us-east-1c",
+            "routeTableId": "rtb-03b062c0099642f9c"
+          },
+          {
+            "subnetId": "subnet-04375db19ed81ff2b",
+            "cidr": "172.31.16.0/20",
+            "availabilityZone": "us-east-1d",
+            "routeTableId": "rtb-03b062c0099642f9c"
+          },
+          {
+            "subnetId": "subnet-0e193fa3557635d18",
+            "cidr": "172.31.48.0/20",
+            "availabilityZone": "us-east-1e",
+            "routeTableId": "rtb-03b062c0099642f9c"
+          },
+          {
+            "subnetId": "subnet-0d8197182bcac6346",
+            "cidr": "172.31.64.0/20",
+            "availabilityZone": "us-east-1f",
+            "routeTableId": "rtb-03b062c0099642f9c"
+          }
+        ]
+      }
+    ]
+  },
+  "hosted-zone:account=623560468325:domainName=jarbla.com:region=us-east-1": {
+    "Id": "/hostedzone/Z02007853E9RZODID8U1C",
+    "Name": "jarbla.com."
+  }
 }

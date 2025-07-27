@@ -1,6 +1,5 @@
-use std::collections::HashMap;
 use crate::Tx;
-
+use std::collections::HashMap;
 
 pub struct Game {
     pub game_code: String,
@@ -10,7 +9,11 @@ pub struct Game {
 
 impl Game {
     pub fn new(game_code: String, host_tx: Tx) -> Self {
-        Self { game_code, host_tx, teams_tx: HashMap::new() }
+        Self {
+            game_code,
+            host_tx,
+            teams_tx: HashMap::new(),
+        }
     }
 
     pub fn add_team(&mut self, team_name: String, team_tx: Tx) {
