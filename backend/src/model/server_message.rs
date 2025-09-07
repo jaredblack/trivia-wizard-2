@@ -2,7 +2,7 @@ use log::{error, info};
 use serde::{Deserialize, Serialize};
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::Tx;
+use crate::server::Tx;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,7 +34,7 @@ pub enum ServerMessage {
 }
 
 pub fn send_msg(tx: &Tx, msg: ServerMessage) {
-    info!("Sending server message: {:?}", msg);
+    info!("Sending server message: {msg:?}");
     let msg = serde_json::to_string(&msg).unwrap_or_else(|e| {
         format!("Catastrophic! Serde error when trying to serialize serverside: {e}").to_string()
     });

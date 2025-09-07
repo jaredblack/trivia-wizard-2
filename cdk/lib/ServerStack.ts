@@ -99,6 +99,11 @@ export class ServerStack extends cdk.Stack {
       "Allow WebSocket connections"
     );
 
+    this.service.connections.allowFromAnyIpv4(
+      ec2.Port.tcp(8080),
+      "Allow health check"
+    );
+
     new cdk.CfnOutput(this, "ServiceArn", {
       value: this.service.serviceArn,
       description: "The ARN of the ECS service",

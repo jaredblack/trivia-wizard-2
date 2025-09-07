@@ -1,4 +1,4 @@
-use crate::Tx;
+use crate::server::Tx;
 use std::collections::HashMap;
 
 pub struct Game {

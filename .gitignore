@@ -12,3 +12,5 @@ Cargo.lock
 # OS specific
 .DS_Store
 Thumbs.db 
+
+AWSCLIV2.pkg

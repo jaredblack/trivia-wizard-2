@@ -50,7 +50,7 @@ impl ServiceDiscovery {
         let task_metadata_uri = env::var("ECS_CONTAINER_METADATA_URI_V4")
             .map_err(|_| "ECS_CONTAINER_METADATA_URI_V4 not found. Are you running in ECS?")?;
 
-        let task_metadata_url = format!("{}/task", task_metadata_uri);
+        let task_metadata_url = format!("{task_metadata_uri}/task");
         let response = reqwest::get(&task_metadata_url).await?;
         let task_metadata: Value = response.json().await?;
 
@@ -191,7 +191,7 @@ impl ServiceDiscovery {
     pub async fn register(&self) -> Result<(), Box<dyn Error>> {
         info!("Discovering public IP address...");
         let public_ip = self.get_public_ip().await?;
-        info!("Found public IP: {}", public_ip);
+        info!("Found public IP: {public_ip}");
 
         info!("Updating DNS record...");
         self.update_dns_record(&public_ip).await?;
