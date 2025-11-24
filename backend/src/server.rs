@@ -1,22 +1,21 @@
 use crate::{
     model::{
         client_message::{ClientMessage, HostAction, TeamAction},
-        game::{self, Game},
+        game::Game,
         server_message::{HostServerMessage, ServerMessage, TeamServerMessage, send_msg},
     },
-    timer::{self, ShutdownTimer},
+    timer::ShutdownTimer,
 };
 use futures_util::{SinkExt, StreamExt};
 use log::*;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{mpsc, Mutex},
+    sync::{Mutex, mpsc},
 };
 use tokio_tungstenite::{
-    accept_async,
+    WebSocketStream, accept_async,
     tungstenite::{Error, Message, Result},
-    WebSocketStream,
 };
 
 pub type Tx = mpsc::UnboundedSender<Message>;
@@ -56,7 +55,8 @@ async fn handle_connection(
     info!("New WebSocket connection: {peer}");
     game_state
         .timer
-        .lock().await
+        .lock()
+        .await
         .cancel_timer()
         .await
         .unwrap_or_else(|e| error!("{e:?}"));
@@ -111,7 +111,6 @@ async fn handle_connection(
         }
     }
     info!("exiting handel connection");
-
 
     Ok(())
 }
@@ -170,7 +169,7 @@ async fn handle_host(
     let read_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_read.next().await {
             if let Ok(text) = msg.to_text() {
-                if text == "" {
+                if text.is_empty() {
                     log::warn!("Received empty message");
                     continue;
                 }
@@ -181,7 +180,10 @@ async fn handle_host(
                         Ok(msg) => {
                             if let ClientMessage::Host(action) = msg {
                                 match action {
-                                    HostAction::ScoreAnswer { team_name, answer: _ } => {
+                                    HostAction::ScoreAnswer {
+                                        team_name,
+                                        answer: _,
+                                    } => {
                                         let msg =
                                             ServerMessage::Host(HostServerMessage::ScoreUpdate {
                                                 team_name: team_name.clone(),
@@ -280,8 +282,9 @@ async fn handle_team(
                                 match action {
                                     TeamAction::SubmitAnswer { team_name, answer } => {
                                         if let Some(host_tx) = game.host_tx.as_ref() {
-                                            let team_msg =
-                                                ServerMessage::Team(TeamServerMessage::AnswerSubmitted);
+                                            let team_msg = ServerMessage::Team(
+                                                TeamServerMessage::AnswerSubmitted,
+                                            );
                                             send_msg(team_tx, team_msg);
                                             let host_msg =
                                                 ServerMessage::Host(HostServerMessage::NewAnswer {
@@ -301,7 +304,7 @@ async fn handle_team(
                                             ServerMessage::Error("Game already joined".to_string());
                                         send_msg(team_tx, msg);
                                     }
-                                 }
+                                }
                             }
                         }
                         Err(e) => {

@@ -41,9 +41,12 @@ async fn team_joins_nonexistent_game_receives_error() {
 
     match response {
         ServerMessage::Error(msg) => {
-            assert!(msg.contains("nonexistent"), "Error should mention the game code");
+            assert!(
+                msg.contains("nonexistent"),
+                "Error should mention the game code"
+            );
         }
-        other => panic!("Expected Error message, got {:?}", other),
+        other => panic!("Expected Error message, got {other:?}"),
     }
 }
 
@@ -76,17 +79,26 @@ async fn multiple_hosts_and_teams_interleaved() {
     let mut host2 = TestClient::connect(&server.ws_url()).await;
     let game_code_2 = host2.create_game().await;
 
-    assert_ne!(game_code_1, game_code_2, "Each host should get a unique game code");
+    assert_ne!(
+        game_code_1, game_code_2,
+        "Each host should get a unique game code"
+    );
 
     // Team joins game 2 first (out of order)
     let mut team_for_game2 = TestClient::connect(&server.ws_url()).await;
-    team_for_game2.join_game(&game_code_2, "Team for Game 2").await;
+    team_for_game2
+        .join_game(&game_code_2, "Team for Game 2")
+        .await;
 
     // Now team joins game 1
     let mut team_for_game1 = TestClient::connect(&server.ws_url()).await;
-    team_for_game1.join_game(&game_code_1, "Team for Game 1").await;
+    team_for_game1
+        .join_game(&game_code_1, "Team for Game 1")
+        .await;
 
     // Another team joins game 2
     let mut team2_for_game2 = TestClient::connect(&server.ws_url()).await;
-    team2_for_game2.join_game(&game_code_2, "Second Team for Game 2").await;
+    team2_for_game2
+        .join_game(&game_code_2, "Second Team for Game 2")
+        .await;
 }

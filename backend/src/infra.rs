@@ -1,3 +1,4 @@
+use anyhow::Result;
 use aws_config::BehaviorVersion;
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_ec2::Client as Ec2Client;
@@ -6,11 +7,10 @@ use aws_sdk_route53::Client as Route53Client;
 use aws_sdk_route53::types::{Change, ChangeAction, ResourceRecord, ResourceRecordSet, RrType};
 use log::{info, warn};
 use serde_json::Value;
+use std::env;
+use std::error::Error;
 use tokio_retry::Retry;
 use tokio_retry::strategy::{ExponentialBackoff, jitter};
-use std::env;
-use anyhow::Result;
-use std::error::Error;
 
 pub fn is_local() -> bool {
     env::var("ECS_CONTAINER_METADATA_URI_V4").is_err()
@@ -204,7 +204,6 @@ impl ServiceDiscovery {
     }
 }
 
-
 pub async fn shutdown_server() -> Result<()> {
     // create ecs client
     // -> the stuff that ServiceDiscovery takes into new should be available as env variables or something
@@ -220,10 +219,8 @@ pub async fn shutdown_server() -> Result<()> {
             .await;
 
         let ecs_client = EcsClient::new(&config);
-        let retry_strategy = ExponentialBackoff::from_millis(1000)
-            .map(jitter)
-            .take(5);
-        
+        let retry_strategy = ExponentialBackoff::from_millis(1000).map(jitter).take(5);
+
         Retry::spawn(retry_strategy, || async {
             ecs_client
                 .update_service()

@@ -35,7 +35,7 @@ impl ShutdownTimer {
             tokio::select! {
                 _ = tokio::time::sleep(Duration::from_secs(SHUTDOWN_MINS * 60)) => {
                     infra::shutdown_server().await.unwrap_or_else(|e| {
-                        log::error!("Failed to shut down ECS service! {}", e)
+                        log::error!("Failed to shut down ECS service! {e}")
                     });
                     info!("Shutting down server process...");
                     shutdown_tx.send(()).await.unwrap();
@@ -47,8 +47,6 @@ impl ShutdownTimer {
                 }
             }
         }));
-
-
     }
 
     pub async fn cancel_timer(&self) -> Result<()> {

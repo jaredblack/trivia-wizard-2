@@ -4,15 +4,12 @@ use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::{HostServerMessage, ServerMessage, TeamServerMessage};
 use backend::server::start_ws_server;
 use futures_util::{
-    stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
+    stream::{SplitSink, SplitStream},
 };
-use serde::{de::DeserializeOwned, Serialize};
-use tokio::{
-    net::TcpListener,
-    sync::mpsc,
-};
-use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
+use serde::{Serialize, de::DeserializeOwned};
+use tokio::{net::TcpListener, sync::mpsc};
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message};
 
 pub struct TestServer {
     pub ws_port: u16,
@@ -61,7 +58,7 @@ impl TestClient {
 
     pub async fn send_json<T: Serialize>(&mut self, msg: &T) {
         let json = serde_json::to_string(msg).unwrap();
-        self.write.send(Message::Text(json.into())).await.unwrap();
+        self.write.send(Message::Text(json)).await.unwrap();
     }
 
     pub async fn recv_json<T: DeserializeOwned>(&mut self) -> T {
@@ -73,9 +70,7 @@ impl TestClient {
         &mut self,
         duration: Duration,
     ) -> Option<T> {
-        tokio::time::timeout(duration, self.recv_json())
-            .await
-            .ok()
+        tokio::time::timeout(duration, self.recv_json()).await.ok()
     }
 
     /// Send CreateGame and return the game code
@@ -86,7 +81,7 @@ impl TestClient {
         let response: ServerMessage = self.recv_json().await;
         match response {
             ServerMessage::Host(HostServerMessage::GameCreated { game_code }) => game_code,
-            other => panic!("Expected GameCreated message, got {:?}", other),
+            other => panic!("Expected GameCreated message, got {other:?}"),
         }
     }
 
@@ -103,7 +98,7 @@ impl TestClient {
             ServerMessage::Team(TeamServerMessage::GameJoined { game_code: code }) => {
                 assert_eq!(code, game_code, "Game codes should match");
             }
-            other => panic!("Expected GameJoined message, got {:?}", other),
+            other => panic!("Expected GameJoined message, got {other:?}"),
         }
     }
 }

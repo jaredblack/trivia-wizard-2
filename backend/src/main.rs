@@ -1,9 +1,6 @@
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
 use log::*;
-use tokio::{
-    net::TcpListener,
-    sync::mpsc,
-};
+use tokio::{net::TcpListener, sync::mpsc};
 use tokio_tungstenite::tungstenite::Result;
 use tower_http::cors::{Any, CorsLayer};
 
