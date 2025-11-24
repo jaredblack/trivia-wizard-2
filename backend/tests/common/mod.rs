@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
+use backend::model::server_message::{HostServerMessage, ServerMessage, TeamServerMessage};
 use backend::server::start_ws_server;
 use futures_util::{
     stream::{SplitSink, SplitStream},
@@ -74,5 +76,34 @@ impl TestClient {
         tokio::time::timeout(duration, self.recv_json())
             .await
             .ok()
+    }
+
+    /// Send CreateGame and return the game code
+    pub async fn create_game(&mut self) -> String {
+        self.send_json(&ClientMessage::Host(HostAction::CreateGame))
+            .await;
+
+        let response: ServerMessage = self.recv_json().await;
+        match response {
+            ServerMessage::Host(HostServerMessage::GameCreated { game_code }) => game_code,
+            other => panic!("Expected GameCreated message, got {:?}", other),
+        }
+    }
+
+    /// Send JoinGame and verify success
+    pub async fn join_game(&mut self, game_code: &str, team_name: &str) {
+        self.send_json(&ClientMessage::Team(TeamAction::JoinGame {
+            game_code: game_code.to_string(),
+            team_name: team_name.to_string(),
+        }))
+        .await;
+
+        let response: ServerMessage = self.recv_json().await;
+        match response {
+            ServerMessage::Team(TeamServerMessage::GameJoined { game_code: code }) => {
+                assert_eq!(code, game_code, "Game codes should match");
+            }
+            other => panic!("Expected GameJoined message, got {:?}", other),
+        }
     }
 }

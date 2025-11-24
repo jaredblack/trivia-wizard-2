@@ -133,11 +133,11 @@ async fn test_host_creates_game() {
 
 ### Connection & Game Setup
 
-- [ ] Host connects and creates a game successfully & Host receives game code after creating game 
-- [ ] Team joins existing game with valid code & Team receives confirmation after joining game
-- [ ] Team attempts to join non-existent game (error case)
-- [ ] Multiple teams can join the same game
-- [ ] Multiple hosts can connect and create games, and multiple players can join each of those games in any order
+- [x] Host connects and creates a game successfully & Host receives game code after creating game 
+- [x] Team joins existing game with valid code & Team receives confirmation after joining game
+- [x] Team attempts to join non-existent game (error case)
+- [x] Multiple teams can join the same game
+- [x] Multiple hosts can connect and create games, and multiple players can join each of those games in any order
 
 ### Message Flow
 
@@ -158,11 +158,6 @@ async fn test_host_creates_game() {
 - [ ] Host sends unexpected message type (e.g., JoinGame)
 - [ ] Team sends unexpected message type (e.g., CreateGame)
 - [ ] Malformed message handling
-
-### Health Check
-
-- [ ] Health endpoint returns 200 OK
-- [ ] Health endpoint includes CORS headers
 
 ### Shutdown timer
 - [ ] Timer successfully closes server if all hosts disconnect 
