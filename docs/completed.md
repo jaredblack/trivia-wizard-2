@@ -71,3 +71,14 @@ Authenticated users who are members of the "Trivia-Hosts" group can now start th
 -   The frontend polls a health check endpoint on the backend to determine when the server is ready.
 -   Once the server is running, a "Start Game" button appears, which initiates a WebSocket connection for gameplay.
 -   The backend's health check endpoint now includes CORS headers to allow access from the frontend.
+
+## 8. Implement Automatic Shutdown Timer
+
+To reduce AWS costs, the backend server now automatically shuts itself down when no hosts are connected.
+
+-   **ShutdownTimer Module**: A new `timer.rs` module implements a `ShutdownTimer` struct that manages automatic server shutdown after 30 minutes of inactivity.
+-   **Timer Lifecycle**: The timer starts when all hosts disconnect from the server and is cancelled when a new WebSocket connection is established.
+-   **ECS Integration**: The `shutdown_server()` function in `infra.rs` calls the ECS API to set the service's desired count to 0, effectively stopping the Fargate task.
+-   **Graceful Shutdown**: The timer sends a shutdown signal that propagates through the application, allowing the main process to terminate cleanly.
+-   **Retry Logic**: The ECS shutdown call uses exponential backoff with jitter to handle transient failures.
+-   **Host Reconnection Support**: The `Game` model now supports hosts reconnecting to existing games via `set_host_tx` and `clear_host_tx` methods, allowing a host to reclaim their game session after a brief disconnection.

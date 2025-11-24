@@ -1,13 +1,20 @@
 use aws_config::BehaviorVersion;
 use aws_config::meta::region::RegionProviderChain;
+use aws_sdk_ec2::Client as Ec2Client;
 use aws_sdk_ecs::Client as EcsClient;
 use aws_sdk_route53::Client as Route53Client;
-use aws_sdk_ec2::Client as Ec2Client;
 use aws_sdk_route53::types::{Change, ChangeAction, ResourceRecord, ResourceRecordSet, RrType};
-use log::info;
+use log::{info, warn};
 use serde_json::Value;
+use tokio_retry::Retry;
+use tokio_retry::strategy::{ExponentialBackoff, jitter};
 use std::env;
+use anyhow::Result;
 use std::error::Error;
+
+pub fn is_local() -> bool {
+    env::var("ECS_CONTAINER_METADATA_URI_V4").is_err()
+}
 
 #[derive(Debug)]
 pub struct ServiceDiscovery {
@@ -76,13 +83,13 @@ impl ServiceDiscovery {
         let attachments = task.attachments();
         for attachment in attachments {
             if attachment.r#type() == Some("ElasticNetworkInterface") {
-                    for detail in attachment.details() {
-                        if detail.name() == Some("networkInterfaceId") {
-                            if let Some(eni_id) = detail.value() {
-                                return self.get_eni_public_ip(eni_id).await;
-                            }
+                for detail in attachment.details() {
+                    if detail.name() == Some("networkInterfaceId") {
+                        if let Some(eni_id) = detail.value() {
+                            return self.get_eni_public_ip(eni_id).await;
                         }
-                } 
+                    }
+                }
             }
         }
 
@@ -91,8 +98,8 @@ impl ServiceDiscovery {
 
     /// Get the public IP of an ENI using EC2 API
     async fn get_eni_public_ip(&self, eni_id: &str) -> Result<String, Box<dyn Error>> {
-
-        let describe_response = self.ec2_client
+        let describe_response = self
+            .ec2_client
             .describe_network_interfaces()
             .network_interface_ids(eni_id)
             .send()
@@ -110,11 +117,9 @@ impl ServiceDiscovery {
 
         Ok(public_ip.to_string())
     }
-      /// Update Route53 DNS record with the current public IP
+    /// Update Route53 DNS record with the current public IP
     pub async fn update_dns_record(&self, ip_address: &str) -> Result<(), Box<dyn Error>> {
-        let resource_record = ResourceRecord::builder()
-            .value(ip_address)
-            .build()?;
+        let resource_record = ResourceRecord::builder().value(ip_address).build()?;
 
         let resource_record_set = ResourceRecordSet::builder()
             .name(&self.dns_name)
@@ -140,9 +145,7 @@ impl ServiceDiscovery {
             .send()
             .await?;
 
-        info!(
-            "DNS record updated successfully.",
-        );
+        info!("DNS record updated successfully.",);
 
         Ok(())
     }
@@ -199,4 +202,38 @@ impl ServiceDiscovery {
 
         Ok(())
     }
+}
+
+
+pub async fn shutdown_server() -> Result<()> {
+    // create ecs client
+    // -> the stuff that ServiceDiscovery takes into new should be available as env variables or something
+    //      no need for them to be passed in from server.rs. server.rs shouldn't know about AWS at all (mostly)
+    // call ecs.update_task_count(0) or whatever
+    // consider: is there anything in here we need to do to gracefully shut down? any state we need to write to db?
+    if !is_local() {
+        warn!("I am shutting down the server. I mean it!");
+        let region_provider = RegionProviderChain::default_provider();
+        let config = aws_config::defaults(BehaviorVersion::latest())
+            .region(region_provider)
+            .load()
+            .await;
+
+        let ecs_client = EcsClient::new(&config);
+        let retry_strategy = ExponentialBackoff::from_millis(1000)
+            .map(jitter)
+            .take(5);
+        
+        Retry::spawn(retry_strategy, || async {
+            ecs_client
+                .update_service()
+                .cluster("TriviaWizardServer")
+                .service("trivia-wizard-fargate-service")
+                .desired_count(0)
+                .send()
+                .await
+        })
+        .await?;
+    }
+    Ok(())
 }
