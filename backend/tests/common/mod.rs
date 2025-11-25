@@ -69,7 +69,10 @@ impl TestClient {
     }
 
     pub async fn send_raw_text(&mut self, text: &str) {
-        self.write.send(Message::Text(text.to_string())).await.unwrap();
+        self.write
+            .send(Message::Text(text.to_string()))
+            .await
+            .unwrap();
     }
 
     pub async fn recv_json<T: DeserializeOwned>(&mut self) -> T {
@@ -78,7 +81,9 @@ impl TestClient {
             Ok(Some(Ok(msg))) => serde_json::from_str(msg.to_text().unwrap()).unwrap(),
             Ok(Some(Err(e))) => panic!("WebSocket error: {e}"),
             Ok(None) => panic!("WebSocket stream closed"),
-            Err(_) => panic!("Timeout waiting for message from server (waited {timeout_duration:?})"),
+            Err(_) => {
+                panic!("Timeout waiting for message from server (waited {timeout_duration:?})")
+            }
         }
     }
 

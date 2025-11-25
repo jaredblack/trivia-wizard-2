@@ -42,10 +42,7 @@ async fn assert_answer_submission_flow(
                 received_answer, answer,
                 "Answer should match what team submitted"
             );
-            assert_eq!(
-                received_team_name, team_name,
-                "Team name should match"
-            );
+            assert_eq!(received_team_name, team_name, "Team name should match");
         }
         other => panic!("Expected NewAnswer message, got {other:?}"),
     }
@@ -264,7 +261,9 @@ async fn host_sends_unexpected_message_type() {
         ServerMessage::Error(_msg) => {
             // Success - got an error for unexpected message type
         }
-        other => panic!("Expected Error message for unexpected Team message from Host, got {other:?}"),
+        other => {
+            panic!("Expected Error message for unexpected Team message from Host, got {other:?}")
+        }
     }
 }
 
@@ -290,7 +289,9 @@ async fn team_sends_unexpected_message_type() {
         ServerMessage::Error(_msg) => {
             // Success - got an error for unexpected message type
         }
-        other => panic!("Expected Error message for unexpected Host message from Team, got {other:?}"),
+        other => {
+            panic!("Expected Error message for unexpected Host message from Team, got {other:?}")
+        }
     }
 }
 

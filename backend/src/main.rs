@@ -40,10 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (shutdown_tx, mut shutdown_rx) = mpsc::channel(1);
 
     let ws_listener = TcpListener::bind("0.0.0.0:9002").await?;
-    let timer = ShutdownTimer::new(
-        shutdown_tx.clone(),
-        Duration::from_secs(SHUTDOWN_MINS * 60),
-    );
+    let timer = ShutdownTimer::new(shutdown_tx.clone(), Duration::from_secs(SHUTDOWN_MINS * 60));
     let ws_server = start_ws_server(ws_listener, timer);
 
     let health_app = Router::new()
