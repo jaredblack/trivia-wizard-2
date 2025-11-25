@@ -1,6 +1,7 @@
 We are building the Trivia Wizard app as described in overview.md. We will only implement in small, well-defined stories, which are defined in this document.
 
 ## near future
+- Reconnection will fail once the game code isn't hardcoded. Need to accept an (optional?) parameter with CreateGame to supply a game code
 - lots of unwraps now that we made host_tx and option -- we need to handle that better
 
 ## misc
@@ -10,8 +11,6 @@ We are building the Trivia Wizard app as described in overview.md. We will only 
 - update verification email
 - set an alarm on log::error from my app?
 
-## questions
-- is it going to be a problem if we immediately delete the game when the host disconnects? maybe we should add a timer before doing that as well. would we need special logic to replace
 
 ## edge cases worth considering
 - someone tries to create a game with the same code as another currently-connected host

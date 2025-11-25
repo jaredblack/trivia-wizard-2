@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use axum::{Router, routing::get};
 use log::*;
 use tokio::{net::TcpListener, sync::mpsc};
@@ -7,7 +9,10 @@ use tower_http::cors::{Any, CorsLayer};
 use backend::{
     infra::{self, ServiceDiscovery},
     server::start_ws_server,
+    timer::ShutdownTimer,
 };
+
+const SHUTDOWN_MINS: u64 = 30;
 
 async fn health_check() -> &'static str {
     "OK"
@@ -35,7 +40,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (shutdown_tx, mut shutdown_rx) = mpsc::channel(1);
 
     let ws_listener = TcpListener::bind("0.0.0.0:9002").await?;
-    let ws_server = start_ws_server(ws_listener, shutdown_tx.clone());
+    let timer = ShutdownTimer::new(
+        shutdown_tx.clone(),
+        Duration::from_secs(SHUTDOWN_MINS * 60),
+    );
+    let ws_server = start_ws_server(ws_listener, timer);
 
     let health_app = Router::new()
         .route("/health", get(health_check))

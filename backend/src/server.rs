@@ -106,6 +106,9 @@ async fn handle_connection(
                 }
                 Err(e) => {
                     error!("Failed to parse message: {e}");
+                    let error_message = ServerMessage::Error(format!("Invalid JSON: {e}"));
+                    let msg = serde_json::to_string(&error_message).unwrap();
+                    ws_stream.send(Message::text(msg)).await?;
                 }
             }
         }
@@ -198,6 +201,11 @@ async fn handle_host(
                                         send_msg(game.host_tx.as_ref().unwrap(), msg);
                                     }
                                 }
+                            } else {
+                                let msg = ServerMessage::Error(
+                                    "Unexpected message type: expected Host message".to_string(),
+                                );
+                                send_msg(game.host_tx.as_ref().unwrap(), msg);
                             }
                         }
                         Err(e) => {
@@ -305,6 +313,11 @@ async fn handle_team(
                                         send_msg(team_tx, msg);
                                     }
                                 }
+                            } else {
+                                let msg = ServerMessage::Error(
+                                    "Unexpected message type: expected Team message".to_string(),
+                                );
+                                send_msg(team_tx, msg);
                             }
                         }
                         Err(e) => {
@@ -326,13 +339,13 @@ async fn handle_team(
     }
 }
 
-pub async fn start_ws_server(listener: TcpListener, shutdown_tx: mpsc::Sender<()>) {
+pub async fn start_ws_server(listener: TcpListener, timer: ShutdownTimer) {
     let addr = listener.local_addr().expect("Failed to get local address");
     info!("Listening on: {addr}");
 
     let game_state: Arc<GameState> = Arc::new(GameState {
         games: Mutex::new(HashMap::new()),
-        timer: Mutex::new(ShutdownTimer::new(shutdown_tx)),
+        timer: Mutex::new(timer),
     });
 
     while let Ok((stream, _)) = listener.accept().await {

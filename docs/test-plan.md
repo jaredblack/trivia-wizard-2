@@ -141,27 +141,24 @@ async fn test_host_creates_game() {
 
 ### Message Flow
 
-- [ ] Team submits answer, host receives it
-- [ ] Team receives confirmation when answer is submitted
+- [x] Team submits answer, host receives it & Team receives confirmation when answer is submitted
 - [ ] (Don't implement yet) Host scores answer, appropriate messages sent 
-- [ ] Team submits answer when host is disconnected (error case)
+- [x] Team submits answer when host is disconnected (error case)
 
-### Host Reconnection
+### Reconnection
 
-- [ ] Host disconnects and reconnects to existing game
-- [ ] Teams remain in game after host reconnects
-- [ ] Game state preserved across host reconnection
+- [x] Host disconnects and reconnects to existing game & Teams remain in game after host reconnects. This should check the same assertions as team_submits_answer_host_receives_it, just after a host disconnection and reconnection. 
+- [ ] (Don't implement yet) Game state preserved across host reconnection
 
 ### Error Handling
 
-- [ ] Invalid JSON message returns error
-- [ ] Host sends unexpected message type (e.g., JoinGame)
-- [ ] Team sends unexpected message type (e.g., CreateGame)
-- [ ] Malformed message handling
+- [x] Invalid JSON message returns error
+- [x] Host sends unexpected message type (e.g., JoinGame)
+- [x] Team sends unexpected message type (e.g., CreateGame)
 
 ### Shutdown timer
-- [ ] Timer successfully closes server if all hosts disconnect 
-    - This will require refactoring SHUTDOWN_MINS to live in an environment variable (or at least be able to be overridden by an environment variable)
-- [ ] Timer cancels if a new host connects (a connection that sends at least one ClientMessage::Host)
-- [ ] Timer does NOT cancel if a team connects or sends a message
+- [x] Timer successfully closes server if all hosts disconnect 
+    - This will require refactoring SHUTDOWN_MINS to be configurable, either via an env variable or as a parameter to start_ws_server (which could maybe take a ShutdownTimer instead of a shutdown tx)
+- [x] Timer cancels if a new host connects (a connection that sends at least one ClientMessage::Host)
+- [x] Timer does NOT cancel if a team connects or sends a message
     - Note: this is currently broken! That's ok, we'll let the test fail and then fix it.

@@ -3,6 +3,7 @@ use std::time::Duration;
 use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::{HostServerMessage, ServerMessage, TeamServerMessage};
 use backend::server::start_ws_server;
+use backend::timer::ShutdownTimer;
 use futures_util::{
     SinkExt, StreamExt,
     stream::{SplitSink, SplitStream},
@@ -14,18 +15,23 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async, tungsten
 pub struct TestServer {
     pub ws_port: u16,
     _shutdown_tx: mpsc::Sender<()>,
+    pub shutdown_rx: mpsc::Receiver<()>,
 }
 
 impl TestServer {
     pub async fn start() -> Self {
+        Self::start_with_shutdown_duration(Duration::from_secs(2)).await
+    }
+
+    pub async fn start_with_shutdown_duration(shutdown_duration: Duration) -> Self {
         let ws_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let ws_port = ws_listener.local_addr().unwrap().port();
 
-        let (shutdown_tx, _shutdown_rx) = mpsc::channel(1);
+        let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
 
-        let shutdown_tx_clone = shutdown_tx.clone();
+        let timer = ShutdownTimer::new(shutdown_tx.clone(), shutdown_duration);
         tokio::spawn(async move {
-            start_ws_server(ws_listener, shutdown_tx_clone).await;
+            start_ws_server(ws_listener, timer).await;
         });
 
         // Give the server a moment to start
@@ -34,6 +40,7 @@ impl TestServer {
         Self {
             ws_port,
             _shutdown_tx: shutdown_tx,
+            shutdown_rx,
         }
     }
 
@@ -61,16 +68,18 @@ impl TestClient {
         self.write.send(Message::Text(json)).await.unwrap();
     }
 
-    pub async fn recv_json<T: DeserializeOwned>(&mut self) -> T {
-        let msg = self.read.next().await.unwrap().unwrap();
-        serde_json::from_str(msg.to_text().unwrap()).unwrap()
+    pub async fn send_raw_text(&mut self, text: &str) {
+        self.write.send(Message::Text(text.to_string())).await.unwrap();
     }
 
-    pub async fn recv_json_timeout<T: DeserializeOwned>(
-        &mut self,
-        duration: Duration,
-    ) -> Option<T> {
-        tokio::time::timeout(duration, self.recv_json()).await.ok()
+    pub async fn recv_json<T: DeserializeOwned>(&mut self) -> T {
+        let timeout_duration = Duration::from_secs(2);
+        match tokio::time::timeout(timeout_duration, self.read.next()).await {
+            Ok(Some(Ok(msg))) => serde_json::from_str(msg.to_text().unwrap()).unwrap(),
+            Ok(Some(Err(e))) => panic!("WebSocket error: {e}"),
+            Ok(None) => panic!("WebSocket stream closed"),
+            Err(_) => panic!("Timeout waiting for message from server (waited {timeout_duration:?})"),
+        }
     }
 
     /// Send CreateGame and return the game code
