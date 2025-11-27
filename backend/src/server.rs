@@ -55,7 +55,7 @@ async fn accept_connection(peer: SocketAddr, stream: TcpStream, game_state: Arc<
 }
 
 async fn handle_connection(
-    peer: SocketAddr,
+    _peer: SocketAddr,
     stream: TcpStream,
     game_state: Arc<GameState>,
 ) -> Result<()> {
@@ -146,7 +146,7 @@ async fn create_game(
                 game_code: game_code.clone(),
             });
             send_msg(&tx, msg);
-            handle_host(ws_stream, game_state, rx, game_code).await;
+            handle_host(ws_stream, game_state, rx, tx, game_code).await;
             info!("exiting create game (reclaimed)");
             return;
         }
@@ -159,14 +159,57 @@ async fn create_game(
         game_code: game_code.clone(),
     });
     send_msg(&tx, msg);
-    handle_host(ws_stream, game_state, rx, game_code).await;
+    handle_host(ws_stream, game_state, rx, tx, game_code).await;
     info!("exiting create game");
+}
+
+fn process_host_action(action: HostAction) -> ServerMessage {
+    match action {
+        HostAction::ScoreAnswer {
+            team_name,
+            answer: _,
+        } => ServerMessage::Host(HostServerMessage::ScoreUpdate {
+            team_name,
+            score: 1,
+        }),
+        HostAction::CreateGame => ServerMessage::Error("Game already created".to_string()),
+        HostAction::ReclaimGame { game_code: _ } => {
+            ServerMessage::Error("Already in a game".to_string())
+        }
+    }
+}
+
+async fn process_host_message(
+    text: &str,
+    game_state: &Arc<GameState>,
+    game_code: &str,
+    host_tx: &Tx,
+) {
+    let games_map = game_state.games.lock().await;
+    if games_map.get(game_code).is_none() {
+        error!("Game {game_code} not found while processing host message");
+        return;
+    }
+    drop(games_map);
+
+    let msg = match serde_json::from_str::<ClientMessage>(text) {
+        Ok(ClientMessage::Host(action)) => process_host_action(action),
+        Ok(_) => ServerMessage::Error("Unexpected message type: expected Host message".to_string()),
+        Err(e) => {
+            error!("Failed to parse message: {text}");
+            error!("Error: {e}");
+            ServerMessage::Error("Server error: Failed to parse message".to_string())
+        }
+    };
+
+    send_msg(host_tx, msg);
 }
 
 async fn handle_host(
     ws_stream: WebSocketStream<TcpStream>,
     game_state: Arc<GameState>,
     mut rx: Rx,
+    host_tx: Tx,
     game_code: String,
 ) {
     let (mut ws_write, mut ws_read) = ws_stream.split();
@@ -189,53 +232,8 @@ async fn handle_host(
                     log::warn!("Received empty message");
                     continue;
                 }
-                info!("151 Received message: {text}");
-                let games_map = game_state2.games.lock().await;
-                if let Some(game) = games_map.get(&game_code2) {
-                    match serde_json::from_str::<ClientMessage>(text) {
-                        Ok(msg) => {
-                            if let ClientMessage::Host(action) = msg {
-                                match action {
-                                    HostAction::ScoreAnswer {
-                                        team_name,
-                                        answer: _,
-                                    } => {
-                                        let msg =
-                                            ServerMessage::Host(HostServerMessage::ScoreUpdate {
-                                                team_name: team_name.clone(),
-                                                score: 1,
-                                            });
-                                        send_msg(game.host_tx.as_ref().unwrap(), msg);
-                                    }
-                                    HostAction::CreateGame => {
-                                        let msg = ServerMessage::Error(
-                                            "Game already created".to_string(),
-                                        );
-                                        send_msg(game.host_tx.as_ref().unwrap(), msg);
-                                    }
-                                    HostAction::ReclaimGame { game_code: _ } => {
-                                        let msg =
-                                            ServerMessage::Error("Already in a game".to_string());
-                                        send_msg(game.host_tx.as_ref().unwrap(), msg);
-                                    }
-                                }
-                            } else {
-                                let msg = ServerMessage::Error(
-                                    "Unexpected message type: expected Host message".to_string(),
-                                );
-                                send_msg(game.host_tx.as_ref().unwrap(), msg);
-                            }
-                        }
-                        Err(e) => {
-                            error!("Failed to parse message: {text}");
-                            error!("Error: {e}");
-                            let msg = ServerMessage::Error(
-                                "Server error: Failed to parse message".to_string(),
-                            );
-                            send_msg(game.host_tx.as_ref().unwrap(), msg);
-                        }
-                    }
-                }
+                info!("Received message: {text}");
+                process_host_message(text, &game_state2, &game_code2, &host_tx).await;
             }
         }
     });
@@ -278,6 +276,63 @@ async fn join_game(
     }
 }
 
+fn process_team_action(action: TeamAction, game: &Game, team_tx: &Tx) {
+    match action {
+        TeamAction::SubmitAnswer { team_name, answer } => {
+            if let Some(host_tx) = game.host_tx.as_ref() {
+                let team_msg = ServerMessage::Team(TeamServerMessage::AnswerSubmitted);
+                send_msg(team_tx, team_msg);
+                let host_msg = ServerMessage::Host(HostServerMessage::NewAnswer {
+                    answer,
+                    team_name,
+                });
+                send_msg(host_tx, host_msg);
+            } else {
+                let msg = ServerMessage::Error("Host is not connected".to_string());
+                send_msg(team_tx, msg);
+            }
+        }
+        TeamAction::JoinGame { .. } => {
+            let msg = ServerMessage::Error("Game already joined".to_string());
+            send_msg(team_tx, msg);
+        }
+    }
+}
+
+async fn process_team_message(
+    text: &str,
+    game_state: &Arc<GameState>,
+    game_code: &str,
+    team_name: &str,
+) {
+    let games_map = game_state.games.lock().await;
+    let Some(game) = games_map.get(game_code) else {
+        error!("Game {game_code} not found while processing team message from {team_name}");
+        return;
+    };
+    let Some(team_tx) = game.teams_tx.get(team_name) else {
+        error!("Team {team_name} not found in game {game_code} while processing message");
+        return;
+    };
+
+    match serde_json::from_str::<ClientMessage>(text) {
+        Ok(ClientMessage::Team(action)) => {
+            process_team_action(action, game, team_tx);
+        }
+        Ok(_) => {
+            let msg =
+                ServerMessage::Error("Unexpected message type: expected Team message".to_string());
+            send_msg(team_tx, msg);
+        }
+        Err(e) => {
+            error!("Failed to parse message: {text}");
+            error!("Error: {e}");
+            let msg = ServerMessage::Error("Server error: Failed to parse message".to_string());
+            send_msg(team_tx, msg);
+        }
+    }
+}
+
 async fn handle_team(
     ws_stream: WebSocketStream<TcpStream>,
     game_state: Arc<GameState>,
@@ -295,61 +350,15 @@ async fn handle_team(
         }
     });
 
-    let game_state = game_state.clone();
+    let game_state2 = game_state.clone();
+    let game_code2 = game_code.clone();
+    let team_name2 = team_name.clone();
 
     let read_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_read.next().await {
             if let Ok(text) = msg.to_text() {
                 info!("Received message: {text}");
-                let games_map = game_state.games.lock().await;
-                if let Some(game) = games_map.get(&game_code) {
-                    let team_tx = game.teams_tx.get(&team_name).unwrap();
-                    match serde_json::from_str::<ClientMessage>(text) {
-                        Ok(msg) => {
-                            if let ClientMessage::Team(action) = msg {
-                                match action {
-                                    TeamAction::SubmitAnswer { team_name, answer } => {
-                                        if let Some(host_tx) = game.host_tx.as_ref() {
-                                            let team_msg = ServerMessage::Team(
-                                                TeamServerMessage::AnswerSubmitted,
-                                            );
-                                            send_msg(team_tx, team_msg);
-                                            let host_msg =
-                                                ServerMessage::Host(HostServerMessage::NewAnswer {
-                                                    answer: answer.clone(),
-                                                    team_name: team_name.clone(),
-                                                });
-                                            send_msg(host_tx, host_msg);
-                                        } else {
-                                            let msg = ServerMessage::Error(
-                                                "Host is not connected".to_string(),
-                                            );
-                                            send_msg(team_tx, msg);
-                                        }
-                                    }
-                                    TeamAction::JoinGame { .. } => {
-                                        let msg =
-                                            ServerMessage::Error("Game already joined".to_string());
-                                        send_msg(team_tx, msg);
-                                    }
-                                }
-                            } else {
-                                let msg = ServerMessage::Error(
-                                    "Unexpected message type: expected Team message".to_string(),
-                                );
-                                send_msg(team_tx, msg);
-                            }
-                        }
-                        Err(e) => {
-                            error!("Failed to parse message: {text}");
-                            error!("Error: {e}");
-                            let msg = ServerMessage::Error(
-                                "Server error: Failed to parse message".to_string(),
-                            );
-                            send_msg(team_tx, msg);
-                        }
-                    }
-                }
+                process_team_message(text, &game_state2, &game_code2, &team_name2).await;
             }
         }
     });
