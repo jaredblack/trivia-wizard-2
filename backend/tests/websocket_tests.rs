@@ -206,9 +206,16 @@ async fn host_disconnects_and_reconnects_teams_remain() {
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
     // Host reconnects by creating a new connection and sending CreateGame
-    // Note: will break for now if we remove the hardcoded game code
     let mut host = TestClient::connect(&server.ws_url()).await;
-    let reconnected_game_code = host.create_game().await;
+    host.send_json(&ClientMessage::Host(HostAction::ReclaimGame {
+        game_code: game_code.clone(),
+    }))
+    .await;
+    let response: ServerMessage = host.recv_json().await;
+    let reconnected_game_code = match response {
+        ServerMessage::Host(HostServerMessage::GameCreated { game_code }) => game_code,
+        _ => panic!("Didn't receive GameCreated when reclaiming game"),
+    };
 
     // Verify we got the same game code back
     assert_eq!(

@@ -150,46 +150,6 @@ impl ServiceDiscovery {
         Ok(())
     }
 
-    /// Remove the DNS record (useful for graceful shutdown)
-    // pub async fn remove_dns_record(&self) -> Result<(), Box<dyn Error>> {
-    //     // First, we need to get the current record to delete it
-    //     let list_response = self
-    //         .route53_client
-    //         .list_resource_record_sets()
-    //         .hosted_zone_id(&self.hosted_zone_id)
-    //         .start_record_name(&self.dns_name)
-    //         .start_record_type(RrType::A)
-    //         .send()
-    //         .await?;
-
-    //     // Find the matching record
-    //     for record_set in list_response.resource_record_sets() {
-    //         if record_set.name() == &self.dns_name && record_set.r#type() == &RrType::A {
-    //             let change = Change::builder()
-    //                 .action(ChangeAction::Delete)
-    //                 .resource_record_set(record_set.clone())
-    //                 .build()?;
-
-    //             let change_batch = aws_sdk_route53::types::ChangeBatch::builder()
-    //                 .changes(change)
-    //                 .build()?;
-
-    //             self.route53_client
-    //                 .change_resource_record_sets()
-    //                 .hosted_zone_id(&self.hosted_zone_id)
-    //                 .change_batch(change_batch)
-    //                 .send()
-    //                 .await?;
-
-    //             info!("DNS record removed successfully");
-    //             return Ok(());
-    //         }
-    //     }
-
-    //     info!("No DNS record found to remove");
-    //     Ok(())
-    // }
-
     /// Register this service on startup
     pub async fn register(&self) -> Result<(), Box<dyn Error>> {
         info!("Discovering public IP address...");
@@ -205,11 +165,6 @@ impl ServiceDiscovery {
 }
 
 pub async fn shutdown_server() -> Result<()> {
-    // create ecs client
-    // -> the stuff that ServiceDiscovery takes into new should be available as env variables or something
-    //      no need for them to be passed in from server.rs. server.rs shouldn't know about AWS at all (mostly)
-    // call ecs.update_task_count(0) or whatever
-    // consider: is there anything in here we need to do to gracefully shut down? any state we need to write to db?
     if !is_local() {
         warn!("I am shutting down the server. I mean it!");
         let region_provider = RegionProviderChain::default_provider();

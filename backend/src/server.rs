@@ -8,6 +8,7 @@ use crate::{
 };
 use futures_util::{SinkExt, StreamExt};
 use log::*;
+use rand::Rng;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
@@ -24,6 +25,14 @@ pub type Rx = mpsc::UnboundedReceiver<Message>;
 struct GameState {
     games: Mutex<HashMap<String, Game>>,
     timer: Mutex<ShutdownTimer>,
+}
+
+fn generate_code() -> String {
+    rand::rng()
+        .sample_iter(&rand::distr::Alphabetic)
+        .take(4)
+        .map(|c| (c as char).to_ascii_uppercase())
+        .collect()
 }
 
 async fn accept_connection(peer: SocketAddr, stream: TcpStream, game_state: Arc<GameState>) {
@@ -52,15 +61,6 @@ async fn handle_connection(
 ) -> Result<()> {
     let mut ws_stream = accept_async(stream).await.expect("Failed to accept");
 
-    info!("New WebSocket connection: {peer}");
-    game_state
-        .timer
-        .lock()
-        .await
-        .cancel_timer()
-        .await
-        .unwrap_or_else(|e| error!("{e:?}"));
-
     if let Some(msg) = ws_stream.next().await {
         let msg = msg?;
         if let Ok(text) = msg.to_text() {
@@ -71,7 +71,9 @@ async fn handle_connection(
                     match client_message {
                         ClientMessage::Host(action) => {
                             if let HostAction::CreateGame = action {
-                                create_game(game_state, ws_stream).await;
+                                create_game(game_state, ws_stream, generate_code()).await;
+                            } else if let HostAction::ReclaimGame { game_code } = action {
+                                create_game(game_state, ws_stream, game_code).await;
                             } else {
                                 error!(
                                     "Expected CreateGame from new Host connection, instead got: {action:?}"
@@ -118,8 +120,19 @@ async fn handle_connection(
     Ok(())
 }
 
-async fn create_game(game_state: Arc<GameState>, ws_stream: WebSocketStream<TcpStream>) {
-    let game_code = "hello".to_string();
+async fn create_game(
+    game_state: Arc<GameState>,
+    ws_stream: WebSocketStream<TcpStream>,
+    game_code: String,
+) {
+    game_state
+        .timer
+        .lock()
+        .await
+        .cancel_timer()
+        .await
+        .unwrap_or_else(|e| error!("{e:?}"));
+
     let (tx, rx) = mpsc::unbounded_channel::<Message>();
     let mut games_map = game_state.games.lock().await;
 
@@ -200,6 +213,11 @@ async fn handle_host(
                                         );
                                         send_msg(game.host_tx.as_ref().unwrap(), msg);
                                     }
+                                    HostAction::ReclaimGame { game_code: _ } => {
+                                        let msg =
+                                            ServerMessage::Error("Already in a game".to_string());
+                                        send_msg(game.host_tx.as_ref().unwrap(), msg);
+                                    }
                                 }
                             } else {
                                 let msg = ServerMessage::Error(
@@ -236,7 +254,7 @@ async fn handle_host(
 
 async fn join_game(
     game_state: Arc<GameState>,
-    ws_stream: WebSocketStream<TcpStream>,
+    mut ws_stream: WebSocketStream<TcpStream>,
     game_code: String,
     team_name: String,
 ) {
@@ -252,9 +270,11 @@ async fn join_game(
         send_msg(&tx, msg);
         handle_team(ws_stream, game_state, rx, game_code, team_name).await;
     } else {
+        drop(games_map);
         info!("Team {team_name} tried to join game {game_code}, but it doesn't exist");
-        let msg = ServerMessage::Error(format!("Game code {game_code} not found"));
-        send_msg(&tx, msg);
+        let error_message = ServerMessage::Error(format!("Game code {game_code} not found"));
+        let msg = serde_json::to_string(&error_message).unwrap();
+        let _ = ws_stream.send(Message::text(msg)).await;
     }
 }
 

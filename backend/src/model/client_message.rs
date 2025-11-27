@@ -9,6 +9,10 @@ pub enum HostAction {
         team_name: String,
         answer: String,
     },
+    #[serde(rename_all = "camelCase")]
+    ReclaimGame {
+        game_code: String,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
