@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let service_discovery = ServiceDiscovery::new(
             "TriviaWizardServer".to_string(),
             "Z02007853E9RZODID8U1C".to_string(),
-            "ws.trivia.jarbla.com.".to_string(),
+            "ws-origin.trivia.jarbla.com.".to_string(),
         )
         .await?;
 

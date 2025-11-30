@@ -35,7 +35,7 @@ export default function HostLanding() {
     console.log("trying to poll server status");
     const interval = setInterval(async () => {
       try {
-        const response = await fetch("http://ws.trivia.jarbla.com:8080/health", { signal: AbortSignal.timeout(2000) });
+        const response = await fetch("https://ws.trivia.jarbla.com/health", { signal: AbortSignal.timeout(2000) });
         if (response.ok) {
           setServerRunning(true);
           setIsLoading(false);

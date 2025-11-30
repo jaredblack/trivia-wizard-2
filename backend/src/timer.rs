@@ -27,7 +27,7 @@ impl ShutdownTimer {
     // start timer
     pub async fn start_timer(&mut self) {
         let mut cancel_rx = self.cancel_tx.subscribe();
-        info!("Starting shutdown timer...");
+        info!("Starting {:?} shutdown timer...", self.duration);
 
         let shutdown_tx = self.shutdown_tx.clone();
         let duration = self.duration;

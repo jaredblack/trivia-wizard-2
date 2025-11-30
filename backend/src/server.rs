@@ -42,7 +42,6 @@ async fn accept_connection(peer: SocketAddr, stream: TcpStream, game_state: Arc<
             err => error!("Error processing connection: {err}"),
         }
     }
-    info!("accept connection");
 
     for game in game_state.games.lock().await.values() {
         if game.host_tx.is_some() {
@@ -64,7 +63,7 @@ async fn handle_connection(
     if let Some(msg) = ws_stream.next().await {
         let msg = msg?;
         if let Ok(text) = msg.to_text() {
-            info!("65 Received message: {text}");
+            info!("Received message: {text}");
             match serde_json::from_str::<ClientMessage>(text) {
                 Ok(client_message) => {
                     info!("Parsed message: {client_message:?}");
@@ -115,8 +114,6 @@ async fn handle_connection(
             }
         }
     }
-    info!("exiting handel connection");
-
     Ok(())
 }
 
@@ -147,7 +144,6 @@ async fn create_game(
             });
             send_msg(&tx, msg);
             handle_host(ws_stream, game_state, rx, tx, game_code).await;
-            info!("exiting create game (reclaimed)");
             return;
         }
     }
@@ -160,7 +156,6 @@ async fn create_game(
     });
     send_msg(&tx, msg);
     handle_host(ws_stream, game_state, rx, tx, game_code).await;
-    info!("exiting create game");
 }
 
 fn process_host_action(action: HostAction) -> ServerMessage {
@@ -282,10 +277,8 @@ fn process_team_action(action: TeamAction, game: &Game, team_tx: &Tx) {
             if let Some(host_tx) = game.host_tx.as_ref() {
                 let team_msg = ServerMessage::Team(TeamServerMessage::AnswerSubmitted);
                 send_msg(team_tx, team_msg);
-                let host_msg = ServerMessage::Host(HostServerMessage::NewAnswer {
-                    answer,
-                    team_name,
-                });
+                let host_msg =
+                    ServerMessage::Host(HostServerMessage::NewAnswer { answer, team_name });
                 send_msg(host_tx, host_msg);
             } else {
                 let msg = ServerMessage::Error("Host is not connected".to_string());

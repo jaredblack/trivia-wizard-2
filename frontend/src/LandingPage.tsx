@@ -6,7 +6,7 @@ const LandingPage: React.FC = () => {
   return (
     <div style={{ textAlign: 'center', paddingTop: '50px' }}>
       <h1 style={{ fontWeight: 'bold', fontSize: '3rem' }}>Trivia Wizard</h1>
-      <Link to="/authenticate">
+      <Link to="/hostlanding">
         <button 
           style={{ 
             backgroundColor: 'blue', 

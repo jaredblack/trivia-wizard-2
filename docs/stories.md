@@ -1,8 +1,6 @@
 We are building the Trivia Wizard app as described in overview.md. We will only implement in small, well-defined stories, which are defined in this document.
 
 ## near future
-- Reconnection will fail once the game code isn't hardcoded. Need to accept an (optional?) parameter with CreateGame to supply a game code
-- lots of unwraps now that we made host_tx and option -- we need to handle that better
 
 ## misc
 - Use wss/https to secure traffic
