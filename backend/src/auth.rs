@@ -1,6 +1,5 @@
 use anyhow::{Result, anyhow};
-#[cfg(feature = "test-support")]
-use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, jwk::JwkSet};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -42,14 +41,89 @@ impl CognitoValidator {
     }
 }
 
+impl CognitoValidator {
+    fn jwks_url(&self) -> String {
+        format!(
+            "https://cognito-idp.{}.amazonaws.com/{}/.well-known/jwks.json",
+            self.region, self.user_pool_id
+        )
+    }
+
+    fn expected_issuer(&self) -> String {
+        format!(
+            "https://cognito-idp.{}.amazonaws.com/{}",
+            self.region, self.user_pool_id
+        )
+    }
+
+    fn fetch_jwks(&self) -> Result<JwkSet> {
+        let response = reqwest::blocking::get(&self.jwks_url())
+            .map_err(|e| anyhow!("Failed to fetch JWKS: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(anyhow!(
+                "JWKS request failed with status: {}",
+                response.status()
+            ));
+        }
+
+        response
+            .json::<JwkSet>()
+            .map_err(|e| anyhow!("Failed to parse JWKS: {}", e))
+    }
+
+    fn find_decoding_key(&self, jwks: &JwkSet, kid: &str) -> Result<DecodingKey> {
+        let jwk = jwks
+            .keys
+            .iter()
+            .find(|k| k.common.key_id.as_deref() == Some(kid))
+            .ok_or_else(|| anyhow!("No matching key found for kid: {}", kid))?;
+
+        DecodingKey::from_jwk(jwk).map_err(|e| anyhow!("Failed to create decoding key: {}", e))
+    }
+}
+
 impl JwtValidator for CognitoValidator {
-    fn validate(&self, _token: &str) -> Result<AuthResult> {
-        // TODO: Implement actual Cognito validation
-        // 1. Fetch JWKS from Cognito
-        // 2. Decode and verify JWT signature
-        // 3. Validate claims (exp, iss, client_id, token_use)
-        // 4. Extract sub and groups
-        Err(anyhow!("CognitoValidator not yet implemented"))
+    fn validate(&self, token: &str) -> Result<AuthResult> {
+        // Decode header to get the key ID (kid)
+        let header = jsonwebtoken::decode_header(token)
+            .map_err(|e| anyhow!("Failed to decode token header: {}", e))?;
+
+        let kid = header
+            .kid
+            .ok_or_else(|| anyhow!("Token missing kid in header"))?;
+
+        // Fetch JWKS and find the matching key
+        let jwks = self.fetch_jwks()?;
+        let decoding_key = self.find_decoding_key(&jwks, &kid)?;
+
+        // Set up validation
+        let mut validation = Validation::new(Algorithm::RS256);
+        validation.set_issuer(&[&self.expected_issuer()]);
+        validation.set_required_spec_claims(&["exp", "sub", "iss"]);
+
+        // Decode and validate the token
+        let token_data = decode::<Claims>(token, &decoding_key, &validation)
+            .map_err(|e| anyhow!("Invalid token: {}", e))?;
+
+        let claims = token_data.claims;
+
+        // Validate token_use claim
+        if claims.token_use != "access" {
+            return Err(anyhow!("Invalid token_use: expected 'access'"));
+        }
+
+        // Validate client_id
+        if claims.client_id != self.client_id {
+            return Err(anyhow!("Invalid client_id"));
+        }
+
+        let is_host = claims.groups.contains(&"Trivia-Hosts".to_string());
+
+        Ok(AuthResult {
+            user_id: claims.sub,
+            is_host,
+        })
     }
 }
 

@@ -21,6 +21,7 @@ async fn health_check() -> &'static str {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::dotenv().ok();
     env_logger::init();
     info!("Starting Trivia Wizard 2 backend");
 
@@ -28,9 +29,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!("Running locally, skipping AWS service setup...")
     } else {
         info!("Running in ECS Fargate. Setting up service discovery...");
+        let hosted_zone_id = std::env::var("ROUTE53_HOSTED_ZONE_ID")
+            .expect("ROUTE53_HOSTED_ZONE_ID must be set");
         let service_discovery = ServiceDiscovery::new(
             "TriviaWizardServer".to_string(),
-            "Z02007853E9RZODID8U1C".to_string(),
+            hosted_zone_id,
             "ws-origin.trivia.jarbla.com.".to_string(),
         )
         .await?;

@@ -11,13 +11,21 @@ import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as route53 from "aws-cdk-lib/aws-route53";
 import * as route53Targets from "aws-cdk-lib/aws-route53-targets";
+import { AuthStack } from "./AuthStack";
+import { ECS_CLUSTER_NAME, ECS_SERVICE_NAME } from "./constants";
+
+interface ServerStackProps extends cdk.StackProps {
+  authStack: AuthStack;
+}
 
 export class ServerStack extends cdk.Stack {
   public readonly service: ecs.FargateService;
   public readonly taskRole: iam.Role;
 
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props: ServerStackProps) {
     super(scope, id, props);
+
+    const hostedZoneId = "Z02007853E9RZODID8U1C";
 
     const vpc = ec2.Vpc.fromLookup(this, "DefaultVPC", {
       isDefault: true,
@@ -25,7 +33,7 @@ export class ServerStack extends cdk.Stack {
 
     const cluster = new ecs.Cluster(this, "TriviaWizardServer", {
       vpc: vpc,
-      clusterName: "TriviaWizardServer",
+      clusterName: ECS_CLUSTER_NAME,
     });
 
     const logGroup = new logs.LogGroup(this, "TriviaLogGroup", {
@@ -79,6 +87,9 @@ export class ServerStack extends cdk.Stack {
       }),
       environment: {
         AWS_REGION: this.region,
+        COGNITO_USER_POOL_ID: props.authStack.userPool.userPoolId,
+        COGNITO_CLIENT_ID: props.authStack.userPoolClient.userPoolClientId,
+        ROUTE53_HOSTED_ZONE_ID: hostedZoneId,
       },
       healthCheck: {
         command: [
@@ -97,7 +108,7 @@ export class ServerStack extends cdk.Stack {
       taskDefinition: taskDefinition,
       desiredCount: 0,
       assignPublicIp: true,
-      serviceName: "trivia-wizard-fargate-service",
+      serviceName: ECS_SERVICE_NAME,
     });
 
     this.service.connections.allowFromAnyIpv4(
@@ -115,7 +126,7 @@ export class ServerStack extends cdk.Stack {
       this,
       "TriviaHostedZone",
       {
-        hostedZoneId: "Z02007853E9RZODID8U1C",
+        hostedZoneId: hostedZoneId,
         zoneName: "trivia.jarbla.com",
       }
     );

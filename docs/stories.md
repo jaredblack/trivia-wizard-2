@@ -81,16 +81,11 @@ Implement authentication for host connections using Cognito access tokens. Hosts
 - Store user ID in Game struct (not persisted to database yet, just in memory)
 - Add TODO comment indicating this will be persisted when database integration is added
 
-#### 8. Testing
-- Update WebSocket tests in `tests/websocket_tests.rs`:
-  - Add test for host connection without token (should fail)
-  - Add test for host connection with invalid token (should fail)
-  - Add test for host connection with valid token (should succeed)
-  - Add test for team connection without token (should succeed - no auth required)
-- Mock JWT validation for tests (use a test token with known values)
-- Consider adding integration tests with actual Cognito tokens (optional)
-
 ### Frontend Tasks (TypeScript/React)
+
+Please note when implementing the frontend tasks that not much attention has been given to the frontend yet, and this is intentional.
+For now, we are focused on minimal functionality to make sure that key server features are implemented.
+We are not concerned with user experience, more with developer experience (e.g. printing errors to console rather than prettily showing them to user.)
 
 #### 1. Update WebSocket Connection in HostLanding
 - In `HostLanding.tsx`, modify the `startGame` function:
@@ -99,31 +94,17 @@ Implement authentication for host connections using Cognito access tokens. Hosts
   - Append token as query parameter to WebSocket URL:
     ```typescript
     const token = session.tokens?.accessToken?.toString();
-    const wsUrl = `ws://ws.trivia.jarbla.com:9002?token=${encodeURIComponent(token)}`;
+    const wsUrl = `wss://ws.trivia.jarbla.com?token=${encodeURIComponent(token)}`;
     const ws = new WebSocket(wsUrl);
     ```
 - Handle case where token is not available (user not authenticated):
   - This shouldn't happen in ProtectedRoute, but add defensive check
-  - Display error message to user if token missing
+  - Log error if token missing
 
 #### 2. Update WebSocket Error Handling
 - Add specific handling for authentication errors:
   - Listen for error messages from server related to authentication
-  - Display user-friendly error message if authentication fails
-  - Possibly prompt user to sign out and sign back in if token is invalid
-  - Consider adding token refresh logic if token is expired (optional enhancement)
-
-#### 3. Update Connection Flow for ReclaimGame
-- If implementing ReclaimGame functionality in the future:
-  - Same token handling as CreateGame
-  - Fetch token and append to WebSocket URL before sending ReclaimGame message
-
-#### 4. Handle Token Expiration Edge Cases (Future Enhancement)
-- Current design: token only validated on connection, not during session
-- If implementing token refresh:
-  - Monitor token expiration while game is active
-  - Refresh token before expiration using Amplify's automatic refresh
-  - Reconnect WebSocket with new token if needed (complex, low priority)
+  - Print error message in console if authentication fails
 
 ### CDK Tasks (Infrastructure)
 

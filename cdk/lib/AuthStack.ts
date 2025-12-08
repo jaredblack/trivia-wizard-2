@@ -8,18 +8,14 @@ import {
 } from "aws-cdk-lib/aws-cognito-identitypool";
 import { Construct } from "constructs";
 import * as iam from "aws-cdk-lib/aws-iam";
-import { ServerStack } from "./ServerStack";
-
-interface AuthStackProps extends cdk.StackProps {
-  serverStack: ServerStack;
-}
+import { ECS_CLUSTER_NAME, ECS_SERVICE_NAME } from "./constants";
 
 export class AuthStack extends cdk.Stack {
   public readonly userPool: cognito.UserPool;
   public readonly userPoolClient: cognito.UserPoolClient;
   public readonly identityPool: IdentityPool;
 
-  constructor(scope: Construct, id: string, props: AuthStackProps) {
+  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
     // Create Cognito User Pool
@@ -137,10 +133,12 @@ export class AuthStack extends cdk.Stack {
     );
 
     // Add ECS permissions to hosts role
+    // Using predictable ARN to avoid circular dependency with ServerStack
+    const serviceArn = `arn:aws:ecs:${this.region}:${this.account}:service/${ECS_CLUSTER_NAME}/${ECS_SERVICE_NAME}`;
     hostsRole.addToPolicy(
       new iam.PolicyStatement({
         actions: ["ecs:UpdateService", "ecs:DescribeServices"],
-        resources: [props.serverStack.service.serviceArn],
+        resources: [serviceArn],
       })
     );
 
