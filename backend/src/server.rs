@@ -1,4 +1,5 @@
 use crate::{
+    auth::{AuthResult, JwtValidator},
     model::{
         client_message::{ClientMessage, HostAction, TeamAction},
         game::Game,
@@ -15,8 +16,11 @@ use tokio::{
     sync::{Mutex, mpsc},
 };
 use tokio_tungstenite::{
-    WebSocketStream, accept_async,
-    tungstenite::{Error, Message, Result},
+    WebSocketStream, accept_hdr_async,
+    tungstenite::{
+        Error, Message, Result,
+        handshake::server::{Request, Response},
+    },
 };
 
 pub type Tx = mpsc::UnboundedSender<Message>;
@@ -25,6 +29,7 @@ pub type Rx = mpsc::UnboundedReceiver<Message>;
 struct GameState {
     games: Mutex<HashMap<String, Game>>,
     timer: Mutex<ShutdownTimer>,
+    validator: Arc<dyn JwtValidator>,
 }
 
 fn generate_code() -> String {
@@ -53,12 +58,46 @@ async fn accept_connection(peer: SocketAddr, stream: TcpStream, game_state: Arc<
     game_state.timer.lock().await.start_timer().await;
 }
 
+fn extract_token_from_request(request: &Request) -> Option<String> {
+    let uri = request.uri();
+    let query = uri.query()?;
+    for pair in query.split('&') {
+        if let Some((key, value)) = pair.split_once('=') {
+            if key == "token" {
+                return Some(value.to_string());
+            }
+        }
+    }
+    None
+}
+
 async fn handle_connection(
     _peer: SocketAddr,
     stream: TcpStream,
     game_state: Arc<GameState>,
 ) -> Result<()> {
-    let mut ws_stream = accept_async(stream).await.expect("Failed to accept");
+    // Extract token during WebSocket handshake
+    let mut auth_result: Option<AuthResult> = None;
+    let validator = game_state.validator.clone();
+
+    let callback = |request: &Request, response: Response| {
+        if let Some(token) = extract_token_from_request(request) {
+            match validator.validate(&token) {
+                Ok(result) => {
+                    info!("Token validated for user: {}", result.user_id);
+                    auth_result = Some(result);
+                }
+                Err(e) => {
+                    warn!("Token validation failed: {}", e);
+                }
+            }
+        }
+        Ok(response)
+    };
+
+    let mut ws_stream = accept_hdr_async(stream, callback)
+        .await
+        .expect("Failed to accept");
 
     if let Some(msg) = ws_stream.next().await {
         let msg = msg?;
@@ -69,19 +108,40 @@ async fn handle_connection(
                     info!("Parsed message: {client_message:?}");
                     match client_message {
                         ClientMessage::Host(action) => {
-                            if let HostAction::CreateGame = action {
-                                create_game(game_state, ws_stream, generate_code()).await;
-                            } else if let HostAction::ReclaimGame { game_code } = action {
-                                create_game(game_state, ws_stream, game_code).await;
-                            } else {
-                                error!(
-                                    "Expected CreateGame from new Host connection, instead got: {action:?}"
-                                );
-                                let error_message = ServerMessage::Error(
-                                    "First action must be CreateGame".to_string(),
-                                );
-                                let msg = serde_json::to_string(&error_message).unwrap();
-                                ws_stream.send(Message::text(msg)).await?;
+                            // Host actions require authentication
+                            match &auth_result {
+                                Some(auth) if auth.is_host => {
+                                    if let HostAction::CreateGame = action {
+                                        create_game(game_state, ws_stream, generate_code()).await;
+                                    } else if let HostAction::ReclaimGame { game_code } = action {
+                                        create_game(game_state, ws_stream, game_code).await;
+                                    } else {
+                                        error!(
+                                            "Expected CreateGame from new Host connection, instead got: {action:?}"
+                                        );
+                                        let error_message = ServerMessage::Error(
+                                            "First action must be CreateGame".to_string(),
+                                        );
+                                        let msg = serde_json::to_string(&error_message).unwrap();
+                                        ws_stream.send(Message::text(msg)).await?;
+                                    }
+                                }
+                                Some(_) => {
+                                    warn!("User authenticated but not in Trivia-Hosts group");
+                                    let error_message = ServerMessage::Error(
+                                        "User is not authorized as a host".to_string(),
+                                    );
+                                    let msg = serde_json::to_string(&error_message).unwrap();
+                                    ws_stream.send(Message::text(msg)).await?;
+                                }
+                                None => {
+                                    warn!("Host action attempted without authentication");
+                                    let error_message = ServerMessage::Error(
+                                        "Authentication required for host actions".to_string(),
+                                    );
+                                    let msg = serde_json::to_string(&error_message).unwrap();
+                                    ws_stream.send(Message::text(msg)).await?;
+                                }
                             }
                         }
                         ClientMessage::Team(action) => {
@@ -361,13 +421,18 @@ async fn handle_team(
     }
 }
 
-pub async fn start_ws_server(listener: TcpListener, timer: ShutdownTimer) {
+pub async fn start_ws_server(
+    listener: TcpListener,
+    timer: ShutdownTimer,
+    validator: Arc<dyn JwtValidator>,
+) {
     let addr = listener.local_addr().expect("Failed to get local address");
     info!("Listening on: {addr}");
 
     let game_state: Arc<GameState> = Arc::new(GameState {
         games: Mutex::new(HashMap::new()),
         timer: Mutex::new(timer),
+        validator,
     });
 
     while let Ok((stream, _)) = listener.accept().await {

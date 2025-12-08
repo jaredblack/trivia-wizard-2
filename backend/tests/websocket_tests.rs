@@ -1,6 +1,6 @@
 mod common;
 
-use common::{TestClient, TestServer};
+use common::{create_expired_token, create_host_token, create_non_host_token, TestClient, TestServer};
 
 use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::{HostServerMessage, ServerMessage, TeamServerMessage};
@@ -51,9 +51,7 @@ async fn assert_answer_submission_flow(
 #[tokio::test]
 async fn host_creates_game_and_receives_game_code() {
     let server = TestServer::start().await;
-    let mut host = TestClient::connect(&server.ws_url()).await;
-
-    let game_code = host.create_game().await;
+    let (_, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
 
     assert!(!game_code.is_empty(), "Game code should not be empty");
 }
@@ -61,9 +59,7 @@ async fn host_creates_game_and_receives_game_code() {
 #[tokio::test]
 async fn team_joins_existing_game_and_receives_confirmation() {
     let server = TestServer::start().await;
-
-    let mut host = TestClient::connect(&server.ws_url()).await;
-    let game_code = host.create_game().await;
+    let (_, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
 
     let mut team = TestClient::connect(&server.ws_url()).await;
     team.join_game(&game_code, "Test Team").await;
@@ -96,9 +92,7 @@ async fn team_joins_nonexistent_game_receives_error() {
 #[tokio::test]
 async fn multiple_teams_can_join_same_game() {
     let server = TestServer::start().await;
-
-    let mut host = TestClient::connect(&server.ws_url()).await;
-    let game_code = host.create_game().await;
+    let (_, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
 
     let mut team1 = TestClient::connect(&server.ws_url()).await;
     team1.join_game(&game_code, "Team Alpha").await;
@@ -114,11 +108,8 @@ async fn multiple_teams_can_join_same_game() {
 async fn multiple_hosts_and_teams_interleaved() {
     let server = TestServer::start().await;
 
-    let mut host1 = TestClient::connect(&server.ws_url()).await;
-    let game_code_1 = host1.create_game().await;
-
-    let mut host2 = TestClient::connect(&server.ws_url()).await;
-    let game_code_2 = host2.create_game().await;
+    let (_, game_code_1) = TestClient::connect_as_host_and_create_game(&server).await;
+    let (_, game_code_2) = TestClient::connect_as_host_and_create_game(&server).await;
 
     assert_ne!(
         game_code_1, game_code_2,
@@ -147,9 +138,7 @@ async fn multiple_hosts_and_teams_interleaved() {
 #[tokio::test]
 async fn team_submits_answer_host_receives_it() {
     let server = TestServer::start().await;
-
-    let mut host = TestClient::connect(&server.ws_url()).await;
-    let game_code = host.create_game().await;
+    let (mut host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
 
     let mut team = TestClient::connect(&server.ws_url()).await;
     team.join_game(&game_code, "Test Team").await;
@@ -160,9 +149,7 @@ async fn team_submits_answer_host_receives_it() {
 #[tokio::test]
 async fn team_submits_answer_when_host_disconnected_receives_error() {
     let server = TestServer::start().await;
-
-    let mut host = TestClient::connect(&server.ws_url()).await;
-    let game_code = host.create_game().await;
+    let (host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
 
     let mut team = TestClient::connect(&server.ws_url()).await;
     team.join_game(&game_code, "Test Team").await;
@@ -192,9 +179,7 @@ async fn team_submits_answer_when_host_disconnected_receives_error() {
 #[tokio::test]
 async fn host_disconnects_and_reconnects_teams_remain() {
     let server = TestServer::start().await;
-
-    let mut host = TestClient::connect(&server.ws_url()).await;
-    let game_code = host.create_game().await;
+    let (host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
 
     let mut team = TestClient::connect(&server.ws_url()).await;
     team.join_game(&game_code, "Test Team").await;
@@ -205,8 +190,9 @@ async fn host_disconnects_and_reconnects_teams_remain() {
     // Give the server a moment to process the disconnection
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-    // Host reconnects by creating a new connection and sending CreateGame
-    let mut host = TestClient::connect(&server.ws_url()).await;
+    // Host reconnects with a new token and reclaims the game
+    let token = create_host_token();
+    let mut host = TestClient::connect_with_token(&server.ws_url(), Some(&token)).await;
     host.send_json(&ClientMessage::Host(HostAction::ReclaimGame {
         game_code: game_code.clone(),
     }))
@@ -214,7 +200,7 @@ async fn host_disconnects_and_reconnects_teams_remain() {
     let response: ServerMessage = host.recv_json().await;
     let reconnected_game_code = match response {
         ServerMessage::Host(HostServerMessage::GameCreated { game_code }) => game_code,
-        _ => panic!("Didn't receive GameCreated when reclaiming game"),
+        other => panic!("Didn't receive GameCreated when reclaiming game, got {other:?}"),
     };
 
     // Verify we got the same game code back
@@ -251,10 +237,7 @@ async fn invalid_json_message_returns_error() {
 #[tokio::test]
 async fn host_sends_unexpected_message_type() {
     let server = TestServer::start().await;
-
-    // First, connect as a host
-    let mut host = TestClient::connect(&server.ws_url()).await;
-    let _game_code = host.create_game().await;
+    let (mut host, _) = TestClient::connect_as_host_and_create_game(&server).await;
 
     // Now send an unexpected Team message
     host.send_json(&ClientMessage::Team(TeamAction::JoinGame {
@@ -277,10 +260,7 @@ async fn host_sends_unexpected_message_type() {
 #[tokio::test]
 async fn team_sends_unexpected_message_type() {
     let server = TestServer::start().await;
-
-    // Create a game first so the team has something to join
-    let mut host = TestClient::connect(&server.ws_url()).await;
-    let game_code = host.create_game().await;
+    let (_, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
 
     // Connect as a team
     let mut team = TestClient::connect(&server.ws_url()).await;
@@ -309,8 +289,7 @@ async fn timer_closes_server_when_all_hosts_disconnect() {
         TestServer::start_with_shutdown_duration(std::time::Duration::from_millis(250)).await;
 
     // Host creates a game
-    let mut host = TestClient::connect(&server.ws_url()).await;
-    let _game_code = host.create_game().await;
+    let (host, _) = TestClient::connect_as_host_and_create_game(&server).await;
 
     // Host disconnects
     drop(host);
@@ -338,15 +317,13 @@ async fn timer_cancels_when_new_host_connects() {
     let mut server =
         TestServer::start_with_shutdown_duration(std::time::Duration::from_millis(500)).await;
 
-    let mut host1 = TestClient::connect(&server.ws_url()).await;
-    let _game_code = host1.create_game().await;
+    let (host1, _) = TestClient::connect_as_host_and_create_game(&server).await;
 
     drop(host1);
 
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-    let mut host2 = TestClient::connect(&server.ws_url()).await;
-    let _game_code2 = host2.create_game().await;
+    let (_host2, _) = TestClient::connect_as_host_and_create_game(&server).await;
 
     // Wait past the original shutdown duration
     tokio::time::sleep(std::time::Duration::from_millis(600)).await;
@@ -369,8 +346,7 @@ async fn timer_does_not_cancel_when_team_connects() {
     let mut server =
         TestServer::start_with_shutdown_duration(std::time::Duration::from_millis(500)).await;
 
-    let mut host = TestClient::connect(&server.ws_url()).await;
-    let game_code = host.create_game().await;
+    let (host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
 
     drop(host);
 
@@ -395,4 +371,82 @@ async fn timer_does_not_cancel_when_team_connects() {
         shutdown_result.unwrap().is_some(),
         "Shutdown signal should have been sent"
     );
+}
+
+// ============== Authentication Tests ==============
+
+#[tokio::test]
+async fn host_without_token_cannot_create_game() {
+    let server = TestServer::start().await;
+    let mut client = TestClient::connect(&server.ws_url()).await;
+
+    client
+        .send_json(&ClientMessage::Host(HostAction::CreateGame))
+        .await;
+
+    let response: ServerMessage = client.recv_json().await;
+    match response {
+        ServerMessage::Error(msg) => {
+            assert!(
+                msg.contains("Authentication required"),
+                "Error should mention authentication required, got: {msg}"
+            );
+        }
+        other => panic!("Expected Error message, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn host_with_expired_token_cannot_create_game() {
+    let server = TestServer::start().await;
+    let token = create_expired_token();
+    let mut client = TestClient::connect_with_token(&server.ws_url(), Some(&token)).await;
+
+    client
+        .send_json(&ClientMessage::Host(HostAction::CreateGame))
+        .await;
+
+    let response: ServerMessage = client.recv_json().await;
+    match response {
+        ServerMessage::Error(msg) => {
+            assert!(
+                msg.contains("Authentication required"),
+                "Error should mention authentication required for expired token, got: {msg}"
+            );
+        }
+        other => panic!("Expected Error message for expired token, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn user_not_in_hosts_group_cannot_create_game() {
+    let server = TestServer::start().await;
+    let token = create_non_host_token();
+    let mut client = TestClient::connect_with_token(&server.ws_url(), Some(&token)).await;
+
+    client
+        .send_json(&ClientMessage::Host(HostAction::CreateGame))
+        .await;
+
+    let response: ServerMessage = client.recv_json().await;
+    match response {
+        ServerMessage::Error(msg) => {
+            assert!(
+                msg.contains("not authorized as a host"),
+                "Error should mention not authorized as host, got: {msg}"
+            );
+        }
+        other => panic!("Expected Error message for non-host user, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn team_can_join_without_token() {
+    let server = TestServer::start().await;
+    let (_, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
+
+    // Team connects without any token
+    let mut team = TestClient::connect(&server.ws_url()).await;
+    team.join_game(&game_code, "Unauthenticated Team").await;
+    // If we get here without panic, the test passes
 }
