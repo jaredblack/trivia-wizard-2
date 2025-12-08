@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+#[cfg(feature = "test-support")]
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -123,7 +124,9 @@ pub fn create_validator_from_env() -> Arc<dyn JwtValidator> {
             Arc::new(CognitoValidator::new(region, user_pool_id, client_id))
         }
         _ => {
-            panic!("Cognito environment variables (COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, AWS_REGION) must be set");
+            panic!(
+                "Cognito environment variables (COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, AWS_REGION) must be set"
+            );
         }
     }
 }

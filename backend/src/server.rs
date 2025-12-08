@@ -43,7 +43,7 @@ fn generate_code() -> String {
 async fn accept_connection(peer: SocketAddr, stream: TcpStream, game_state: Arc<GameState>) {
     if let Err(e) = handle_connection(peer, stream, game_state.clone()).await {
         match e {
-            Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8 => (),
+            Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8(_) => (),
             err => error!("Error processing connection: {err}"),
         }
     }
@@ -62,10 +62,10 @@ fn extract_token_from_request(request: &Request) -> Option<String> {
     let uri = request.uri();
     let query = uri.query()?;
     for pair in query.split('&') {
-        if let Some((key, value)) = pair.split_once('=') {
-            if key == "token" {
-                return Some(value.to_string());
-            }
+        if let Some((key, value)) = pair.split_once('=')
+            && key == "token"
+        {
+            return Some(value.to_string());
         }
     }
     None
@@ -194,18 +194,18 @@ async fn create_game(
     let mut games_map = game_state.games.lock().await;
 
     // Check if game exists and can be reclaimed (host disconnected)
-    if let Some(existing_game) = games_map.get_mut(&game_code) {
-        if existing_game.host_tx.is_none() {
-            info!("Host reclaiming existing game: {game_code}");
-            existing_game.set_host_tx(tx.clone());
-            drop(games_map);
-            let msg = ServerMessage::Host(HostServerMessage::GameCreated {
-                game_code: game_code.clone(),
-            });
-            send_msg(&tx, msg);
-            handle_host(ws_stream, game_state, rx, tx, game_code).await;
-            return;
-        }
+    if let Some(existing_game) = games_map.get_mut(&game_code)
+        && existing_game.host_tx.is_none()
+    {
+        info!("Host reclaiming existing game: {game_code}");
+        existing_game.set_host_tx(tx.clone());
+        drop(games_map);
+        let msg = ServerMessage::Host(HostServerMessage::GameCreated {
+            game_code: game_code.clone(),
+        });
+        send_msg(&tx, msg);
+        handle_host(ws_stream, game_state, rx, tx, game_code).await;
+        return;
     }
 
     games_map.insert(game_code.clone(), Game::new(game_code.clone(), tx.clone()));

@@ -84,10 +84,10 @@ impl ServiceDiscovery {
         for attachment in attachments {
             if attachment.r#type() == Some("ElasticNetworkInterface") {
                 for detail in attachment.details() {
-                    if detail.name() == Some("networkInterfaceId") {
-                        if let Some(eni_id) = detail.value() {
-                            return self.get_eni_public_ip(eni_id).await;
-                        }
+                    if detail.name() == Some("networkInterfaceId")
+                        && let Some(eni_id) = detail.value()
+                    {
+                        return self.get_eni_public_ip(eni_id).await;
                     }
                 }
             }

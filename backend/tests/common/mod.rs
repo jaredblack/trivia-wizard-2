@@ -74,19 +74,21 @@ impl TestClient {
         } else {
             url.to_string()
         };
-        let (ws_stream, _) = connect_async(url_with_token).await.expect("Failed to connect");
+        let (ws_stream, _) = connect_async(url_with_token)
+            .await
+            .expect("Failed to connect");
         let (write, read) = ws_stream.split();
         Self { write, read }
     }
 
     pub async fn send_json<T: Serialize>(&mut self, msg: &T) {
         let json = serde_json::to_string(msg).unwrap();
-        self.write.send(Message::Text(json)).await.unwrap();
+        self.write.send(Message::Text(json.into())).await.unwrap();
     }
 
     pub async fn send_raw_text(&mut self, text: &str) {
         self.write
-            .send(Message::Text(text.to_string()))
+            .send(Message::Text(text.to_string().into()))
             .await
             .unwrap();
     }

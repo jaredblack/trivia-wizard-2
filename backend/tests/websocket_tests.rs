@@ -1,6 +1,8 @@
 mod common;
 
-use common::{create_expired_token, create_host_token, create_non_host_token, TestClient, TestServer};
+use common::{
+    TestClient, TestServer, create_expired_token, create_host_token, create_non_host_token,
+};
 
 use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::{HostServerMessage, ServerMessage, TeamServerMessage};
