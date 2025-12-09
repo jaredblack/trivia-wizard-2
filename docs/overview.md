@@ -17,6 +17,15 @@ The home page is very simple. It is a menu with three buttons:
 - This page will start with one button - "Start New Game". This button will initiate a WebSocket connection with the server, with the role Host.
 - The server will send back a Game Code. The button will disappear and will be replaced with the Host View.
 
+## Question Types
+Question Type is a new concept with Trivia Wizard 2. The Question Type that the host selects for a given question will update both the host's scoring view and the team's input view. Some useful question types:
+1. Standard (single answer, free-form)
+2. Multi-answer (equivalent to current multi-scoring feature)
+    - team view transforms into multiple text inputs (# is configurable per-question by host)
+3. Multiple choice
+    - team view shows buttons for A-{B..Z} (# is configurable per-question by host)
+4. Wagers (not sure what to call this)
+    - replicating bar trivia format I've done where you wager 2,4,6 points for each question within a category depending on your confidence. would need to think through the UI for this a bit more
 # API Descriptions
 ## Host
 ### CreateGame

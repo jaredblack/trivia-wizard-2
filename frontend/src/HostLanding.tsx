@@ -10,6 +10,7 @@ export default function HostLanding() {
   const [serverRunning, setServerRunning] = useState(false);
   const [isHost, setIsHost] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [gameCode, setGameCode] = useState<string | null>(null);
 
   useEffect(() => {
     const checkGroup = async () => {
@@ -31,23 +32,34 @@ export default function HostLanding() {
     checkGroup();
   }, []);
 
+  useEffect(() => {
+    serverIsRunning().then((running) => {
+      if (running) {
+        setServerRunning(true);
+      }
+    });
+  }, []);
+
+  const serverIsRunning = async () => {
+      try {
+        const response = await fetch("https://ws.trivia.jarbla.com/health", { signal: AbortSignal.timeout(2000) });
+        return response.ok;
+      } catch (error) {
+        console.log(`server not ready yet: ${error}`);
+        return false;
+      }
+  }
+
   const pollServerStatus = () => {
     console.log("trying to poll server status");
     const interval = setInterval(async () => {
-      try {
-        const response = await fetch("https://ws.trivia.jarbla.com/health", { signal: AbortSignal.timeout(2000) });
-        if (response.ok) {
+      if (await serverIsRunning()) {
           setServerRunning(true);
           setIsLoading(false);
           clearInterval(interval);
-        }
-      } catch (error) {
-        console.log(`server not ready yet: ${error}`);
-        // Server is not ready yet
       }
     }, 5000); // Poll every 5 seconds
 
-    // Stop polling after 2 minutes
     setTimeout(() => {
       clearInterval(interval);
       setIsLoading(false);
@@ -73,26 +85,54 @@ export default function HostLanding() {
     }
   };
 
-  const startGame = () => {
-    const ws = new WebSocket("ws://ws.trivia.jarbla.com:9002");
+  const startGame = async () => {
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.accessToken?.toString();
 
-    ws.onopen = () => {
-      console.log("WebSocket connected");
-    };
+      if (!token) {
+        console.error("No access token available - user may not be authenticated");
+        return;
+      }
 
-    ws.onmessage = (event) => {
-      console.log("Message from server: ", event.data);
-    };
+      const wsUrl = `wss://ws.trivia.jarbla.com?token=${encodeURIComponent(token)}`;
+      const ws = new WebSocket(wsUrl);
 
-    ws.onclose = () => {
-      console.log("WebSocket disconnected");
-    };
+      ws.onopen = () => {
+        console.log("WebSocket connected");
+        ws.send(JSON.stringify({ host: "createGame" }));
+      };
 
-    ws.onerror = (error) => {
-      console.error("WebSocket error: ", error);
-    };
+      ws.onmessage = (event) => {
+        console.log("Message from server: ", event.data);
+        try {
+          const message = JSON.parse(event.data);
+          if (message.host.gameCreated && message.host.gameCreated.gameCode) {
+            console.log("game code " + message.host.gameCreated.gameCode)
+            setGameCode(message.host.gameCreated.gameCode);
+          } else if (message.Error) {
+            console.error("Server error:", message.Error);
+          }
+        } catch {
+          console.log("Non-JSON message from server:", event.data);
+        }
+      };
+
+      ws.onclose = (event) => {
+        console.log("WebSocket disconnected", event.code, event.reason);
+        if (event.reason) {
+          console.error("WebSocket close reason:", event.reason);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+      };
+    } catch (error) {
+      console.error("Error starting game:", error);
+    }
   };
-
+      
   return (
     <div className="min-h-screen bg-gray-100">
       <header className="flex justify-between items-center p-4 bg-gray-100">
@@ -123,6 +163,11 @@ export default function HostLanding() {
           >
             {isLoading ? "Starting server..." : "Start trivia server"}
           </button>
+        ) : gameCode ? (
+          <div className="text-center">
+            <p className="text-xl mb-2">Game Code:</p>
+            <p className="text-4xl font-bold">{gameCode}</p>
+          </div>
         ) : (
           <button
             onClick={startGame}

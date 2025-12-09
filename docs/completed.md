@@ -82,3 +82,13 @@ To reduce AWS costs, the backend server now automatically shuts itself down when
 -   **Graceful Shutdown**: The timer sends a shutdown signal that propagates through the application, allowing the main process to terminate cleanly.
 -   **Retry Logic**: The ECS shutdown call uses exponential backoff with jitter to handle transient failures.
 -   **Host Reconnection Support**: The `Game` model now supports hosts reconnecting to existing games via `set_host_tx` and `clear_host_tx` methods, allowing a host to reclaim their game session after a brief disconnection.
+
+## 9. Host Authentication with Cognito Access Tokens
+
+WebSocket connections for hosts now require authentication via Cognito access tokens.
+
+-   **Backend JWT Validation**: The Rust server validates Cognito access tokens on WebSocket connection. Tokens are verified against Cognito's JWKS, checking signature, expiration, issuer, client ID, and token use claims.
+-   **Token Delivery**: Access tokens are passed as a query parameter in the WebSocket URL (`wss://server?token=<access_token>`).
+-   **Host Authorization**: Only connections with valid tokens from users in the "Trivia-Hosts" group can create or reclaim games. Team connections remain unauthenticated.
+-   **Frontend Integration**: The host landing page fetches the access token via `fetchAuthSession()` and includes it when establishing the WebSocket connection to create a game.
+-   **Secure Transport**: All WebSocket traffic uses WSS (TLS) via CloudFront termination.
