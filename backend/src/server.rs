@@ -1,5 +1,6 @@
 use crate::{
     auth::{AuthResult, JwtValidator},
+    infra,
     model::{
         client_message::{ClientMessage, HostAction, TeamAction},
         game::Game,
@@ -76,22 +77,35 @@ async fn handle_connection(
     stream: TcpStream,
     game_state: Arc<GameState>,
 ) -> Result<()> {
-    // Extract token during WebSocket handshake
-    let mut auth_result: Option<AuthResult> = None;
+    // In local dev mode (not tests), skip auth entirely and treat all connections as authenticated hosts
+    let skip_auth = infra::is_local() && !infra::is_test();
+
+    let mut auth_result: Option<AuthResult> = if skip_auth {
+        info!("Local dev mode: skipping auth, treating connection as authenticated host");
+        Some(AuthResult {
+            user_id: "local-dev".to_string(),
+            is_host: true,
+        })
+    } else {
+        None
+    };
+
     let validator = game_state.validator.clone();
 
     let callback = |request: &Request, response: Response| {
-        if let Some(token) = extract_token_from_request(request) {
-            match validator.validate(&token) {
-                Ok(result) => {
-                    info!("Token validated for user: {}", result.user_id);
-                    auth_result = Some(result);
-                }
-                Err(e) => {
-                    warn!("Token validation failed: {}", e);
+        // Only validate tokens when not skipping auth
+        if !skip_auth
+            && let Some(token) = extract_token_from_request(request) {
+                match validator.validate(&token) {
+                    Ok(result) => {
+                        info!("Token validated for user: {}", result.user_id);
+                        auth_result = Some(result);
+                    }
+                    Err(e) => {
+                        warn!("Token validation failed: {}", e);
+                    }
                 }
             }
-        }
         Ok(response)
     };
 

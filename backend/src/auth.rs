@@ -57,7 +57,7 @@ impl CognitoValidator {
     }
 
     fn fetch_jwks(&self) -> Result<JwkSet> {
-        let response = reqwest::blocking::get(&self.jwks_url())
+        let response = reqwest::blocking::get(self.jwks_url())
             .map_err(|e| anyhow!("Failed to fetch JWKS: {}", e))?;
 
         if !response.status().is_success() {

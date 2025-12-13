@@ -13,7 +13,18 @@ use tokio_retry::Retry;
 use tokio_retry::strategy::{ExponentialBackoff, jitter};
 
 pub fn is_local() -> bool {
-    env::var("ECS_CONTAINER_METADATA_URI_V4").is_err()
+    if env::var("ECS_CONTAINER_METADATA_URI_V4").is_ok() {
+        return false;
+    }
+    env::var("IS_LOCAL_MAC")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .expect("IS_LOCAL_MAC env var must be set and non-empty to run in local mode");
+    true
+}
+
+pub fn is_test() -> bool {
+    cfg!(feature = "test-support")
 }
 
 #[derive(Debug)]

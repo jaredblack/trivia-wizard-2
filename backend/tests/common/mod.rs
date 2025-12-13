@@ -28,6 +28,7 @@ impl TestServer {
     }
 
     pub async fn start_with_shutdown_duration(shutdown_duration: Duration) -> Self {
+        dotenvy::dotenv().expect("Couldn't load .env for tests");
         let ws_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let ws_port = ws_listener.local_addr().unwrap().port();
 
