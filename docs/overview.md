@@ -26,6 +26,8 @@ Question Type is a new concept with Trivia Wizard 2. The Question Type that the 
     - team view shows buttons for A-{B..Z} (# is configurable per-question by host)
 4. Wagers (not sure what to call this)
     - replicating bar trivia format I've done where you wager 2,4,6 points for each question within a category depending on your confidence. would need to think through the UI for this a bit more
+5. Numeric - basically an automation of how I score numeric ones today. 
+    - Host can put in the correct answer and how much margin of error teams can have for full points or half points. Or could also have it calculate points more granularly based on how close you are but that would take some math.
 # API Descriptions
 ## Host
 ### CreateGame

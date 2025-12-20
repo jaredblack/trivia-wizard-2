@@ -92,3 +92,5 @@ WebSocket connections for hosts now require authentication via Cognito access to
 -   **Host Authorization**: Only connections with valid tokens from users in the "Trivia-Hosts" group can create or reclaim games. Team connections remain unauthenticated.
 -   **Frontend Integration**: The host landing page fetches the access token via `fetchAuthSession()` and includes it when establishing the WebSocket connection to create a game.
 -   **Secure Transport**: All WebSocket traffic uses WSS (TLS) via CloudFront termination.
+
+## 10. Local development mode bypassing authentication
