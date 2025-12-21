@@ -2,13 +2,20 @@ use log::{error, info};
 use serde::{Deserialize, Serialize};
 use tokio_tungstenite::tungstenite::Message;
 
+use crate::model::types::{GameSettings, Question, TeamData};
 use crate::server::Tx;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum HostServerMessage {
     #[serde(rename_all = "camelCase")]
-    GameCreated { game_code: String },
+    GameCreated {
+        current_question_number: u32,
+        game_code: String,
+        game_settings: GameSettings,
+        current_question: Question,
+        teams: Vec<TeamData>,
+    },
     #[serde(rename_all = "camelCase")]
     NewAnswer { answer: String, team_name: String },
     #[serde(rename_all = "camelCase")]

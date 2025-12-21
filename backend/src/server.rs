@@ -214,9 +214,7 @@ async fn create_game(
         info!("Host reclaiming existing game: {game_code}");
         existing_game.set_host_tx(tx.clone());
         drop(games_map);
-        let msg = ServerMessage::Host(HostServerMessage::GameCreated {
-            game_code: game_code.clone(),
-        });
+        let msg = crate::fake_data::fake_game_created(game_code.clone());
         send_msg(&tx, msg);
         handle_host(ws_stream, game_state, rx, tx, game_code).await;
         return;
@@ -225,9 +223,7 @@ async fn create_game(
     games_map.insert(game_code.clone(), Game::new(game_code.clone(), tx.clone()));
     drop(games_map);
     info!("Game created: {game_code}");
-    let msg = ServerMessage::Host(HostServerMessage::GameCreated {
-        game_code: game_code.clone(),
-    });
+    let msg = crate::fake_data::fake_game_created(game_code.clone());
     send_msg(&tx, msg);
     handle_host(ws_stream, game_state, rx, tx, game_code).await;
 }

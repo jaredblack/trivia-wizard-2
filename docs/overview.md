@@ -55,7 +55,6 @@ Question Type is a new concept with Trivia Wizard 2. The Question Type that the 
 ## Server-Team
 ### JoinedGame
 ### AllowSubmissionToggled
-### TimerUpdate
 ### Success
 ### ScoreUpdate
 ### QuestionInfo
