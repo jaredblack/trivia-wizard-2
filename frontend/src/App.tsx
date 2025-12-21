@@ -7,7 +7,8 @@ import HostGame from './features/host/HostGame';
 export default function App() {
   return (
     <Router>
-      <Routes>
+      <div className="max-w-screen-xl mx-auto">
+        <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/home" element={<LandingPage />} />
 
@@ -21,7 +22,8 @@ export default function App() {
           <Route path="game" element={<HostGame />} />
         </Route>
         <Route path="*" element={<p>There's nothing here: 404!</p>} />
-      </Routes>
+        </Routes>
+      </div>
     </Router>
   );
 }

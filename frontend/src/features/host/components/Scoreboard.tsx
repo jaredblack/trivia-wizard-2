@@ -38,7 +38,7 @@ export default function Scoreboard({ gameCode, teams }: ScoreboardProps) {
           type="checkbox"
           checked={allowTeamsToSee}
           onChange={(e) => setAllowTeamsToSee(e.target.checked)}
-          className="w-4 h-4 rounded border-gray-300"
+          className="w-4 h-4 rounded border-gray-300" 
         />
         <span className="text-sm">Allow teams to see scoreboard</span>
       </label>
@@ -48,19 +48,19 @@ export default function Scoreboard({ gameCode, teams }: ScoreboardProps) {
         {sortedTeams.map((team) => (
           <div key={team.teamName} className="flex items-center gap-3">
             {/* Score */}
-            <span className="text-4xl font-bold w-20 text-right">
+            <span className="text-4xl font-bold w-24 text-right">
               {getScore(team.score)}
             </span>
 
             {/* Team color dot */}
             <div
-              className="w-6 h-6 rounded-full flex-shrink-0"
+              className="w-9 h-9 rounded-full flex-shrink-0"
               style={{ backgroundColor: team.teamColor.hexCode }}
             />
 
             {/* Team info */}
             <div className="flex-1 min-w-0">
-              <p className="font-bold truncate">{team.teamName}</p>
+              <p className="font-bold">{team.teamName}</p>
               <p className="text-sm text-gray-500 truncate">
                 {team.teamMembers.join(", ")}
               </p>

@@ -52,9 +52,9 @@ export default function HostGame() {
       />
 
       {/* Main content area */}
-      <main className="flex-1 flex overflow-hidden">
+      <main className="flex-1 flex overflow-hidden mx-12">
         {/* Left panel - Answer list (60%) */}
-        <div className="w-3/5 border-r border-gray-200 overflow-y-auto">
+        <div className="w-auto border-r border-gray-200 overflow-y-auto">
           <AnswerList
             question={currentQuestion}
             teams={teams}
@@ -66,7 +66,7 @@ export default function HostGame() {
         </div>
 
         {/* Right panel - Scoreboard (40%) */}
-        <div className="w-2/5 overflow-y-auto">
+        <div className="w-lg overflow-y-auto">
           <Scoreboard gameCode={gameCode} teams={teams} />
         </div>
       </main>

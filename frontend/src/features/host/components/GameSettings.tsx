@@ -29,7 +29,7 @@ export default function GameSettings({
             type="number"
             value={questionPoints}
             onChange={(e) => onQuestionPointsChange?.(Number(e.target.value))}
-            className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+            className="w-16 px-2 py-1 border border-gray-300 rounded-xl text-center"
           />
         </div>
 
@@ -40,7 +40,7 @@ export default function GameSettings({
             type="number"
             value={bonusIncrement}
             onChange={(e) => onBonusIncrementChange?.(Number(e.target.value))}
-            className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+            className="w-16 px-2 py-1 border border-gray-300 rounded-xl text-center"
           />
         </div>
 
@@ -51,7 +51,7 @@ export default function GameSettings({
             type="number"
             value={timerLength}
             onChange={(e) => onTimerLengthChange?.(Number(e.target.value))}
-            className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+            className="w-16 px-2 py-1 border border-gray-300 rounded-xl text-center"
           />
         </div>
       </div>
@@ -59,7 +59,7 @@ export default function GameSettings({
       {/* Settings gear icon */}
       <button
         onClick={onOpenSettings}
-        className="p-2 hover:bg-gray-100 rounded-full"
+        className="p-2 hover:bg-gray-100 rounded-full pointer-cursor"
         aria-label="Open settings"
       >
         <Settings className="w-6 h-6 text-gray-600" />

@@ -60,36 +60,36 @@ export default function AnswerCard({
 
   return (
     <div
-      className="flex items-center gap-4 p-4 rounded-xl border-2"
+      className="flex items-center gap-4 p-4 rounded-4xl border-2"
       style={{ borderColor: teamColor }}
     >
       {/* Correct/incorrect toggle button */}
       <button
         onClick={handleToggleCorrect}
-        className={`w-8 h-8 rounded border-2 flex items-center justify-center transition-colors ${
+        className={`w-10 h-10 rounded-4xl border-2 flex items-center justify-center transition-colors cursor-pointer ${
           isCorrect
-            ? "bg-gray-800 border-gray-800 text-white"
-            : "border-gray-300 hover:border-gray-400 text-gray-400"
+            ? "bg-green-600/60 hover:bg-green-700/60 text-white"
+            : "border-red-300 hover:border-red-400 text-gray-400"
         }`}
         aria-label={isCorrect ? "Mark incorrect" : "Mark correct"}
       >
-        {isCorrect ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
+        {isCorrect ? <Check className="w-5 h-5" /> : <X className="w-5 h-5 text-red-300 hover:text-red-400"/>}
       </button>
 
       {/* Score display and bonus controls */}
       <div className="flex items-center gap-1">
         <span className="text-3xl font-bold w-12 text-center">{totalScore}</span>
-        <div className="flex flex-col">
+        <div className="flex flex-col bg-gray-200 rounded-3xl">
           <button
             onClick={handleIncrement}
-            className="p-0.5 hover:bg-gray-100 rounded"
+            className="p-1 hover:bg-gray-100 rounded-3xl cursor-pointer"
             aria-label="Add bonus points"
           >
             <Plus className="w-4 h-4" />
           </button>
           <button
             onClick={handleDecrement}
-            className="p-0.5 hover:bg-gray-100 rounded"
+            className="p-1 hover:bg-gray-100 rounded-3xl cursor-pointer"
             aria-label="Remove bonus points"
           >
             <Minus className="w-4 h-4" />
@@ -99,8 +99,8 @@ export default function AnswerCard({
 
       {/* Team name and answer */}
       <div className="flex-1 min-w-0">
-        <p className="font-bold truncate">{teamName}</p>
-        <p className="text-gray-600 truncate">{answerText}</p>
+        <p className="font-bold">{teamName}</p>
+        <p className="text-gray-600">{answerText}</p>
       </div>
     </div>
   );
