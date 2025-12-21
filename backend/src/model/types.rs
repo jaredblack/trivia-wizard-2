@@ -36,6 +36,7 @@ impl ScoreData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TeamResponse {
+    pub team_name: String,
     pub answer_text: String,
     pub score: ScoreData,
 }
@@ -43,27 +44,25 @@ pub struct TeamResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MultiAnswerResponse {
+    pub team_name: String,
     pub answers: Vec<String>,
     pub scores: HashMap<String, ScoreData>,
 }
 
 // === Question Data (tagged union with data) ===
+// Note: responses are stored as Vec to preserve submission order (first to last)
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum QuestionData {
     #[serde(rename_all = "camelCase")]
-    Standard {
-        responses: HashMap<String, TeamResponse>,
-    },
+    Standard { responses: Vec<TeamResponse> },
     #[serde(rename_all = "camelCase")]
-    MultiAnswer {
-        responses: HashMap<String, MultiAnswerResponse>,
-    },
+    MultiAnswer { responses: Vec<MultiAnswerResponse> },
     #[serde(rename_all = "camelCase")]
     MultipleChoice {
         choices: Vec<String>,
-        responses: HashMap<String, TeamResponse>,
+        responses: Vec<TeamResponse>,
     },
 }
 

@@ -15,13 +15,16 @@ export function getScore(score: ScoreData): number {
 }
 
 // === Team Response Types ===
+// Note: responses are stored as arrays to preserve submission order (first to last)
 
 export interface TeamResponse {
+  teamName: string;
   answerText: string;
   score: ScoreData;
 }
 
 export interface MultiAnswerResponse {
+  teamName: string;
   answers: string[];
   scores: Record<string, ScoreData>;
 }
@@ -30,18 +33,18 @@ export interface MultiAnswerResponse {
 
 export interface StandardQuestionData {
   type: "standard";
-  responses: Record<string, TeamResponse>;
+  responses: TeamResponse[];
 }
 
 export interface MultiAnswerQuestionData {
   type: "multiAnswer";
-  responses: Record<string, MultiAnswerResponse>;
+  responses: MultiAnswerResponse[];
 }
 
 export interface MultipleChoiceQuestionData {
   type: "multipleChoice";
   choices: string[];
-  responses: Record<string, TeamResponse>;
+  responses: TeamResponse[];
 }
 
 export type QuestionData =

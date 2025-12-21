@@ -1,13 +1,15 @@
-import { useOutletContext } from "react-router-dom";
-import type { AuthOutletContext } from "./ProtectedRoute";
+import { useOutletContext, useNavigate } from "react-router-dom";
+import type { AuthOutletContext } from "../../ProtectedRoute";
 import { useEffect, useState } from "react";
 import { fetchAuthSession } from "aws-amplify/auth";
-import { startServer } from "./aws";
-import { isLocalMode, wsUrl, healthUrl } from "./config";
-import Button from "./components/ui/Button";
-import Input from "./components/ui/Input";
-import ProgressBar from "./components/ui/ProgressBar";
-import Header from "./components/layout/Header";
+import { startServer } from "../../aws";
+import { isLocalMode, wsUrl, healthUrl } from "../../config";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
+import ProgressBar from "../../components/ui/ProgressBar";
+import Header from "../../components/layout/Header";
+import { useHostStore } from "../../stores/useHostStore";
+import type { GameCreated } from "../../types";
 
 async function buildWsUrl(): Promise<string> {
   if (isLocalMode) {
@@ -32,11 +34,13 @@ type ConnectionState =
 
 export default function HostLanding() {
   const { user, signOut } = useOutletContext<AuthOutletContext>();
+  const navigate = useNavigate();
+  const setGameData = useHostStore((state) => state.setGameData);
+
   const [serverRunning, setServerRunning] = useState(false);
   const [isHost, setIsHost] = useState(false);
   const [isStartingServer, setIsStartingServer] = useState(false);
   const [serverStartFailed, setServerStartFailed] = useState(false);
-  const [gameCode, setGameCode] = useState<string | null>(null);
   const [customGameCode, setCustomGameCode] = useState("");
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("idle");
@@ -135,8 +139,10 @@ export default function HostLanding() {
         console.log("Message from server: ", event.data);
         try {
           const message = JSON.parse(event.data);
-          if (message.host?.gameCreated?.gameCode) {
-            setGameCode(message.host.gameCreated.gameCode);
+          if (message.host?.gameCreated) {
+            const gameCreated = message.host.gameCreated as GameCreated;
+            setGameData(gameCreated);
+            navigate("/host/game");
           } else if (message.error) {
             console.error("Server error:", message.error);
           }
@@ -220,7 +226,7 @@ export default function HostLanding() {
         )}
 
         {/* Server running state */}
-        {!isStartingServer && serverRunning && !gameCode && (
+        {!isStartingServer && serverRunning && (
           <>
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-full bg-green-500" />
@@ -276,13 +282,6 @@ export default function HostLanding() {
           </>
         )}
 
-        {/* Game created state */}
-        {gameCode && (
-          <div className="text-center">
-            <p className="text-lg mb-2">Game Code:</p>
-            <p className="text-6xl font-bold tracking-wider">{gameCode}</p>
-          </div>
-        )}
       </main>
 
       {/* Footer */}

@@ -94,18 +94,17 @@ async fn handle_connection(
 
     let callback = |request: &Request, response: Response| {
         // Only validate tokens when not skipping auth
-        if !skip_auth
-            && let Some(token) = extract_token_from_request(request) {
-                match validator.validate(&token) {
-                    Ok(result) => {
-                        info!("Token validated for user: {}", result.user_id);
-                        auth_result = Some(result);
-                    }
-                    Err(e) => {
-                        warn!("Token validation failed: {}", e);
-                    }
+        if !skip_auth && let Some(token) = extract_token_from_request(request) {
+            match validator.validate(&token) {
+                Ok(result) => {
+                    info!("Token validated for user: {}", result.user_id);
+                    auth_result = Some(result);
+                }
+                Err(e) => {
+                    warn!("Token validation failed: {}", e);
                 }
             }
+        }
         Ok(response)
     };
 

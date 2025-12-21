@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::model::server_message::{HostServerMessage, ServerMessage};
 use crate::model::types::{
     GameSettings, Question, QuestionData, QuestionKind, ScoreData, TeamColor, TeamData,
@@ -16,10 +14,10 @@ pub fn fake_game_created(game_code: String) -> ServerMessage {
         default_question_type: QuestionKind::Standard,
     };
 
-    let mut responses: HashMap<String, TeamResponse> = HashMap::new();
-    responses.insert(
-        "The Geniuses".to_string(),
+    // Responses ordered by submission time (first to last)
+    let responses = vec![
         TeamResponse {
+            team_name: "The Geniuses".to_string(),
             answer_text: "Cinnamon brown sugar".to_string(),
             score: ScoreData {
                 question_points: 50,
@@ -27,10 +25,8 @@ pub fn fake_game_created(game_code: String) -> ServerMessage {
                 override_points: 0,
             },
         },
-    );
-    responses.insert(
-        "Smink".to_string(),
         TeamResponse {
+            team_name: "Smink".to_string(),
             answer_text: "Strawberry".to_string(),
             score: ScoreData {
                 question_points: 0,
@@ -38,10 +34,8 @@ pub fn fake_game_created(game_code: String) -> ServerMessage {
                 override_points: 0,
             },
         },
-    );
-    responses.insert(
-        "Team Treetops".to_string(),
         TeamResponse {
+            team_name: "Team Treetops".to_string(),
             answer_text: "P".to_string(),
             score: ScoreData {
                 question_points: 50,
@@ -49,10 +43,8 @@ pub fn fake_game_created(game_code: String) -> ServerMessage {
                 override_points: 0,
             },
         },
-    );
-    responses.insert(
-        "We Really Want To Win".to_string(),
         TeamResponse {
+            team_name: "We Really Want To Win".to_string(),
             answer_text: "Umm I'm really not sure. Please just give us points Jared!! We deserve so many points pleeeeeaseeeeeeee".to_string(),
             score: ScoreData {
                 question_points: 50,
@@ -60,10 +52,8 @@ pub fn fake_game_created(game_code: String) -> ServerMessage {
                 override_points: 0,
             },
         },
-    );
-    responses.insert(
-        "Jason's Former Friends, well, before the incident".to_string(),
         TeamResponse {
+            team_name: "Jason's Former Friends, well, before the incident".to_string(),
             answer_text: "Cinnamon brown sugar".to_string(),
             score: ScoreData {
                 question_points: 50,
@@ -71,7 +61,7 @@ pub fn fake_game_created(game_code: String) -> ServerMessage {
                 override_points: 0,
             },
         },
-    );
+    ];
 
     let current_question = Question {
         timer_duration: 30,
