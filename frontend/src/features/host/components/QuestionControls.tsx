@@ -53,7 +53,7 @@ export default function QuestionControls({
           <select
             value={questionType}
             onChange={() => {}}
-            className="border border-gray-300 rounded-xl px-2 py-2 hover:bg-white cursor-pointer"
+            className="border border-gray-300 bg-white rounded-xl px-2 py-2 hover:bg-gray-200 cursor-pointer"
           >
             <option value="standard">{typeLabels.standard}</option>
             <option value="multiAnswer">{typeLabels.multiAnswer}</option>

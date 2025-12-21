@@ -63,22 +63,27 @@ export default function AnswerCard({
       className="flex items-center gap-4 p-4 rounded-4xl border-2"
       style={{ borderColor: teamColor }}
     >
-      {/* Correct/incorrect toggle button */}
-      <button
-        onClick={handleToggleCorrect}
-        className={`w-10 h-10 rounded-4xl border-2 flex items-center justify-center transition-colors cursor-pointer ${
-          isCorrect
-            ? "bg-green-600/60 hover:bg-green-700/60 text-white"
-            : "border-red-300 hover:border-red-400 text-gray-400"
-        }`}
-        aria-label={isCorrect ? "Mark incorrect" : "Mark correct"}
-      >
-        {isCorrect ? <Check className="w-5 h-5" /> : <X className="w-5 h-5 text-red-300 hover:text-red-400"/>}
-      </button>
-
       {/* Score display and bonus controls */}
-      <div className="flex items-center gap-1">
-        <span className="text-3xl font-bold w-12 text-center">{totalScore}</span>
+      <div className="flex items-center gap-2">
+        {/* Correct/incorrect toggle button */}
+        <button
+          onClick={handleToggleCorrect}
+          className={`w-10 h-10 rounded-4xl border-2 flex items-center justify-center transition-colors cursor-pointer ${
+            isCorrect
+              ? "bg-green-600/60 hover:bg-green-700/60 text-white"
+              : "border-red-300 hover:border-red-400 text-gray-400"
+          }`}
+          aria-label={isCorrect ? "Mark incorrect" : "Mark correct"}
+        >
+          {isCorrect ? (
+            <Check className="w-5 h-5" />
+          ) : (
+            <X className="w-5 h-5 text-red-300 hover:text-red-400" />
+          )}
+        </button>
+        <span className="text-3xl font-bold w-12 text-center">
+          {totalScore}
+        </span>
         <div className="flex flex-col bg-gray-200 rounded-3xl">
           <button
             onClick={handleIncrement}
