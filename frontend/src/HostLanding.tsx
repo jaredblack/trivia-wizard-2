@@ -2,9 +2,12 @@ import { useOutletContext } from "react-router-dom";
 import type { AuthOutletContext } from "./ProtectedRoute";
 import { useEffect, useState } from "react";
 import { fetchAuthSession } from "aws-amplify/auth";
-import { getCredentials } from "./aws";
-import { ECSClient, UpdateServiceCommand } from "@aws-sdk/client-ecs";
-import { isLocalMode, wsUrl } from "./config";
+import { startServer } from "./aws";
+import { isLocalMode, wsUrl, healthUrl } from "./config";
+import Button from "./components/ui/Button";
+import Input from "./components/ui/Input";
+import ProgressBar from "./components/ui/ProgressBar";
+import Header from "./components/layout/Header";
 
 async function buildWsUrl(): Promise<string> {
   if (isLocalMode) {
@@ -13,20 +16,30 @@ async function buildWsUrl(): Promise<string> {
   const session = await fetchAuthSession();
   const token = session.tokens?.accessToken?.toString();
   if (!token) {
-    throw new Error("No access token available - user may not be authenticated");
+    throw new Error(
+      "No access token available - user may not be authenticated"
+    );
   }
   return `${wsUrl}?token=${encodeURIComponent(token)}`;
 }
 
-type ConnectionState = "idle" | "connecting" | "connected" | "disconnected" | "error";
+type ConnectionState =
+  | "idle"
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "error";
 
 export default function HostLanding() {
   const { user, signOut } = useOutletContext<AuthOutletContext>();
   const [serverRunning, setServerRunning] = useState(false);
   const [isHost, setIsHost] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isStartingServer, setIsStartingServer] = useState(false);
+  const [serverStartFailed, setServerStartFailed] = useState(false);
   const [gameCode, setGameCode] = useState<string | null>(null);
-  const [connectionState, setConnectionState] = useState<ConnectionState>("idle");
+  const [customGameCode, setCustomGameCode] = useState("");
+  const [connectionState, setConnectionState] =
+    useState<ConnectionState>("idle");
 
   useEffect(() => {
     if (isLocalMode) {
@@ -62,51 +75,50 @@ export default function HostLanding() {
   }, []);
 
   const serverIsRunning = async () => {
-      try {
-        const response = await fetch("https://ws.trivia.jarbla.com/health", { signal: AbortSignal.timeout(2000) });
-        return response.ok;
-      } catch (error) {
-        console.log(`server not ready yet: ${error}`);
-        return false;
-      }
-  }
-
-  const pollServerStatus = () => {
-    console.log("trying to poll server status");
-    const interval = setInterval(async () => {
-      if (await serverIsRunning()) {
-          setServerRunning(true);
-          setIsLoading(false);
-          clearInterval(interval);
-      }
-    }, 5000); // Poll every 5 seconds
-
-    setTimeout(() => {
-      clearInterval(interval);
-      setIsLoading(false);
-    }, 120000);
-  };
-
-  const startServer = async () => {
-    setIsLoading(true);
     try {
-      const credentials = await getCredentials();
-      const ecsClient = new ECSClient({ credentials, region: "us-east-1" });
-      const command = new UpdateServiceCommand({
-        cluster: "TriviaWizardServer",
-        service: "trivia-wizard-fargate-service",
-        desiredCount: 1,
-    
+      const response = await fetch(healthUrl, {
+        signal: AbortSignal.timeout(2000),
       });
-      await ecsClient.send(command);
-      pollServerStatus();
+      return response.ok;
     } catch (error) {
-      console.error("Error starting server:", error);
-      setIsLoading(false);
+      console.log(`server not ready yet: ${error}`);
+      return false;
     }
   };
 
-  const startGame = async () => {
+  const pollServerStatus = () => {
+    let succeeded = false;
+    const interval = setInterval(async () => {
+      if (await serverIsRunning()) {
+        succeeded = true;
+        setServerRunning(true);
+        setIsStartingServer(false);
+        clearInterval(interval);
+      }
+    }, 5000);
+
+    setTimeout(() => {
+      clearInterval(interval);
+      setIsStartingServer(false);
+      if (!succeeded) {
+        setServerStartFailed(true);
+      }
+    }, 120000);
+  };
+
+  const handleStartServer = async () => {
+    setIsStartingServer(true);
+    setServerStartFailed(false);
+    try {
+      await startServer();
+      pollServerStatus();
+    } catch (error) {
+      console.error("Error starting server:", error);
+      setIsStartingServer(false);
+    }
+  };
+
+  const createGame = async (_useCustomCode: boolean) => {
     setConnectionState("connecting");
     try {
       const url = await buildWsUrl();
@@ -115,6 +127,7 @@ export default function HostLanding() {
       ws.onopen = () => {
         console.log("WebSocket connected");
         setConnectionState("connected");
+        // TODO: support custom game codes when backend supports it
         ws.send(JSON.stringify({ host: "createGame" }));
       };
 
@@ -122,11 +135,10 @@ export default function HostLanding() {
         console.log("Message from server: ", event.data);
         try {
           const message = JSON.parse(event.data);
-          if (message.host.gameCreated && message.host.gameCreated.gameCode) {
-            console.log("game code " + message.host.gameCreated.gameCode)
+          if (message.host?.gameCreated?.gameCode) {
             setGameCode(message.host.gameCreated.gameCode);
-          } else if (message.Error) {
-            console.error("Server error:", message.Error);
+          } else if (message.error) {
+            console.error("Server error:", message.error);
           }
         } catch {
           console.log("Non-JSON message from server:", event.data);
@@ -135,10 +147,9 @@ export default function HostLanding() {
 
       ws.onclose = (event) => {
         console.log("WebSocket disconnected", event.code, event.reason);
-        if (event.reason) {
-          console.error("WebSocket close reason:", event.reason);
-        }
-        setConnectionState((prev) => prev === "connected" ? "disconnected" : "error");
+        setConnectionState((prev) =>
+          prev === "connected" ? "disconnected" : "error"
+        );
       };
 
       ws.onerror = (error) => {
@@ -146,71 +157,145 @@ export default function HostLanding() {
         setConnectionState("error");
       };
     } catch (error) {
-      console.error("Error starting game:", error);
+      console.error("Error creating game:", error);
       setConnectionState("error");
     }
   };
-      
+
+  // Extract first name or username
+  const displayName = user?.username?.split("@")[0] || user?.username || "Host";
+
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="flex justify-between items-center p-4 bg-gray-100">
-        <h1 className="text-xl font-bold">Hello, {user?.username}</h1>
-        <button
-          onClick={signOut}
-          className="px-4 py-2 font-semibold text-white bg-blue-500 rounded hover:bg-blue-600"
-        >
-          Sign out
-        </button>
-      </header>
-      <main className="flex flex-col items-center justify-center flex-grow">
-        {!isLocalMode && (
+    <div className="min-h-screen flex flex-col">
+      <Header onLogOut={signOut} />
+
+      {/* Main content */}
+      <main className="flex-1 flex flex-col items-center justify-center gap-6">
+        {/* Server starting state */}
+        {isStartingServer && (
           <>
-            <div className="flex items-center mb-4">
-              <div
-                className={`w-4 h-4 rounded-full mr-2 ${
-                  serverRunning ? "bg-green-500" : "bg-gray-500"
-                }`}
-              ></div>
-              <p className="text-xl">
-                {serverRunning ? "Trivia server running" : "Trivia server idle"}
-              </p>
+            <ProgressBar durationMs={120000} isComplete={serverRunning} />
+            <p className="text-lg text-gray-600">Starting server...</p>
+          </>
+        )}
+
+        {/* Server start failed state */}
+        {!isStartingServer && !serverRunning && serverStartFailed && (
+          <>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-full bg-red-500" />
+              <span className="text-red-600">Server failed to start</span>
             </div>
-            {!serverRunning && (
-              <button
-                onClick={startServer}
-                className="px-4 py-2 font-semibold text-white bg-blue-500 rounded hover:bg-blue-600 disabled:bg-gray-400"
-                disabled={!isHost || isLoading}
-              >
-                {isLoading ? "Starting server..." : "Start trivia server"}
-              </button>
+            <p className="text-gray-600 text-center max-w-md">
+              Retry first, then bug Jared to help troubleshoot.
+            </p>
+            <Button
+              variant="primary"
+              onClick={handleStartServer}
+              disabled={!isHost || isLocalMode}
+              className="px-12 py-4 text-lg"
+            >
+              Retry
+            </Button>
+          </>
+        )}
+
+        {/* Server off state */}
+        {!isStartingServer && !serverRunning && !serverStartFailed && (
+          <>
+            <h2 className="text-5xl font-bold">Welcome, {displayName}</h2>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-full bg-gray-400" />
+              <span className="text-gray-600">Server inactive</span>
+            </div>
+            <Button
+              variant="primary"
+              onClick={handleStartServer}
+              disabled={!isHost || isLocalMode}
+              className="px-12 py-4 text-lg"
+            >
+              Start Server
+            </Button>
+          </>
+        )}
+
+        {/* Server running state */}
+        {!isStartingServer && serverRunning && !gameCode && (
+          <>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-green-500" />
+              <span className="text-lg">Server running!</span>
+            </div>
+
+            {connectionState === "error" ? (
+              <div className="text-center">
+                <p className="text-red-600 mb-4">
+                  {isLocalMode
+                    ? "Local server not running"
+                    : "Connection error"}
+                </p>
+                <Button
+                  variant="secondary"
+                  onClick={() => setConnectionState("idle")}
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={customGameCode}
+                    onChange={setCustomGameCode}
+                    placeholder="Game code"
+                    className="w-32 text-center"
+                  />
+                  <Button
+                    variant="primary"
+                    onClick={() => createGame(true)}
+                    disabled={
+                      connectionState === "connecting" || !customGameCode
+                    }
+                  >
+                    Create Game
+                  </Button>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={() => createGame(false)}
+                  disabled={connectionState === "connecting"}
+                  className="flex flex-col items-center py-4"
+                >
+                  <span>Create Game</span>
+                  <span className="text-sm text-gray-500">
+                    with random game code
+                  </span>
+                </Button>
+              </div>
             )}
           </>
         )}
-        {(isLocalMode || serverRunning) && (gameCode ? (
+
+        {/* Game created state */}
+        {gameCode && (
           <div className="text-center">
-            <p className="text-xl mb-2">Game Code:</p>
-            <p className="text-4xl font-bold">{gameCode}</p>
+            <p className="text-lg mb-2">Game Code:</p>
+            <p className="text-6xl font-bold tracking-wider">{gameCode}</p>
           </div>
-        ) : connectionState === "error" && isLocalMode ? (
-          <div className="text-center">
-            <p className="text-xl text-red-600 mb-4">Local server not running</p>
-            <button
-              onClick={() => setConnectionState("idle")}
-              className="px-4 py-2 font-semibold text-white bg-blue-500 rounded hover:bg-blue-600"
-            >
-              Retry
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={startGame}
-            disabled={connectionState === "connecting"}
-            className="px-4 py-2 font-semibold text-white bg-green-500 rounded hover:bg-green-600 disabled:bg-gray-400"
-          >
-            {connectionState === "connecting" ? "Connecting..." : "Start Game"}
-          </button>
-        ))}
+        )}
       </main>
+
+      {/* Footer */}
+      <footer className="p-4">
+        <a
+          href="https://jarbla.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm text-gray-600 hover:text-gray-900"
+        >
+          Jarbla Home
+        </a>
+      </footer>
     </div>
   );
 }

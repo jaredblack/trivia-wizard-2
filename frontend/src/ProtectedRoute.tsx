@@ -4,6 +4,7 @@ import { Outlet } from "react-router-dom";
 import type { AuthUser } from "aws-amplify/auth";
 import { isLocalMode } from "./config";
 import LocalAuthProvider from "./LocalAuthProvider";
+import Header from "./components/layout/Header";
 
 export type AuthOutletContext = {
   user: AuthUser | undefined;
@@ -16,11 +17,13 @@ export default function ProtectedRoute() {
   }
 
   return (
-    <Authenticator>
+    <Authenticator
+      components={{
+        Header: () => <Header />,
+      }}
+    >
       {({ signOut, user }) => (
-        <main>
-          <Outlet context={{ user, signOut } satisfies AuthOutletContext} />
-        </main>
+        <Outlet context={{ user, signOut } satisfies AuthOutletContext} />
       )}
     </Authenticator>
   );

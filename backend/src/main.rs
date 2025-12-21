@@ -21,7 +21,7 @@ async fn health_check() -> &'static str {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    dotenvy::dotenv()?;
+    dotenvy::dotenv().ok();
     env_logger::init();
     info!("Starting Trivia Wizard 2 backend");
 
