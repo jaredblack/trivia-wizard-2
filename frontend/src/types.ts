@@ -2,6 +2,12 @@
 
 export type QuestionKind = "standard" | "multiAnswer" | "multipleChoice";
 
+export const questionKindLabels: Record<QuestionKind, string> = {
+  standard: "Standard",
+  multiAnswer: "Multi-Answer",
+  multipleChoice: "Multiple Choice",
+};
+
 // === Score Types ===
 
 export interface ScoreData {

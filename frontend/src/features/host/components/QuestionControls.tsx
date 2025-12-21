@@ -1,4 +1,5 @@
 import { Play, RotateCcw, ArrowLeft, ArrowRight } from "lucide-react";
+import { questionKindLabels } from "../../../types";
 import type { QuestionKind } from "../../../types";
 
 interface QuestionControlsProps {
@@ -19,12 +20,6 @@ export default function QuestionControls({
   const seconds = timerDuration % 60;
   const timerDisplay = `${minutes}:${seconds.toString().padStart(2, "0")}`;
 
-  // Map question type to display label
-  const typeLabels: Record<QuestionKind, string> = {
-    standard: "Standard",
-    multiAnswer: "Multi-Answer",
-    multipleChoice: "Multiple Choice",
-  };
 
   return (
     <header className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
@@ -55,9 +50,9 @@ export default function QuestionControls({
             onChange={() => {}}
             className="border border-gray-300 bg-white rounded-xl px-2 py-2 hover:bg-gray-200 cursor-pointer"
           >
-            <option value="standard">{typeLabels.standard}</option>
-            <option value="multiAnswer">{typeLabels.multiAnswer}</option>
-            <option value="multipleChoice">{typeLabels.multipleChoice}</option>
+            <option value="standard">{questionKindLabels.standard}</option>
+            <option value="multiAnswer">{questionKindLabels.multiAnswer}</option>
+            <option value="multipleChoice">{questionKindLabels.multipleChoice}</option>
           </select>
         </div>
 

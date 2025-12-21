@@ -1,17 +1,21 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useHostStore } from "../../stores/useHostStore";
 import QuestionControls from "./components/QuestionControls";
 import AnswerList from "./components/AnswerList";
 import Scoreboard from "./components/Scoreboard";
 import GameSettings from "./components/GameSettings";
+import SettingsModal from "./components/SettingsModal";
 import type { QuestionKind } from "../../types";
 
 export default function HostGame() {
   const navigate = useNavigate();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const {
     gameCode,
     currentQuestionNumber,
     currentQuestion,
+    gameSettings,
     teams,
     clearGame,
   } = useHostStore();
@@ -66,7 +70,7 @@ export default function HostGame() {
         </div>
 
         {/* Right panel - Scoreboard (40%) */}
-        <div className="w-lg overflow-y-auto">
+        <div className="w-2xl overflow-y-auto">
           <Scoreboard gameCode={gameCode} teams={teams} />
         </div>
       </main>
@@ -88,11 +92,20 @@ export default function HostGame() {
           // TODO: Update in store
           console.log("Timer length:", value);
         }}
-        onOpenSettings={() => {
-          // TODO: Open settings modal
-          console.log("Open settings");
-        }}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
+
+      {/* Settings Modal */}
+      {isSettingsOpen && gameSettings && (
+        <SettingsModal
+          settings={gameSettings}
+          onClose={() => setIsSettingsOpen(false)}
+          onSettingsChange={(newSettings) => {
+            // TODO: Update settings in store and sync with server
+            console.log("Settings changed:", newSettings);
+          }}
+        />
+      )}
     </div>
   );
 }
