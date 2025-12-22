@@ -116,7 +116,6 @@ function EditableScore({ score, isHovered, onScoreChange }: EditableScoreProps) 
 }
 
 export default function Scoreboard({ gameCode, teams, onScoreUpdate }: ScoreboardProps) {
-  const [allowTeamsToSee, setAllowTeamsToSee] = useState(true);
   const [hoveredTeam, setHoveredTeam] = useState<string | null>(null);
 
   // Sort teams by total score (descending)
@@ -140,17 +139,6 @@ export default function Scoreboard({ gameCode, teams, onScoreUpdate }: Scoreboar
           {connectedCount}/{totalCount} teams connected
         </span>
       </div>
-
-      {/* Allow teams to see scoreboard checkbox */}
-      <label className="flex items-center gap-2 mb-4 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={allowTeamsToSee}
-          onChange={(e) => setAllowTeamsToSee(e.target.checked)}
-          className="w-4 h-4 rounded border-gray-300"
-        />
-        <span className="text-sm">Allow teams to see scoreboard</span>
-      </label>
 
       {/* Team scores list */}
       <div className="flex-1 overflow-y-auto space-y-3">
