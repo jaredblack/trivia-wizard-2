@@ -16,6 +16,8 @@ use serde_json::json;
 use tokio::{net::TcpListener, sync::mpsc};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message};
 
+mod integ;
+
 pub struct TestServer {
     pub ws_port: u16,
     _shutdown_tx: mpsc::Sender<()>,
@@ -147,7 +149,7 @@ impl TestClient {
     }
 }
 
-const TEST_PRIVATE_KEY: &str = include_str!("../keys/test_private.pem");
+const TEST_PRIVATE_KEY: &str = include_str!("./keys/test_private.pem");
 
 /// Generate a test JWT for authentication tests
 pub fn create_test_jwt(user_id: &str, groups: &[&str], expired: bool) -> String {
@@ -190,4 +192,51 @@ pub fn create_non_host_token() -> String {
 /// Generate an expired token
 pub fn create_expired_token() -> String {
     create_test_jwt("test-user", &["Trivia-Hosts"], true)
+}
+
+/// Helper function to test answer submission flow:
+/// - Team submits answer
+/// - Team receives TeamGameState confirmation
+/// - Host receives GameState with the answer
+/// Note: Requires timer to be running (submissions open)
+pub async fn assert_answer_submission_flow(
+    team: &mut TestClient,
+    host: &mut TestClient,
+    team_name: &str,
+    answer: &str,
+) {
+    // Team submits an answer
+    team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
+        team_name: team_name.to_string(),
+        answer: answer.to_string(),
+    }))
+    .await;
+
+    // Team should receive confirmation
+    let team_response: ServerMessage = team.recv_json().await;
+    match team_response {
+        ServerMessage::TeamGameState { .. } => {
+            // Success - team got state update
+        }
+        other => panic!("Expected TeamGameState message, got {other:?}"),
+    }
+
+    // Host should receive the updated game state
+    let host_response: ServerMessage = host.recv_json().await;
+    match host_response {
+        ServerMessage::GameState { state } => {
+            // Verify the answer was added to the current question
+            let responses = match &state.current_question.question_data {
+                backend::model::types::QuestionData::Standard { responses } => responses,
+                _ => panic!("Expected Standard question type"),
+            };
+            assert!(
+                responses
+                    .iter()
+                    .any(|r| r.team_name == team_name && r.answer_text == answer),
+                "Answer should appear in responses"
+            );
+        }
+        other => panic!("Expected GameState message, got {other:?}"),
+    }
 }
