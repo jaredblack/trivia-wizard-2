@@ -19,6 +19,7 @@ pub async fn join_game(
     game_code: String,
     team_name: String,
     color_hex: String,
+    color_name: String,
     team_members: Vec<String>,
 ) {
     let (tx, rx) = mpsc::unbounded_channel::<Message>();
@@ -27,7 +28,7 @@ pub async fn join_game(
         info!("Team {team_name} joined game {game_code}");
         let team_color = TeamColor {
             hex_code: color_hex,
-            name: "Custom".to_string(), // Color name not provided by client
+            name: color_name,
         };
         game.add_team(team_name.clone(), tx.clone(), team_color, team_members);
 

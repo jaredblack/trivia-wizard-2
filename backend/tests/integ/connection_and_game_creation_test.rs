@@ -29,6 +29,7 @@ async fn team_joins_nonexistent_game_receives_error() {
         game_code: "nonexistent".to_string(),
         team_name: "Test Team".to_string(),
         color_hex: "#DC2626".to_string(),
+        color_name: "Red".to_string(),
         team_members: vec!["Test Player".to_string()],
     }))
     .await;

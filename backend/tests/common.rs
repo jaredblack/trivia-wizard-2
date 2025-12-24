@@ -137,6 +137,7 @@ impl TestClient {
             game_code: game_code.to_string(),
             team_name: team_name.to_string(),
             color_hex: "#DC2626".to_string(),
+            color_name: "Red".to_string(),
             team_members: vec!["Test Player".to_string()],
         }))
         .await;

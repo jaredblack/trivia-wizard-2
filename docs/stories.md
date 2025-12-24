@@ -235,21 +235,10 @@ Update the existing test suite in `backend/tests/`.
 - [x] I need claude to explain why the timer actions need to be handled separately. They need to spawn tasks, but fundamentally it's the same type of thing where we have a message to send to all the clients. Right now process_host_action can only return something back to send to one team but this will pretty quickly not work either for operations like NextQuestion
    - Possibility: have HostActionResult optionally provide the team_tx to send the team message to. If it's not provided, then send the message to all teams.
 - [x] Game::recalculate_team_score seems a bit inefficient -- I think recalculating the score fully every time feels like overkill. Actually, now that I think of it a little more, this is necessary so that multiple score updates for the same answer don't stack. Another solution to this could be to have the host always only send the diff between the existing score and the updated score. The current approach seems fine though.
-- ClearAnswerScore seems unnecessary. I feel like the client can just send a score update of 0 in this case and it will be fine
-- this block seems to be repeated (but this will also need to change with the above changes to HostActionResult):
-```
-let host_msg = ServerMessage::GameState {
-   state: game.to_game_state(),
-};
-let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
-   game.to_team_game_state(&team_name)
-      .map(|state| (tx, ServerMessage::TeamGameState { state }))
-});
-```
-- at least two places where I'm returning the same deser error "Server error: Failed to parse message" - can probably make that a helper
+- [x] ClearAnswerScore seems unnecessary. I feel like the client can just send a score update of 0 in this case and it will be fine
 - should add color name to JoinGame message
-- broadcast_game_state shouldn't be in game_timer, as noted above we'll need it for other actions
-- do we have a test for a team leaving and rejoining? I'm not sure that's working right now
+- [x] broadcast_game_state shouldn't be in game_timer, as noted above we'll need it for other actions
+- [x] do we have a test for a team leaving and rejoining? I'm not sure that's working right now
 - the default 30s timer on line 58 is suspect. In fact, I think that function can be simplified if we make the seconds parameter to StartTimer be required. I don't see why it shouldn't be.
    - I guess from a "server authority" perspective it makes sense to have it not take a parameter. Instead, to start the timer, the server should read the question settings. Then, when starting the timer after it's been paused, read the remaining time off of the game state. So, similar to what's there, but removing the optional parameter from StartTimer entirely (opposite of what I said above)
 - There may be an edge case where when StartTimer is called with 0 seconds, the submissions get opened, but they don't close.
@@ -263,8 +252,18 @@ let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
 - game settings updates should update the current question's settings iff there are no answers already for that question (which should be the same condition as being able to update question settings). there should be a warning on the game settings modal if you're trying to update after answers have come in: this won't update the current question (and also it won't retroactively change questions)
 - definitely need to add some server tests around scoring. as part of that, should break up websocket_tests into multiple semantically grouped files
 
-## post the big impl
-- I think there's gonna be a lot of "and then package up the game state and send it to the host and teams" this could be a helper function
+## potential refactors
+- [ ] this block seems to be repeated (but this will also need to change with the above changes to HostActionResult):
+```
+let host_msg = ServerMessage::GameState {
+   state: game.to_game_state(),
+};
+let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
+   game.to_team_game_state(&team_name)
+      .map(|state| (tx, ServerMessage::TeamGameState { state }))
+});
+```
+- [ ] at least two places where I'm returning the same deser error "Server error: Failed to parse message" - can probably make that a helper
 
 ## misc
 - update verification email

@@ -40,6 +40,7 @@ pub enum TeamAction {
         team_name: String,
         game_code: String,
         color_hex: String,
+        color_name: String,
         team_members: Vec<String>,
     },
 

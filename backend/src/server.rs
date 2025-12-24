@@ -160,6 +160,7 @@ async fn handle_connection(stream: TcpStream, app_state: Arc<AppState>) -> Resul
                                 game_code,
                                 team_name,
                                 color_hex,
+                                color_name,
                                 team_members,
                             } = action
                             {
@@ -169,6 +170,7 @@ async fn handle_connection(stream: TcpStream, app_state: Arc<AppState>) -> Resul
                                     game_code,
                                     team_name,
                                     color_hex,
+                                    color_name,
                                     team_members,
                                 )
                                 .await;

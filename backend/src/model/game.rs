@@ -79,14 +79,22 @@ impl Game {
         // Add to connection tracking
         self.teams_tx.insert(team_name.clone(), team_tx);
 
-        // Add to game state with zeroed score
-        self.teams.push(TeamData {
-            team_name,
-            team_members,
-            team_color,
-            score: ScoreData::new(),
-            connected: true,
-        });
+        // Check if team already exists (reconnection scenario)
+        if let Some(team) = self.teams.iter_mut().find(|t| t.team_name == team_name) {
+            // Team is reconnecting - preserve their score and update connection status
+            team.connected = true;
+            team.team_members = team_members;
+            team.team_color = team_color;
+        } else {
+            // New team joining - add to game state with zeroed score
+            self.teams.push(TeamData {
+                team_name,
+                team_members,
+                team_color,
+                score: ScoreData::new(),
+                connected: true,
+            });
+        }
     }
 
     pub fn current_question(&self) -> &Question {
