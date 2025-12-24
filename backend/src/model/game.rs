@@ -1,4 +1,4 @@
-use crate::model::server_message::{GameState, TeamGameState};
+use crate::model::server_message::{GameState, ServerMessage, TeamGameState, send_msg};
 use crate::model::types::{
     GameSettings, Question, QuestionData, QuestionKind, ScoreData, TeamColor, TeamData,
     TeamResponse,
@@ -127,6 +127,26 @@ impl Game {
                 _ => None,
             },
         })
+    }
+
+    /// Broadcast full GameState to host and TeamGameState to all teams
+    pub fn broadcast_game_state(&self) {
+        // Send full GameState to host
+        if let Some(host_tx) = &self.host_tx {
+            send_msg(
+                host_tx,
+                ServerMessage::GameState {
+                    state: self.to_game_state(),
+                },
+            );
+        }
+
+        // Send filtered TeamGameState to each team
+        for (team_name, team_tx) in &self.teams_tx {
+            if let Some(team_state) = self.to_team_game_state(team_name) {
+                send_msg(team_tx, ServerMessage::TeamGameState { state: team_state });
+            }
+        }
     }
 
     // === Answer submission ===

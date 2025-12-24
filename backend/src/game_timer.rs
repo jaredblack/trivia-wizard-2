@@ -4,26 +4,6 @@ use crate::server::AppState;
 use log::error;
 use std::sync::Arc;
 
-/// Broadcast GameState to host and TeamGameState to all teams
-fn broadcast_game_state(game: &Game) {
-    // Send full GameState to host
-    if let Some(host_tx) = &game.host_tx {
-        send_msg(
-            host_tx,
-            ServerMessage::GameState {
-                state: game.to_game_state(),
-            },
-        );
-    }
-
-    // Send filtered TeamGameState to each team
-    for (team_name, team_tx) in &game.teams_tx {
-        if let Some(team_state) = game.to_team_game_state(team_name) {
-            send_msg(team_tx, ServerMessage::TeamGameState { state: team_state });
-        }
-    }
-}
-
 /// Broadcast a TimerTick to all connected clients (host + all teams)
 fn broadcast_timer_tick(game: &Game, seconds_remaining: u32) {
     let msg = ServerMessage::TimerTick { seconds_remaining };
@@ -35,46 +15,31 @@ fn broadcast_timer_tick(game: &Game, seconds_remaining: u32) {
     }
 }
 
-/// Handle StartTimer action: start/resume timer and spawn tick task
-pub async fn handle_start_timer(app_state: &Arc<AppState>, game_code: &str, seconds: Option<u32>) {
-    // First, update state and determine if we should spawn a timer task
-    let should_spawn = {
-        let mut games_map = app_state.games.lock().await;
-        let Some(game) = games_map.get_mut(game_code) else {
-            error!("Game {game_code} not found in handle_start_timer");
-            return;
-        };
-
-        // Cancel existing timer if running
-        if let Some(handle) = game.timer_abort_handle.take() {
-            handle.abort();
-        }
-
-        // Set timer value: use provided seconds, or current value, or default to 30
-        if let Some(secs) = seconds {
-            game.timer_seconds_remaining = Some(secs);
-        } else if game.timer_seconds_remaining.is_none() || game.timer_seconds_remaining == Some(0)
-        {
-            game.timer_seconds_remaining = Some(30);
-        }
-
-        // Start timer (opens submissions)
-        game.timer_running = true;
-
-        game.timer_seconds_remaining.unwrap_or(0) > 0
-    };
-    // Lock released
-
-    // Broadcast initial state to all clients
-    {
-        let games_map = app_state.games.lock().await;
-        if let Some(game) = games_map.get(game_code) {
-            broadcast_game_state(game);
-        }
+/// Start/resume timer and spawn tick task. Called while holding game lock.
+/// Does not broadcast - caller should broadcast after releasing lock.
+pub fn start_timer(
+    game: &mut Game,
+    app_state: &Arc<AppState>,
+    game_code: &str,
+    seconds: Option<u32>,
+) {
+    // Cancel existing timer if running
+    if let Some(handle) = game.timer_abort_handle.take() {
+        handle.abort();
     }
 
+    // Set timer value: use provided seconds, or current value, or default to 30
+    if let Some(secs) = seconds {
+        game.timer_seconds_remaining = Some(secs);
+    } else if game.timer_seconds_remaining.is_none() || game.timer_seconds_remaining == Some(0) {
+        game.timer_seconds_remaining = Some(30);
+    }
+
+    // Start timer (opens submissions)
+    game.timer_running = true;
+
     // Spawn timer tick task if there's time remaining
-    if should_spawn {
+    if game.timer_seconds_remaining.unwrap_or(0) > 0 {
         let app_state2 = app_state.clone();
         let game_code2 = game_code.to_string();
 
@@ -135,7 +100,7 @@ pub async fn handle_start_timer(app_state: &Arc<AppState>, game_code: &str, seco
                 if final_state.is_some() {
                     let games_map = app_state2.games.lock().await;
                     if let Some(game) = games_map.get(&game_code2) {
-                        broadcast_game_state(game);
+                        game.broadcast_game_state();
                     }
                 }
 
@@ -146,62 +111,31 @@ pub async fn handle_start_timer(app_state: &Arc<AppState>, game_code: &str, seco
         });
 
         // Store abort handle
-        let mut games_map = app_state.games.lock().await;
-        if let Some(game) = games_map.get_mut(game_code) {
-            game.timer_abort_handle = Some(task.abort_handle());
-        }
+        game.timer_abort_handle = Some(task.abort_handle());
     }
 }
 
-/// Handle PauseTimer action: stop timer task and close submissions
-pub async fn handle_pause_timer(app_state: &Arc<AppState>, game_code: &str) {
-    {
-        let mut games_map = app_state.games.lock().await;
-        let Some(game) = games_map.get_mut(game_code) else {
-            error!("Game {game_code} not found in handle_pause_timer");
-            return;
-        };
-
-        // Cancel timer task if running
-        if let Some(handle) = game.timer_abort_handle.take() {
-            handle.abort();
-        }
-
-        // Close submissions
-        game.timer_running = false;
-    };
-    // Lock released
-
-    // Broadcast updated state
-    let games_map = app_state.games.lock().await;
-    if let Some(game) = games_map.get(game_code) {
-        broadcast_game_state(game);
+/// Pause timer: stop timer task and close submissions. Called while holding game lock.
+/// Does not broadcast - caller should broadcast after releasing lock.
+pub fn pause_timer(game: &mut Game) {
+    // Cancel timer task if running
+    if let Some(handle) = game.timer_abort_handle.take() {
+        handle.abort();
     }
+
+    // Close submissions
+    game.timer_running = false;
 }
 
-/// Handle ResetTimer action: stop timer task, reset to default, close submissions
-pub async fn handle_reset_timer(app_state: &Arc<AppState>, game_code: &str) {
-    {
-        let mut games_map = app_state.games.lock().await;
-        let Some(game) = games_map.get_mut(game_code) else {
-            error!("Game {game_code} not found in handle_reset_timer");
-            return;
-        };
-
-        // Cancel timer task if running
-        if let Some(handle) = game.timer_abort_handle.take() {
-            handle.abort();
-        }
-
-        // Reset to default duration
-        game.timer_seconds_remaining = Some(30);
-        game.timer_running = false;
-    };
-    // Lock released
-
-    // Broadcast updated state
-    let games_map = app_state.games.lock().await;
-    if let Some(game) = games_map.get(game_code) {
-        broadcast_game_state(game);
+/// Reset timer: stop timer task, reset to default, close submissions. Called while holding game lock.
+/// Does not broadcast - caller should broadcast after releasing lock.
+pub fn reset_timer(game: &mut Game) {
+    // Cancel timer task if running
+    if let Some(handle) = game.timer_abort_handle.take() {
+        handle.abort();
     }
+
+    // Reset to default duration
+    game.timer_seconds_remaining = Some(30);
+    game.timer_running = false;
 }

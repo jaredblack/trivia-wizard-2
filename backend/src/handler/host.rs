@@ -1,5 +1,5 @@
 use crate::{
-    game_timer::{handle_pause_timer, handle_reset_timer, handle_start_timer},
+    game_timer::{pause_timer, reset_timer, start_timer},
     model::{
         client_message::{ClientMessage, HostAction},
         game::Game,
@@ -66,24 +66,61 @@ pub async fn create_game(
     handle_host(ws_stream, app_state, rx, tx, game_code).await;
 }
 
+/// How to send messages to teams after processing a host action
+enum TeamMessage {
+    Single(Tx, ServerMessage), // Send to one specific team
+    Broadcast,                 // Broadcast to all teams (constructs TeamGameState for each)
+}
+
 /// Result of processing a host action: messages to send after releasing the lock
 struct HostActionResult {
     host_msg: ServerMessage,
-    team_msg: Option<(Tx, ServerMessage)>, // (cloned tx, message)
+    team_msg: Option<TeamMessage>,
 }
 
 /// Process a host action that mutates game state.
 /// The game reference must be held under a lock; this function does not await.
-fn process_host_action(action: HostAction, game: &mut Game) -> HostActionResult {
+fn process_host_action(
+    action: HostAction,
+    game: &mut Game,
+    app_state: &Arc<AppState>,
+    game_code: &str,
+) -> HostActionResult {
     match action {
         HostAction::CreateGame { .. } => HostActionResult {
             host_msg: ServerMessage::error("Game already created"),
             team_msg: None,
         },
 
-        // Timer actions are handled specially in process_host_message
-        HostAction::StartTimer { .. } | HostAction::PauseTimer | HostAction::ResetTimer => {
-            unreachable!("Timer actions should be handled in process_host_message")
+        // Timer actions
+        HostAction::StartTimer { seconds } => {
+            start_timer(game, app_state, game_code, seconds);
+            HostActionResult {
+                host_msg: ServerMessage::GameState {
+                    state: game.to_game_state(),
+                },
+                team_msg: Some(TeamMessage::Broadcast),
+            }
+        }
+
+        HostAction::PauseTimer => {
+            pause_timer(game);
+            HostActionResult {
+                host_msg: ServerMessage::GameState {
+                    state: game.to_game_state(),
+                },
+                team_msg: Some(TeamMessage::Broadcast),
+            }
+        }
+
+        HostAction::ResetTimer => {
+            reset_timer(game);
+            HostActionResult {
+                host_msg: ServerMessage::GameState {
+                    state: game.to_game_state(),
+                },
+                team_msg: Some(TeamMessage::Broadcast),
+            }
         }
 
         // Scoring actions
@@ -97,8 +134,9 @@ fn process_host_action(action: HostAction, game: &mut Game) -> HostActionResult 
                     state: game.to_game_state(),
                 };
                 let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
-                    game.to_team_game_state(&team_name)
-                        .map(|state| (tx, ServerMessage::TeamGameState { state }))
+                    game.to_team_game_state(&team_name).map(|state| {
+                        TeamMessage::Single(tx, ServerMessage::TeamGameState { state })
+                    })
                 });
                 HostActionResult { host_msg, team_msg }
             } else {
@@ -121,8 +159,9 @@ fn process_host_action(action: HostAction, game: &mut Game) -> HostActionResult 
                     state: game.to_game_state(),
                 };
                 let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
-                    game.to_team_game_state(&team_name)
-                        .map(|state| (tx, ServerMessage::TeamGameState { state }))
+                    game.to_team_game_state(&team_name).map(|state| {
+                        TeamMessage::Single(tx, ServerMessage::TeamGameState { state })
+                    })
                 });
                 HostActionResult { host_msg, team_msg }
             } else {
@@ -145,8 +184,9 @@ fn process_host_action(action: HostAction, game: &mut Game) -> HostActionResult 
                     state: game.to_game_state(),
                 };
                 let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
-                    game.to_team_game_state(&team_name)
-                        .map(|state| (tx, ServerMessage::TeamGameState { state }))
+                    game.to_team_game_state(&team_name).map(|state| {
+                        TeamMessage::Single(tx, ServerMessage::TeamGameState { state })
+                    })
                 });
                 HostActionResult { host_msg, team_msg }
             } else {
@@ -187,25 +227,6 @@ async fn process_host_message(
         }
     };
 
-    // Handle timer actions specially (they need to spawn async tasks)
-    match action {
-        HostAction::StartTimer { seconds } => {
-            handle_start_timer(app_state, game_code, seconds).await;
-            return;
-        }
-        HostAction::PauseTimer => {
-            handle_pause_timer(app_state, game_code).await;
-            return;
-        }
-        HostAction::ResetTimer => {
-            handle_reset_timer(app_state, game_code).await;
-            return;
-        }
-        _ => {
-            // Handle other actions with the normal pattern
-        }
-    }
-
     // Acquire lock, mutate state, collect messages to send, then release lock
     let result = {
         let mut games_map = app_state.games.lock().await;
@@ -213,14 +234,29 @@ async fn process_host_message(
             error!("Game {game_code} not found while processing host message");
             return;
         };
-        process_host_action(action, game)
+        process_host_action(action, game, app_state, game_code)
     };
     // Lock released here
 
     // Send messages outside the lock
     send_msg(host_tx, result.host_msg);
-    if let Some((team_tx, msg)) = result.team_msg {
-        send_msg(&team_tx, msg);
+    match result.team_msg {
+        Some(TeamMessage::Single(team_tx, msg)) => {
+            send_msg(&team_tx, msg);
+        }
+        Some(TeamMessage::Broadcast) => {
+            // Re-acquire lock to broadcast to all teams
+            let games_map = app_state.games.lock().await;
+            if let Some(game) = games_map.get(game_code) {
+                // Send to all teams (host already received message above)
+                for (team_name, team_tx) in &game.teams_tx {
+                    if let Some(team_state) = game.to_team_game_state(team_name) {
+                        send_msg(team_tx, ServerMessage::TeamGameState { state: team_state });
+                    }
+                }
+            }
+        }
+        None => {}
     }
 }
 
