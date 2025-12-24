@@ -17,22 +17,15 @@ fn broadcast_timer_tick(game: &Game, seconds_remaining: u32) {
 
 /// Start/resume timer and spawn tick task. Called while holding game lock.
 /// Does not broadcast - caller should broadcast after releasing lock.
-pub fn start_timer(
-    game: &mut Game,
-    app_state: &Arc<AppState>,
-    game_code: &str,
-    seconds: Option<u32>,
-) {
+pub fn start_timer(game: &mut Game, app_state: &Arc<AppState>, game_code: &str) {
     // Cancel existing timer if running
     if let Some(handle) = game.timer_abort_handle.take() {
         handle.abort();
     }
 
-    // Set timer value: use provided seconds, or current value, or default to 30
-    if let Some(secs) = seconds {
-        game.timer_seconds_remaining = Some(secs);
-    } else if game.timer_seconds_remaining.is_none() || game.timer_seconds_remaining == Some(0) {
-        game.timer_seconds_remaining = Some(30);
+    // Set timer value: use current remaining time if > 0, otherwise use question's timer_duration
+    if game.timer_seconds_remaining.is_none() || game.timer_seconds_remaining == Some(0) {
+        game.timer_seconds_remaining = Some(game.current_question().timer_duration);
     }
 
     // Start timer (opens submissions)
@@ -127,15 +120,15 @@ pub fn pause_timer(game: &mut Game) {
     game.timer_running = false;
 }
 
-/// Reset timer: stop timer task, reset to default, close submissions. Called while holding game lock.
-/// Does not broadcast - caller should broadcast after releasing lock.
+/// Reset timer: stop timer task, reset to current question's duration, close submissions.
+/// Called while holding game lock. Does not broadcast - caller should broadcast after releasing lock.
 pub fn reset_timer(game: &mut Game) {
     // Cancel timer task if running
     if let Some(handle) = game.timer_abort_handle.take() {
         handle.abort();
     }
 
-    // Reset to default duration
-    game.timer_seconds_remaining = Some(30);
+    // Reset to current question's timer duration
+    game.timer_seconds_remaining = Some(game.current_question().timer_duration);
     game.timer_running = false;
 }

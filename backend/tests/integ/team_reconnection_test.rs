@@ -17,10 +17,8 @@ async fn team_reconnects_and_score_persists() {
     let _host_update: ServerMessage = host.recv_json().await;
 
     // Host allows answers by starting timer
-    host.send_json(&ClientMessage::Host(HostAction::StartTimer {
-        seconds: None,
-    }))
-    .await;
+    host.send_json(&ClientMessage::Host(HostAction::StartTimer))
+        .await;
     let _: ServerMessage = host.recv_json().await; // consume GameState from StartTimer
 
     // Team A answers

@@ -11,10 +11,7 @@ pub enum HostAction {
         game_code: Option<String>,
     },
 
-    #[serde(rename_all = "camelCase")]
-    StartTimer {
-        seconds: Option<u32>,
-    },
+    StartTimer,
     PauseTimer,
     ResetTimer,
 

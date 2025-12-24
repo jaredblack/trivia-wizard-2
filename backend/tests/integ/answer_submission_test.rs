@@ -42,10 +42,8 @@ async fn team_submits_answer_host_receives_it() {
     let _: ServerMessage = host.recv_json().await;
 
     // Start timer to open submissions
-    host.send_json(&ClientMessage::Host(HostAction::StartTimer {
-        seconds: None,
-    }))
-    .await;
+    host.send_json(&ClientMessage::Host(HostAction::StartTimer))
+        .await;
     let _: ServerMessage = host.recv_json().await; // consume GameState
 
     assert_answer_submission_flow(&mut team, &mut host, "Test Team", "42").await;

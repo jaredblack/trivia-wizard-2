@@ -93,8 +93,8 @@ fn process_host_action(
         },
 
         // Timer actions
-        HostAction::StartTimer { seconds } => {
-            start_timer(game, app_state, game_code, seconds);
+        HostAction::StartTimer => {
+            start_timer(game, app_state, game_code);
             HostActionResult {
                 host_msg: ServerMessage::GameState {
                     state: game.to_game_state(),

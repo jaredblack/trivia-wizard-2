@@ -242,10 +242,10 @@ Update the existing test suite in `backend/tests/`.
 - the default 30s timer on line 58 is suspect. In fact, I think that function can be simplified if we make the seconds parameter to StartTimer be required. I don't see why it shouldn't be.
    - I guess from a "server authority" perspective it makes sense to have it not take a parameter. Instead, to start the timer, the server should read the question settings. Then, when starting the timer after it's been paused, read the remaining time off of the game state. So, similar to what's there, but removing the optional parameter from StartTimer entirely (opposite of what I said above)
 - There may be an edge case where when StartTimer is called with 0 seconds, the submissions get opened, but they don't close.
-- It seems unnecessary to me if the timer needs to send out a state update when it's down to 0. 
+- [x] It seems unnecessary to me if the timer needs to send out a state update when it's down to 0. 
    - Well, actually, I guess there will be the update that submissions are now closed. So never mind.
-- handle_reset_timer needs to get the timer length off of the question settings.
-- AppState is a singleton, but we're passsing it around anywhere. Is there a point? Is there a Rust-friendly Singleton pattern?
+- [x] handle_reset_timer needs to get the timer length off of the question settings.
+- [x] AppState is a singleton, but we're passsing it around anywhere. Is there a point? Is there a Rust-friendly Singleton pattern?
 
 ## soonish
 - Words as game codes: I think bundling up some list of a few thousand words that can be random game codes seems reasonable enough. I don't think we need to do an external API call like in TW1
