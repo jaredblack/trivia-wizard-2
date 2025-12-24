@@ -230,13 +230,13 @@ Update the existing test suite in `backend/tests/`.
 ## CR comments
 - [ ] still just stringifying JSON in create game, should be using strong types
    - this will be resolved with the frontend tasks
-- model types are still a bit of a mess, to be fair I just told it to modify stuff that it needed to. But we need to go through and make sure that the model types exactly match in frontend/backend
-- having a separate currentQuestion field on the GameState that's constantly being sent over the wire seems kind of dumb. questions[currentQuestionNumber - 1]. Bang. Easy
-- can probably drop peer after logging it, no need to pass it along. tbh, I don't think we need to even log it
-- Current ReclaimGame just calls create_game with a game code. Need to collapse this into a single API
+- [ ] model types are still a bit of a mess, to be fair I just told it to modify stuff that it needed to. But we need to go through and make sure that the model types exactly match in frontend/backend
+- [x] having a separate currentQuestion field on the GameState that's constantly being sent over the wire seems kind of dumb. questions[currentQuestionNumber - 1]. Bang. Easy
+- [x] can probably drop peer after logging it, no need to pass it along. tbh, I don't think we need to even log it
+- [x] Current ReclaimGame just calls create_game with a game code. Need to collapse this into a single API
    - Also need to validate that user id matches when reclaiming a game
 - handle_connection is still pretty dang deeply nested. not seeing a place to cleanly break it up without adding unnecessary indirection. not too concerned for now tbh
-- looks like there may be a bug in create_game where if the game code is in the map & there is already a connected host, it will get overwritten. need to write a test case for this: new host tries to "reclaim" game that already has a host
+- [x] looks like there may be a bug in create_game where if the game code is in the map & there is already a connected host, it will get overwritten. need to write a test case for this: new host tries to "reclaim" game that already has a host
 - process_host_action, process_host_message, and handle_host should be factored into their own file. same for the team message processing
 - I need claude to explain why the timer actions need to be handled separately. They need to spawn tasks, but fundamentally it's the same type of thing where we have a message to send to all the clients. Right now process_host_action can only return something back to send to one team but this will pretty quickly not work either for operations like NextQuestion
    - Possibility: have HostActionResult optionally provide the team_tx to send the team message to. If it's not provided, then send the message to all teams.
@@ -270,7 +270,6 @@ let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
 - definitely need to add some server tests around scoring. as part of that, should break up websocket_tests into multiple semantically grouped files
 
 ## post the big impl
-- I think I've got a bunch of u32's being cast to usize that could prob just be usize to start
 - I think there's gonna be a lot of "and then package up the game state and send it to the host and teams" this could be a helper function
 
 ## misc
@@ -278,6 +277,7 @@ let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
 - set an alarm on log::error from my app?
 - game db lifecycle - I've never actually gone back to look at old trivia games since they're not that interesting. maybe they shouldn't really be persisted for that long? I think no DB at all, while removing a dependency which would be nice, would just be asking for trouble. The way things are going now, we'll start with no persistence and then figure out what the best way to do it is. Writing to a DB with every operation like I did for TW1 feels unnecessary when the server can track the state that realistically only needs to be temporary. One halfway option could be just serializing the whole game state every once in a while and writing it to S3 or a document DB? 
 - submissions should auto-close when all answers have been received
+- Also need to validate that user id matches when reclaiming a game
 
 ## concerns
 - The big game state Mutex<HashMap> gets touched _a lot_. We're not doing anything expensive while holding the lock (I think), but intuitively it feels like there could be contention which could lead to issues in when messages get processed, timer updates going out on time, etc. I think for now we continue down this path but if things look problematic in testing, we might have to consider a radically different architecture.

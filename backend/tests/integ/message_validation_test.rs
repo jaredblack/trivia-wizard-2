@@ -61,8 +61,10 @@ async fn team_sends_unexpected_message_type() {
     team.join_game(&game_code, "Test Team").await;
 
     // Now send an unexpected Host message
-    team.send_json(&ClientMessage::Host(HostAction::CreateGame))
-        .await;
+    team.send_json(&ClientMessage::Host(HostAction::CreateGame {
+        game_code: None,
+    }))
+    .await;
 
     // Team should receive an error
     let response: ServerMessage = team.recv_json().await;

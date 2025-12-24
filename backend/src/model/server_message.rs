@@ -13,12 +13,11 @@ use crate::server::Tx;
 #[serde(rename_all = "camelCase")]
 pub struct GameState {
     pub game_code: String,
-    pub current_question_number: u32,
+    pub current_question_number: usize,
     pub timer_running: bool,
     pub timer_seconds_remaining: Option<u32>,
     pub teams: Vec<TeamData>,
     pub questions: Vec<Question>,
-    pub current_question: Question,
     pub game_settings: GameSettings,
 }
 
@@ -30,7 +29,7 @@ pub struct GameState {
 #[serde(rename_all = "camelCase")]
 pub struct TeamGameState {
     pub game_code: String,
-    pub current_question_number: u32,
+    pub current_question_number: usize,
     pub timer_running: bool,
     pub timer_seconds_remaining: Option<u32>,
     pub team: TeamData,

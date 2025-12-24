@@ -30,8 +30,8 @@ async fn host_disconnects_and_reconnects_teams_remain() {
     // Host reconnects with a new token and reclaims the game
     let token = create_host_token();
     let mut host = TestClient::connect_with_token(&server.ws_url(), Some(&token)).await;
-    host.send_json(&ClientMessage::Host(HostAction::ReclaimGame {
-        game_code: game_code.clone(),
+    host.send_json(&ClientMessage::Host(HostAction::CreateGame {
+        game_code: Some(game_code.clone()),
     }))
     .await;
     let response: ServerMessage = host.recv_json().await;
@@ -47,4 +47,34 @@ async fn host_disconnects_and_reconnects_teams_remain() {
     );
 
     // TODO: Phase 2 - verify team can still submit answers
+}
+
+#[tokio::test]
+async fn cannot_reclaim_game_with_active_host() {
+    let server = TestServer::start().await;
+    let (host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
+
+    // Try to reclaim the game while the original host is still connected
+    let token = create_host_token();
+    let mut intruder = TestClient::connect_with_token(&server.ws_url(), Some(&token)).await;
+    intruder
+        .send_json(&ClientMessage::Host(HostAction::CreateGame {
+            game_code: Some(game_code.clone()),
+        }))
+        .await;
+
+    // Should receive an error
+    let response: ServerMessage = intruder.recv_json().await;
+    match response {
+        ServerMessage::Error { message, .. } => {
+            assert!(
+                message.contains("already has an active host"),
+                "Error should mention active host, got: {message}"
+            );
+        }
+        other => panic!("Expected Error message for game with active host, got {other:?}"),
+    }
+
+    // Original host should still be connected (not dropped)
+    drop(host);
 }

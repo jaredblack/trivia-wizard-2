@@ -111,8 +111,10 @@ impl TestClient {
     /// Send CreateGame and return the game code
     /// Note: Requires the client to have connected with a valid host token
     pub async fn create_game(&mut self) -> String {
-        self.send_json(&ClientMessage::Host(HostAction::CreateGame))
-            .await;
+        self.send_json(&ClientMessage::Host(HostAction::CreateGame {
+            game_code: None,
+        }))
+        .await;
 
         let response: ServerMessage = self.recv_json().await;
         match response {
@@ -226,7 +228,12 @@ pub async fn assert_answer_submission_flow(
     match host_response {
         ServerMessage::GameState { state } => {
             // Verify the answer was added to the current question
-            let responses = match &state.current_question.question_data {
+            let responses = match &state
+                .questions
+                .get(state.current_question_number - 1)
+                .expect("Current question number doesn't correspond to a question in the state")
+                .question_data
+            {
                 backend::model::types::QuestionData::Standard { responses } => responses,
                 _ => panic!("Expected Standard question type"),
             };

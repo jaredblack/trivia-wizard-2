@@ -19,7 +19,7 @@ pub struct Game {
     pub teams_tx: HashMap<String, Tx>,
 
     // Game state
-    pub current_question_number: u32,
+    pub current_question_number: usize,
     pub timer_running: bool,
     pub timer_seconds_remaining: Option<u32>,
     pub teams: Vec<TeamData>,
@@ -90,11 +90,11 @@ impl Game {
     }
 
     pub fn current_question(&self) -> &Question {
-        &self.questions[self.current_question_number as usize - 1]
+        &self.questions[self.current_question_number - 1]
     }
 
     pub fn current_question_mut(&mut self) -> &mut Question {
-        &mut self.questions[self.current_question_number as usize - 1]
+        &mut self.questions[self.current_question_number - 1]
     }
 
     /// Convert to the wire format for host clients
@@ -106,7 +106,6 @@ impl Game {
             timer_seconds_remaining: self.timer_seconds_remaining,
             teams: self.teams.clone(),
             questions: self.questions.clone(),
-            current_question: self.current_question().clone(),
             game_settings: self.game_settings.clone(),
         }
     }
@@ -160,11 +159,11 @@ impl Game {
     /// Score a team's answer for a specific question. Returns true if successful.
     pub fn score_answer(
         &mut self,
-        question_number: u32,
+        question_number: usize,
         team_name: &str,
         score: ScoreData,
     ) -> bool {
-        let question_idx = question_number as usize - 1;
+        let question_idx = question_number - 1;
         if question_idx >= self.questions.len() {
             return false;
         }
@@ -186,7 +185,7 @@ impl Game {
     }
 
     /// Clear a team's answer score for a specific question. Returns true if successful.
-    pub fn clear_answer_score(&mut self, question_number: u32, team_name: &str) -> bool {
+    pub fn clear_answer_score(&mut self, question_number: usize, team_name: &str) -> bool {
         self.score_answer(question_number, team_name, ScoreData::new())
     }
 

@@ -5,11 +5,10 @@ use crate::model::types::ScoreData;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum HostAction {
-    CreateGame,
-
     #[serde(rename_all = "camelCase")]
-    ReclaimGame {
-        game_code: String,
+    CreateGame {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        game_code: Option<String>,
     },
 
     #[serde(rename_all = "camelCase")]
@@ -21,14 +20,14 @@ pub enum HostAction {
 
     #[serde(rename_all = "camelCase")]
     ScoreAnswer {
-        question_number: u32,
+        question_number: usize,
         team_name: String,
         score: ScoreData,
     },
 
     #[serde(rename_all = "camelCase")]
     ClearAnswerScore {
-        question_number: u32,
+        question_number: usize,
         team_name: String,
     },
 

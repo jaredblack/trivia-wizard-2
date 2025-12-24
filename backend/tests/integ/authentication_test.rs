@@ -9,7 +9,9 @@ async fn host_without_token_cannot_create_game() {
     let mut client = TestClient::connect(&server.ws_url()).await;
 
     client
-        .send_json(&ClientMessage::Host(HostAction::CreateGame))
+        .send_json(&ClientMessage::Host(HostAction::CreateGame {
+            game_code: None,
+        }))
         .await;
 
     let response: ServerMessage = client.recv_json().await;
@@ -31,7 +33,9 @@ async fn host_with_expired_token_cannot_create_game() {
     let mut client = TestClient::connect_with_token(&server.ws_url(), Some(&token)).await;
 
     client
-        .send_json(&ClientMessage::Host(HostAction::CreateGame))
+        .send_json(&ClientMessage::Host(HostAction::CreateGame {
+            game_code: None,
+        }))
         .await;
 
     let response: ServerMessage = client.recv_json().await;
@@ -53,7 +57,9 @@ async fn user_not_in_hosts_group_cannot_create_game() {
     let mut client = TestClient::connect_with_token(&server.ws_url(), Some(&token)).await;
 
     client
-        .send_json(&ClientMessage::Host(HostAction::CreateGame))
+        .send_json(&ClientMessage::Host(HostAction::CreateGame {
+            game_code: None,
+        }))
         .await;
 
     let response: ServerMessage = client.recv_json().await;

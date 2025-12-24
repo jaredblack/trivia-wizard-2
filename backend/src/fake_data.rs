@@ -178,7 +178,6 @@ pub fn fake_game_state(game_code: String) -> ServerMessage {
             timer_seconds_remaining: Some(30),
             teams,
             questions: vec![current_question.clone()],
-            current_question,
             game_settings,
         },
     }
