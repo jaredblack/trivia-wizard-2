@@ -26,12 +26,6 @@ pub enum HostAction {
     },
 
     #[serde(rename_all = "camelCase")]
-    ClearAnswerScore {
-        question_number: usize,
-        team_name: String,
-    },
-
-    #[serde(rename_all = "camelCase")]
     OverrideTeamScore {
         team_name: String,
         override_points: i32,

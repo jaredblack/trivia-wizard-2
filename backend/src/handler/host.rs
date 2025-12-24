@@ -150,31 +150,6 @@ fn process_host_action(
             }
         }
 
-        HostAction::ClearAnswerScore {
-            question_number,
-            team_name,
-        } => {
-            if game.clear_answer_score(question_number, &team_name) {
-                let host_msg = ServerMessage::GameState {
-                    state: game.to_game_state(),
-                };
-                let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
-                    game.to_team_game_state(&team_name).map(|state| {
-                        TeamMessage::Single(tx, ServerMessage::TeamGameState { state })
-                    })
-                });
-                HostActionResult { host_msg, team_msg }
-            } else {
-                HostActionResult {
-                    host_msg: ServerMessage::error(format!(
-                        "Failed to clear answer score for team '{}'",
-                        team_name
-                    )),
-                    team_msg: None,
-                }
-            }
-        }
-
         HostAction::OverrideTeamScore {
             team_name,
             override_points,

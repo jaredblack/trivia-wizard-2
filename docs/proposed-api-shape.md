@@ -263,7 +263,6 @@ HostAction =
 
   // Scoring (standard / multiple choice)
   | { type: "scoreAnswer", questionNumber: number, teamName: string, score: ScoreData }
-  | { type: "clearAnswerScore", questionNumber: number, teamName: string }
 
   // Scoring (multi-answer) - toggle sub-answer correctness; server recalculates aggregate score
   | { type: "markSubAnswer", questionNumber: number, teamName: string, answerText: string, correct: boolean }

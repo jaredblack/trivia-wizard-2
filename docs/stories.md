@@ -56,7 +56,6 @@ Update `server.rs` to handle the host and team actions that mutate game state.
    - `PauseTimer`
    - `ResetTimer`
    - `ScoreAnswer { question_number: u32, team_name: String, score: ScoreData }`
-   - `ClearAnswerScore { question_number: u32, team_name: String }`
    - `OverrideTeamScore { team_name: String, override_points: i32 }`
 
    Note: No separate OpenSubmissions/CloseSubmissions — submissions are open iff timer is running.
@@ -71,11 +70,6 @@ Update `server.rs` to handle the host and team actions that mutate game state.
    - Update the `ScoreData` on that response
    - Recalculate team's cumulative score
    - Broadcast updated state to host AND the scored team
-
-4. **Implement handler for `ClearAnswerScore`**:
-   - Reset the team's response score to zeros
-   - Recalculate cumulative score
-   - Broadcast updated state
 
 5. **Implement handler for `OverrideTeamScore`**:
    - Update the team's `score.override_points`
