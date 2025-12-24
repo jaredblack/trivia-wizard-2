@@ -1,12 +1,17 @@
-use crate::model::server_message::{HostServerMessage, ServerMessage};
+// NOTE: This file is currently unused. Games now start empty and use Game::to_game_state().
+// Keeping it around for potential future use as test data generator.
+
+#![allow(dead_code)]
+
+use crate::model::server_message::{GameState, ServerMessage};
 use crate::model::types::{
     GameSettings, Question, QuestionData, QuestionKind, ScoreData, TeamColor, TeamData,
     TeamResponse,
 };
 
-/// Creates a fake GameCreated message for testing the host view.
+/// Creates a fake GameState message for testing the host view.
 /// Generates 5 teams with varied data.
-pub fn fake_game_created(game_code: String) -> ServerMessage {
+pub fn fake_game_state(game_code: String) -> ServerMessage {
     let game_settings = GameSettings {
         default_timer_duration: 30,
         default_question_points: 50,
@@ -165,11 +170,16 @@ pub fn fake_game_created(game_code: String) -> ServerMessage {
         },
     ];
 
-    ServerMessage::Host(HostServerMessage::GameCreated {
-        current_question_number: 16,
-        game_code,
-        game_settings,
-        current_question,
-        teams,
-    })
+    ServerMessage::GameState {
+        state: GameState {
+            game_code,
+            current_question_number: 16,
+            timer_running: false,
+            timer_seconds_remaining: Some(30),
+            teams,
+            questions: vec![current_question.clone()],
+            current_question,
+            game_settings,
+        },
+    }
 }

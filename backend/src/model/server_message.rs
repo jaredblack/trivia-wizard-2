@@ -2,42 +2,77 @@ use log::{error, info};
 use serde::{Deserialize, Serialize};
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::model::types::{GameSettings, Question, TeamData};
+use crate::model::types::{GameSettings, Question, QuestionKind, TeamData};
 use crate::server::Tx;
 
-#[derive(Debug, Serialize, Deserialize)]
+// === GameState (Server → Host) ===
+
+/// The complete game state sent to the host on every update.
+/// Submissions are open iff `timer_running` is true.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum HostServerMessage {
-    #[serde(rename_all = "camelCase")]
-    GameCreated {
-        current_question_number: u32,
-        game_code: String,
-        game_settings: GameSettings,
-        current_question: Question,
-        teams: Vec<TeamData>,
-    },
-    #[serde(rename_all = "camelCase")]
-    NewAnswer { answer: String, team_name: String },
-    #[serde(rename_all = "camelCase")]
-    ScoreUpdate { team_name: String, score: i32 },
+pub struct GameState {
+    pub game_code: String,
+    pub current_question_number: u32,
+    pub timer_running: bool,
+    pub timer_seconds_remaining: Option<u32>,
+    pub teams: Vec<TeamData>,
+    pub questions: Vec<Question>,
+    pub current_question: Question,
+    pub game_settings: GameSettings,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+// === TeamGameState (Server → Team) ===
+
+/// Filtered game state for team clients.
+/// Does not include other teams' answers or scoring details.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum TeamServerMessage {
-    #[serde(rename_all = "camelCase")]
-    GameJoined {
-        game_code: String,
-    },
-    AnswerSubmitted,
+pub struct TeamGameState {
+    pub game_code: String,
+    pub current_question_number: u32,
+    pub timer_running: bool,
+    pub timer_seconds_remaining: Option<u32>,
+    pub team: TeamData,
+    pub current_question_kind: QuestionKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_question_choices: Option<Vec<String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+// === Server Messages ===
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
 pub enum ServerMessage {
-    Host(HostServerMessage),
-    Team(TeamServerMessage),
-    Error(String),
+    /// Full game state update (sent to host)
+    #[serde(rename_all = "camelCase")]
+    GameState { state: GameState },
+
+    /// Filtered game state update (sent to team)
+    #[serde(rename_all = "camelCase")]
+    TeamGameState { state: TeamGameState },
+
+    /// Lightweight timer tick (sent to all clients each second while timer runs)
+    #[serde(rename_all = "camelCase")]
+    TimerTick { seconds_remaining: u32 },
+
+    /// Error with optional state for rollback
+    #[serde(rename_all = "camelCase")]
+    Error {
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        state: Option<GameState>,
+    },
+}
+
+impl ServerMessage {
+    /// Create an error message without rollback state
+    pub fn error(message: impl Into<String>) -> Self {
+        ServerMessage::Error {
+            message: message.into(),
+            state: None,
+        }
+    }
 }
 
 pub fn send_msg(tx: &Tx, msg: ServerMessage) {

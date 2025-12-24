@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use backend::auth::{self, TEST_CLIENT_ID, TEST_ISSUER};
 use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
-use backend::model::server_message::{HostServerMessage, ServerMessage, TeamServerMessage};
+use backend::model::server_message::ServerMessage;
 use backend::server::start_ws_server;
 use backend::timer::ShutdownTimer;
 use futures_util::{
@@ -114,8 +114,8 @@ impl TestClient {
 
         let response: ServerMessage = self.recv_json().await;
         match response {
-            ServerMessage::Host(HostServerMessage::GameCreated { game_code }) => game_code,
-            other => panic!("Expected GameCreated message, got {other:?}"),
+            ServerMessage::GameState { state } => state.game_code,
+            other => panic!("Expected GameState message, got {other:?}"),
         }
     }
 
@@ -132,15 +132,17 @@ impl TestClient {
         self.send_json(&ClientMessage::Team(TeamAction::JoinGame {
             game_code: game_code.to_string(),
             team_name: team_name.to_string(),
+            color_hex: "#DC2626".to_string(),
+            team_members: vec!["Test Player".to_string()],
         }))
         .await;
 
         let response: ServerMessage = self.recv_json().await;
         match response {
-            ServerMessage::Team(TeamServerMessage::GameJoined { game_code: code }) => {
-                assert_eq!(code, game_code, "Game codes should match");
+            ServerMessage::TeamGameState { state } => {
+                assert_eq!(state.game_code, game_code, "Game codes should match");
             }
-            other => panic!("Expected GameJoined message, got {other:?}"),
+            other => panic!("Expected TeamGameState message, got {other:?}"),
         }
     }
 }

@@ -1,17 +1,41 @@
 use serde::{Deserialize, Serialize};
 
+use crate::model::types::ScoreData;
+
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", tag = "type")]
 pub enum HostAction {
     CreateGame,
-    #[serde(rename_all = "camelCase")]
-    ScoreAnswer {
-        team_name: String,
-        answer: String,
-    },
+
     #[serde(rename_all = "camelCase")]
     ReclaimGame {
         game_code: String,
+    },
+
+    #[serde(rename_all = "camelCase")]
+    StartTimer {
+        seconds: Option<u32>,
+    },
+    PauseTimer,
+    ResetTimer,
+
+    #[serde(rename_all = "camelCase")]
+    ScoreAnswer {
+        question_number: u32,
+        team_name: String,
+        score: ScoreData,
+    },
+
+    #[serde(rename_all = "camelCase")]
+    ClearAnswerScore {
+        question_number: u32,
+        team_name: String,
+    },
+
+    #[serde(rename_all = "camelCase")]
+    OverrideTeamScore {
+        team_name: String,
+        override_points: i32,
     },
 }
 
@@ -22,6 +46,8 @@ pub enum TeamAction {
     JoinGame {
         team_name: String,
         game_code: String,
+        color_hex: String,
+        team_members: Vec<String>,
     },
 
     #[serde(rename_all = "camelCase")]

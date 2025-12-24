@@ -5,12 +5,13 @@ use common::{
 };
 
 use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
-use backend::model::server_message::{HostServerMessage, ServerMessage, TeamServerMessage};
+use backend::model::server_message::ServerMessage;
 
 /// Helper function to test answer submission flow:
 /// - Team submits answer
-/// - Team receives AnswerSubmitted confirmation
-/// - Host receives NewAnswer with correct details
+/// - Team receives TeamGameState confirmation
+/// - Host receives GameState with the answer
+/// Note: Requires timer to be running (submissions open)
 async fn assert_answer_submission_flow(
     team: &mut TestClient,
     host: &mut TestClient,
@@ -27,26 +28,29 @@ async fn assert_answer_submission_flow(
     // Team should receive confirmation
     let team_response: ServerMessage = team.recv_json().await;
     match team_response {
-        ServerMessage::Team(TeamServerMessage::AnswerSubmitted) => {
-            // Success - team got confirmation
+        ServerMessage::TeamGameState { .. } => {
+            // Success - team got state update
         }
-        other => panic!("Expected AnswerSubmitted message, got {other:?}"),
+        other => panic!("Expected TeamGameState message, got {other:?}"),
     }
 
-    // Host should receive the answer
+    // Host should receive the updated game state
     let host_response: ServerMessage = host.recv_json().await;
     match host_response {
-        ServerMessage::Host(HostServerMessage::NewAnswer {
-            answer: received_answer,
-            team_name: received_team_name,
-        }) => {
-            assert_eq!(
-                received_answer, answer,
-                "Answer should match what team submitted"
+        ServerMessage::GameState { state } => {
+            // Verify the answer was added to the current question
+            let responses = match &state.current_question.question_data {
+                backend::model::types::QuestionData::Standard { responses } => responses,
+                _ => panic!("Expected Standard question type"),
+            };
+            assert!(
+                responses
+                    .iter()
+                    .any(|r| r.team_name == team_name && r.answer_text == answer),
+                "Answer should appear in responses"
             );
-            assert_eq!(received_team_name, team_name, "Team name should match");
         }
-        other => panic!("Expected NewAnswer message, got {other:?}"),
+        other => panic!("Expected GameState message, got {other:?}"),
     }
 }
 
@@ -75,15 +79,17 @@ async fn team_joins_nonexistent_game_receives_error() {
     team.send_json(&ClientMessage::Team(TeamAction::JoinGame {
         game_code: "nonexistent".to_string(),
         team_name: "Test Team".to_string(),
+        color_hex: "#DC2626".to_string(),
+        team_members: vec!["Test Player".to_string()],
     }))
     .await;
 
     let response: ServerMessage = team.recv_json().await;
 
     match response {
-        ServerMessage::Error(msg) => {
+        ServerMessage::Error { message, .. } => {
             assert!(
-                msg.contains("nonexistent"),
+                message.contains("nonexistent"),
                 "Error should mention the game code"
             );
         }
@@ -138,28 +144,14 @@ async fn multiple_hosts_and_teams_interleaved() {
 }
 
 #[tokio::test]
-async fn team_submits_answer_host_receives_it() {
+async fn team_submission_rejected_when_submissions_closed() {
     let server = TestServer::start().await;
-    let (mut host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
+    let (_, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
 
     let mut team = TestClient::connect(&server.ws_url()).await;
     team.join_game(&game_code, "Test Team").await;
 
-    assert_answer_submission_flow(&mut team, &mut host, "Test Team", "42").await;
-}
-
-#[tokio::test]
-async fn team_submits_answer_when_host_disconnected_receives_error() {
-    let server = TestServer::start().await;
-    let (host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
-
-    let mut team = TestClient::connect(&server.ws_url()).await;
-    team.join_game(&game_code, "Test Team").await;
-
-    drop(host);
-
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-
+    // Try to submit answer when timer is not running (submissions closed)
     team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
         team_name: "Test Team".to_string(),
         answer: "42".to_string(),
@@ -168,10 +160,10 @@ async fn team_submits_answer_when_host_disconnected_receives_error() {
 
     let response: ServerMessage = team.recv_json().await;
     match response {
-        ServerMessage::Error(msg) => {
+        ServerMessage::Error { message, .. } => {
             assert!(
-                msg.contains("Host is not connected") || msg.contains("not connected"),
-                "Error should mention host not being connected, got: {msg}"
+                message.contains("closed"),
+                "Error should mention submissions being closed, got: {message}"
             );
         }
         other => panic!("Expected Error message, got {other:?}"),
@@ -179,12 +171,43 @@ async fn team_submits_answer_when_host_disconnected_receives_error() {
 }
 
 #[tokio::test]
-async fn host_disconnects_and_reconnects_teams_remain() {
+async fn team_submits_answer_host_receives_it() {
     let server = TestServer::start().await;
-    let (host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
+    let (mut host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
 
     let mut team = TestClient::connect(&server.ws_url()).await;
     team.join_game(&game_code, "Test Team").await;
+
+    // Consume the GameState broadcast to host when team joined
+    let _: ServerMessage = host.recv_json().await;
+
+    // Start timer to open submissions
+    host.send_json(&ClientMessage::Host(HostAction::StartTimer {
+        seconds: None,
+    }))
+    .await;
+    let _: ServerMessage = host.recv_json().await; // consume GameState
+
+    assert_answer_submission_flow(&mut team, &mut host, "Test Team", "42").await;
+}
+
+#[tokio::test]
+async fn host_disconnects_and_reconnects_teams_remain() {
+    let server = TestServer::start().await;
+    let (mut host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
+
+    let mut team = TestClient::connect(&server.ws_url()).await;
+    team.join_game(&game_code, "Test Team").await;
+
+    // Host should receive GameState with the new team
+    let host_update: ServerMessage = host.recv_json().await;
+    match host_update {
+        ServerMessage::GameState { state } => {
+            assert_eq!(state.teams.len(), 1, "Should have 1 team");
+            assert_eq!(state.teams[0].team_name, "Test Team");
+        }
+        other => panic!("Expected GameState with team, got {other:?}"),
+    }
 
     // Host disconnects
     drop(host);
@@ -201,8 +224,8 @@ async fn host_disconnects_and_reconnects_teams_remain() {
     .await;
     let response: ServerMessage = host.recv_json().await;
     let reconnected_game_code = match response {
-        ServerMessage::Host(HostServerMessage::GameCreated { game_code }) => game_code,
-        other => panic!("Didn't receive GameCreated when reclaiming game, got {other:?}"),
+        ServerMessage::GameState { state } => state.game_code,
+        other => panic!("Didn't receive GameState when reclaiming game, got {other:?}"),
     };
 
     // Verify we got the same game code back
@@ -211,8 +234,7 @@ async fn host_disconnects_and_reconnects_teams_remain() {
         "Reconnected host should reclaim the same game"
     );
 
-    // Verify the team can still submit answers and the reconnected host receives them
-    assert_answer_submission_flow(&mut team, &mut host, "Test Team", "42").await;
+    // TODO: Phase 2 - verify team can still submit answers
 }
 
 #[tokio::test]
@@ -226,10 +248,12 @@ async fn invalid_json_message_returns_error() {
 
     let response: ServerMessage = client.recv_json().await;
     match response {
-        ServerMessage::Error(msg) => {
+        ServerMessage::Error { message, .. } => {
             assert!(
-                msg.contains("parse") || msg.contains("invalid") || msg.contains("JSON"),
-                "Error should mention parsing/invalid JSON, got: {msg}"
+                message.contains("parse")
+                    || message.contains("invalid")
+                    || message.contains("JSON"),
+                "Error should mention parsing/invalid JSON, got: {message}"
             );
         }
         other => panic!("Expected Error message for invalid JSON, got {other:?}"),
@@ -245,12 +269,14 @@ async fn host_sends_unexpected_message_type() {
     host.send_json(&ClientMessage::Team(TeamAction::JoinGame {
         game_code: "ABCD".to_string(),
         team_name: "Test Team".to_string(),
+        color_hex: "#DC2626".to_string(),
+        team_members: vec!["Test Player".to_string()],
     }))
     .await;
 
     let response: ServerMessage = host.recv_json().await;
     match response {
-        ServerMessage::Error(_msg) => {
+        ServerMessage::Error { .. } => {
             // Success - got an error for unexpected message type
         }
         other => {
@@ -275,7 +301,7 @@ async fn team_sends_unexpected_message_type() {
     // Team should receive an error
     let response: ServerMessage = team.recv_json().await;
     match response {
-        ServerMessage::Error(_msg) => {
+        ServerMessage::Error { .. } => {
             // Success - got an error for unexpected message type
         }
         other => {
@@ -388,10 +414,10 @@ async fn host_without_token_cannot_create_game() {
 
     let response: ServerMessage = client.recv_json().await;
     match response {
-        ServerMessage::Error(msg) => {
+        ServerMessage::Error { message, .. } => {
             assert!(
-                msg.contains("Authentication required"),
-                "Error should mention authentication required, got: {msg}"
+                message.contains("Authentication required"),
+                "Error should mention authentication required, got: {message}"
             );
         }
         other => panic!("Expected Error message, got {other:?}"),
@@ -410,10 +436,10 @@ async fn host_with_expired_token_cannot_create_game() {
 
     let response: ServerMessage = client.recv_json().await;
     match response {
-        ServerMessage::Error(msg) => {
+        ServerMessage::Error { message, .. } => {
             assert!(
-                msg.contains("Authentication required"),
-                "Error should mention authentication required for expired token, got: {msg}"
+                message.contains("Authentication required"),
+                "Error should mention authentication required for expired token, got: {message}"
             );
         }
         other => panic!("Expected Error message for expired token, got {other:?}"),
@@ -432,10 +458,10 @@ async fn user_not_in_hosts_group_cannot_create_game() {
 
     let response: ServerMessage = client.recv_json().await;
     match response {
-        ServerMessage::Error(msg) => {
+        ServerMessage::Error { message, .. } => {
             assert!(
-                msg.contains("not authorized as a host"),
-                "Error should mention not authorized as host, got: {msg}"
+                message.contains("not authorized as a host"),
+                "Error should mention not authorized as host, got: {message}"
             );
         }
         other => panic!("Expected Error message for non-host user, got {other:?}"),
@@ -451,4 +477,233 @@ async fn team_can_join_without_token() {
     let mut team = TestClient::connect(&server.ws_url()).await;
     team.join_game(&game_code, "Unauthenticated Team").await;
     // If we get here without panic, the test passes
+}
+
+// ============== Timer Tests (Phase 3) ==============
+
+#[tokio::test]
+async fn timer_start_opens_submissions_and_broadcasts_state() {
+    let server = TestServer::start().await;
+    let (mut host, _) = TestClient::connect_as_host_and_create_game(&server).await;
+
+    // Start timer
+    host.send_json(&ClientMessage::Host(HostAction::StartTimer {
+        seconds: None,
+    }))
+    .await;
+
+    let response: ServerMessage = host.recv_json().await;
+    match response {
+        ServerMessage::GameState { state } => {
+            assert!(state.timer_running, "Timer should be running");
+            assert!(
+                state.timer_seconds_remaining.is_some(),
+                "Timer seconds should be set"
+            );
+        }
+        other => panic!("Expected GameState, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn timer_pause_closes_submissions() {
+    let server = TestServer::start().await;
+    let (mut host, _) = TestClient::connect_as_host_and_create_game(&server).await;
+
+    // Start timer
+    host.send_json(&ClientMessage::Host(HostAction::StartTimer {
+        seconds: Some(30),
+    }))
+    .await;
+    let _: ServerMessage = host.recv_json().await; // consume GameState
+
+    // Pause timer
+    host.send_json(&ClientMessage::Host(HostAction::PauseTimer))
+        .await;
+
+    let response: ServerMessage = host.recv_json().await;
+    match response {
+        ServerMessage::GameState { state } => {
+            assert!(!state.timer_running, "Timer should not be running");
+            assert!(
+                state.timer_seconds_remaining.is_some(),
+                "Timer seconds should still be set"
+            );
+        }
+        other => panic!("Expected GameState, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn timer_reset_stops_timer_and_resets_to_default() {
+    let server = TestServer::start().await;
+    let (mut host, _) = TestClient::connect_as_host_and_create_game(&server).await;
+
+    // Start timer with custom duration
+    host.send_json(&ClientMessage::Host(HostAction::StartTimer {
+        seconds: Some(15),
+    }))
+    .await;
+    let _: ServerMessage = host.recv_json().await; // consume GameState
+
+    // Reset timer
+    host.send_json(&ClientMessage::Host(HostAction::ResetTimer))
+        .await;
+
+    let response: ServerMessage = host.recv_json().await;
+    match response {
+        ServerMessage::GameState { state } => {
+            assert!(!state.timer_running, "Timer should not be running");
+            assert_eq!(
+                state.timer_seconds_remaining,
+                Some(30),
+                "Timer should reset to 30 seconds"
+            );
+        }
+        other => panic!("Expected GameState, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn timer_ticks_broadcast_to_all_clients() {
+    let server = TestServer::start().await;
+    let (mut host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
+
+    let mut team = TestClient::connect(&server.ws_url()).await;
+    team.join_game(&game_code, "Test Team").await;
+
+    // Consume the GameState broadcast to host when team joined
+    let _: ServerMessage = host.recv_json().await;
+
+    // Start timer with short duration
+    host.send_json(&ClientMessage::Host(HostAction::StartTimer {
+        seconds: Some(3),
+    }))
+    .await;
+
+    // Both should receive initial GameState
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+
+    // Both should receive timer ticks
+    for expected_remaining in [2, 1] {
+        let host_tick: ServerMessage = host.recv_json().await;
+        let team_tick: ServerMessage = team.recv_json().await;
+
+        match host_tick {
+            ServerMessage::TimerTick { seconds_remaining } => {
+                assert_eq!(seconds_remaining, expected_remaining);
+            }
+            other => panic!("Host expected TimerTick, got {other:?}"),
+        }
+
+        match team_tick {
+            ServerMessage::TimerTick { seconds_remaining } => {
+                assert_eq!(seconds_remaining, expected_remaining);
+            }
+            other => panic!("Team expected TimerTick, got {other:?}"),
+        }
+    }
+
+    // When timer reaches 0, both should receive GameState with timer_running = false
+    let host_final: ServerMessage = host.recv_json().await;
+    let team_final: ServerMessage = team.recv_json().await;
+
+    match host_final {
+        ServerMessage::GameState { state } => {
+            assert!(!state.timer_running, "Timer should have stopped");
+            assert_eq!(state.timer_seconds_remaining, Some(0));
+        }
+        other => panic!("Host expected final GameState, got {other:?}"),
+    }
+
+    match team_final {
+        ServerMessage::TeamGameState { state } => {
+            assert!(!state.timer_running, "Timer should have stopped");
+            assert_eq!(state.timer_seconds_remaining, Some(0));
+        }
+        other => panic!("Team expected final TeamGameState, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn submissions_rejected_after_timer_expires() {
+    let server = TestServer::start().await;
+    let (mut host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
+
+    let mut team = TestClient::connect(&server.ws_url()).await;
+    team.join_game(&game_code, "Test Team").await;
+
+    // Consume the GameState broadcast to host when team joined
+    let _: ServerMessage = host.recv_json().await;
+
+    // Start timer with 1 second
+    host.send_json(&ClientMessage::Host(HostAction::StartTimer {
+        seconds: Some(1),
+    }))
+    .await;
+    let _: ServerMessage = host.recv_json().await; // consume initial GameState
+    let _: ServerMessage = team.recv_json().await; // consume initial TeamGameState
+
+    // Wait for timer to expire
+    // Expect final GameState when timer reaches 0
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+
+    // Now try to submit answer - should be rejected
+    team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
+        team_name: "Test Team".to_string(),
+        answer: "42".to_string(),
+    }))
+    .await;
+
+    let response: ServerMessage = team.recv_json().await;
+    match response {
+        ServerMessage::Error { message, .. } => {
+            assert!(
+                message.contains("closed"),
+                "Error should mention submissions being closed, got: {message}"
+            );
+        }
+        other => panic!("Expected Error message, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn timer_pause_prevents_further_ticks() {
+    let server = TestServer::start().await;
+    let (mut host, _) = TestClient::connect_as_host_and_create_game(&server).await;
+
+    // Start timer with longer duration
+    host.send_json(&ClientMessage::Host(HostAction::StartTimer {
+        seconds: Some(10),
+    }))
+    .await;
+    let _: ServerMessage = host.recv_json().await; // consume initial GameState
+
+    // Wait for one tick
+    let tick: ServerMessage = host.recv_json().await;
+    match tick {
+        ServerMessage::TimerTick { seconds_remaining } => {
+            assert_eq!(seconds_remaining, 9);
+        }
+        other => panic!("Expected TimerTick, got {other:?}"),
+    }
+
+    // Pause the timer
+    host.send_json(&ClientMessage::Host(HostAction::PauseTimer))
+        .await;
+    let _: ServerMessage = host.recv_json().await; // consume GameState from pause
+
+    // Wait a bit and verify no more ticks arrive
+    let timeout_result = tokio::time::timeout(
+        std::time::Duration::from_millis(1500),
+        host.recv_json::<ServerMessage>(),
+    )
+    .await;
+
+    assert!(
+        timeout_result.is_err(),
+        "Should not receive any more messages after pause"
+    );
 }

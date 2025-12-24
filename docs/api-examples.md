@@ -1,7 +1,10 @@
 # Host
+(for now)
 ```json
 {
-  "host": "createGame"
+    "host": { 
+        "type": "createGame" 
+    }
 }
 ```
 # Team
@@ -10,9 +13,12 @@
 {
     "team": {
         "joinGame": {
-            "teamName": "grace",
-            "gameCode": "hello"
+            "teamName": "AS 7",
+            "gameCode": "YFJW",
+            "colorHex": "0000FF",
+            "teamMembers": ["jared"]
         }
+
     }
 }
 ```

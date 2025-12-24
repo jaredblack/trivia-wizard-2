@@ -132,14 +132,14 @@ export default function HostLanding() {
         console.log("WebSocket connected");
         setConnectionState("connected");
         // TODO: support custom game codes when backend supports it
-        ws.send(JSON.stringify({ host: "createGame" }));
+        ws.send(JSON.stringify({ host: { type: "createGame" }}));
       };
 
       ws.onmessage = (event) => {
         console.log("Message from server: ", event.data);
         try {
           const message = JSON.parse(event.data);
-          if (message.host?.gameCreated) {
+          if (message.type === "gameState") {
             const gameCreated = message.host.gameCreated as GameCreated;
             setGameData(gameCreated);
             navigate("/host/game");
