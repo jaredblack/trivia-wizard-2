@@ -163,6 +163,14 @@ export interface ResetTimerAction {
   type: "resetTimer";
 }
 
+export interface NextQuestionAction {
+  type: "nextQuestion";
+}
+
+export interface PrevQuestionAction {
+  type: "prevQuestion";
+}
+
 export interface ScoreAnswerAction {
   type: "scoreAnswer";
   questionNumber: number;
@@ -181,6 +189,8 @@ export type HostAction =
   | StartTimerAction
   | PauseTimerAction
   | ResetTimerAction
+  | NextQuestionAction
+  | PrevQuestionAction
   | ScoreAnswerAction
   | OverrideTeamScoreAction;
 

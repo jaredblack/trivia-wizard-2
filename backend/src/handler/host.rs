@@ -123,6 +123,30 @@ fn process_host_action(
             }
         }
 
+        // Question navigation actions
+        HostAction::NextQuestion => {
+            game.next_question();
+            HostActionResult {
+                host_msg: ServerMessage::GameState {
+                    state: game.to_game_state(),
+                },
+                team_msg: Some(TeamMessage::Broadcast),
+            }
+        }
+
+        HostAction::PrevQuestion => match game.prev_question() {
+            Ok(()) => HostActionResult {
+                host_msg: ServerMessage::GameState {
+                    state: game.to_game_state(),
+                },
+                team_msg: Some(TeamMessage::Broadcast),
+            },
+            Err(msg) => HostActionResult {
+                host_msg: ServerMessage::error(msg),
+                team_msg: None,
+            },
+        },
+
         // Scoring actions
         HostAction::ScoreAnswer {
             question_number,

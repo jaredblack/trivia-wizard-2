@@ -15,6 +15,9 @@ pub enum HostAction {
     PauseTimer,
     ResetTimer,
 
+    NextQuestion,
+    PrevQuestion,
+
     #[serde(rename_all = "camelCase")]
     ScoreAnswer {
         question_number: usize,

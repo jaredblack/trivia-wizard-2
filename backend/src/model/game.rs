@@ -137,6 +137,71 @@ impl Game {
         })
     }
 
+    // === Question Navigation ===
+
+    /// Create a new question using game settings
+    fn create_question_from_settings(&self) -> Question {
+        let question_data = match self.game_settings.default_question_type {
+            QuestionKind::Standard => QuestionData::Standard { responses: vec![] },
+            QuestionKind::MultiAnswer => QuestionData::MultiAnswer { responses: vec![] },
+            QuestionKind::MultipleChoice => QuestionData::MultipleChoice {
+                choices: vec![],
+                responses: vec![],
+            },
+        };
+
+        Question {
+            timer_duration: self.game_settings.default_timer_duration,
+            question_points: self.game_settings.default_question_points,
+            bonus_increment: self.game_settings.default_bonus_increment,
+            question_data,
+        }
+    }
+
+    /// Stop the timer if running
+    fn stop_timer(&mut self) {
+        if let Some(handle) = self.timer_abort_handle.take() {
+            handle.abort();
+        }
+        self.timer_running = false;
+    }
+
+    /// Navigate to the next question. Creates a new question if needed.
+    pub fn next_question(&mut self) {
+        // Stop timer if running
+        self.stop_timer();
+
+        // Increment question number
+        self.current_question_number += 1;
+
+        // Create new question if it doesn't exist
+        if self.current_question_number > self.questions.len() {
+            let new_question = self.create_question_from_settings();
+            self.questions.push(new_question);
+        }
+
+        // Reset timer to new question's duration
+        self.timer_seconds_remaining = Some(self.current_question().timer_duration);
+    }
+
+    /// Navigate to the previous question. Returns error if already at question 1.
+    pub fn prev_question(&mut self) -> Result<(), &'static str> {
+        if self.current_question_number <= 1 {
+            return Err("Already at first question");
+        }
+
+        // Stop timer if running
+        self.stop_timer();
+
+        // Decrement question number
+        self.current_question_number -= 1;
+
+        // Reset timer to new question's duration
+        self.timer_seconds_remaining = Some(self.current_question().timer_duration);
+
+        Ok(())
+    }
+
     /// Broadcast full GameState to host and TeamGameState to all teams
     pub fn broadcast_game_state(&self) {
         // Send full GameState to host

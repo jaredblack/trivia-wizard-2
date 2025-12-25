@@ -10,6 +10,8 @@ interface QuestionControlsProps {
   onStartTimer: () => void;
   onPauseTimer: () => void;
   onResetTimer: () => void;
+  onPrevQuestion: () => void;
+  onNextQuestion: () => void;
   onExit: () => void;
 }
 
@@ -21,6 +23,8 @@ export default function QuestionControls({
   onStartTimer,
   onPauseTimer,
   onResetTimer,
+  onPrevQuestion,
+  onNextQuestion,
   onExit,
 }: QuestionControlsProps) {
   // Format timer as M:SS
@@ -90,12 +94,15 @@ export default function QuestionControls({
         {/* Navigation arrows */}
         <div className="flex items-center gap-1">
           <button
-            className="p-2 hover:bg-gray-200 rounded-full bg-white cursor-pointer"
+            onClick={onPrevQuestion}
+            disabled={questionNumber <= 1}
+            className="p-2 hover:bg-gray-200 rounded-full bg-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Previous question"
           >
             <ArrowLeft className="w-6 h-6" />
           </button>
           <button
+            onClick={onNextQuestion}
             className="p-2 hover:bg-gray-200 rounded-full bg-white cursor-pointer"
             aria-label="Next question"
           >

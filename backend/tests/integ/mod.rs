@@ -4,5 +4,6 @@ mod connection_and_game_creation_test;
 mod game_timer_test;
 mod host_reconnection_test;
 mod message_validation_test;
+mod question_navigation_test;
 mod server_lifecycle_test;
 mod team_reconnection_test;

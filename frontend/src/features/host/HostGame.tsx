@@ -81,6 +81,8 @@ export default function HostGame() {
         onStartTimer={() => sendMessage({ host: { type: "startTimer" } })}
         onPauseTimer={() => sendMessage({ host: { type: "pauseTimer" } })}
         onResetTimer={() => sendMessage({ host: { type: "resetTimer" } })}
+        onPrevQuestion={() => sendMessage({ host: { type: "prevQuestion" } })}
+        onNextQuestion={() => sendMessage({ host: { type: "nextQuestion" } })}
         onExit={handleExit}
       />
 
