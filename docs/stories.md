@@ -221,6 +221,8 @@ Update the existing test suite in `backend/tests/`.
 - [ ] Host can override team total score
 - [ ] All backend tests pass
 
+We need to implement two new Host actions: UpdateGameSettings and UpdateQuestionSettings. Game settings can be updated at any time, but updates to settings will always only apply to (1) any question in the game's state that has not yet received any answers and (2) all questions that are subsequently created for the game. Settings updates will not apply to questions which have already received answers. UpdateQuestionSettings override the game settings on a per-question basis, with the same rule: question settings may not be updated once answers have started to be recived. This will require changes in the backend/ to add the new operations, and in the frontend to wire up the currently existing host settings UI to these operations. No team UI changes will be needed. The server should return an error in the event that these conditions are violated. Please create a plan for making this change that I can approve, then move forward with implementation. Be sure to ask me any clarifying questions as well. 
+
 ## CR comments
 - [ ] still just stringifying JSON in create game, should be using strong types
    - this will be resolved with the frontend tasks

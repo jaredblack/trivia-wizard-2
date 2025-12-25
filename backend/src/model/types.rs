@@ -66,6 +66,16 @@ pub enum QuestionData {
     },
 }
 
+impl QuestionData {
+    pub fn has_responses(&self) -> bool {
+        match self {
+            QuestionData::Standard { responses } => !responses.is_empty(),
+            QuestionData::MultiAnswer { responses } => !responses.is_empty(),
+            QuestionData::MultipleChoice { responses, .. } => !responses.is_empty(),
+        }
+    }
+}
+
 // === Question ===
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

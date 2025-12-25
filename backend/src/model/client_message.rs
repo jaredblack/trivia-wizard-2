@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::model::types::ScoreData;
+use crate::model::types::{QuestionKind, ScoreData};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
@@ -29,6 +29,23 @@ pub enum HostAction {
     OverrideTeamScore {
         team_name: String,
         override_points: i32,
+    },
+
+    #[serde(rename_all = "camelCase")]
+    UpdateGameSettings {
+        default_timer_duration: u32,
+        default_question_points: u32,
+        default_bonus_increment: u32,
+        default_question_type: QuestionKind,
+    },
+
+    #[serde(rename_all = "camelCase")]
+    UpdateQuestionSettings {
+        question_number: usize,
+        timer_duration: u32,
+        question_points: u32,
+        bonus_increment: u32,
+        question_type: QuestionKind,
     },
 }
 

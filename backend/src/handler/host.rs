@@ -4,6 +4,7 @@ use crate::{
         client_message::{ClientMessage, HostAction},
         game::Game,
         server_message::{ServerMessage, send_msg},
+        types::GameSettings,
     },
     server::{AppState, Rx, Tx},
 };
@@ -195,6 +196,53 @@ fn process_host_action(
                 }
             }
         }
+
+        // Settings actions
+        HostAction::UpdateGameSettings {
+            default_timer_duration,
+            default_question_points,
+            default_bonus_increment,
+            default_question_type,
+        } => {
+            let settings = GameSettings {
+                default_timer_duration,
+                default_question_points,
+                default_bonus_increment,
+                default_question_type,
+            };
+            game.update_game_settings(settings);
+            HostActionResult {
+                host_msg: ServerMessage::GameState {
+                    state: game.to_game_state(),
+                },
+                team_msg: Some(TeamMessage::Broadcast),
+            }
+        }
+
+        HostAction::UpdateQuestionSettings {
+            question_number,
+            timer_duration,
+            question_points,
+            bonus_increment,
+            question_type,
+        } => match game.update_question_settings(
+            question_number,
+            timer_duration,
+            question_points,
+            bonus_increment,
+            question_type,
+        ) {
+            Ok(()) => HostActionResult {
+                host_msg: ServerMessage::GameState {
+                    state: game.to_game_state(),
+                },
+                team_msg: Some(TeamMessage::Broadcast),
+            },
+            Err(msg) => HostActionResult {
+                host_msg: ServerMessage::error(msg),
+                team_msg: None,
+            },
+        },
     }
 }
 

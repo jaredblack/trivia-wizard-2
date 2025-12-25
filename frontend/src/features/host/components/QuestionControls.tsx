@@ -7,11 +7,13 @@ interface QuestionControlsProps {
   questionType: QuestionKind;
   timerSeconds: number;
   timerRunning: boolean;
+  settingsDisabled?: boolean;
   onStartTimer: () => void;
   onPauseTimer: () => void;
   onResetTimer: () => void;
   onPrevQuestion: () => void;
   onNextQuestion: () => void;
+  onQuestionTypeChange?: (type: QuestionKind) => void;
   onExit: () => void;
 }
 
@@ -20,11 +22,13 @@ export default function QuestionControls({
   questionType,
   timerSeconds,
   timerRunning,
+  settingsDisabled,
   onStartTimer,
   onPauseTimer,
   onResetTimer,
   onPrevQuestion,
   onNextQuestion,
+  onQuestionTypeChange,
   onExit,
 }: QuestionControlsProps) {
   // Format timer as M:SS
@@ -59,8 +63,15 @@ export default function QuestionControls({
           <span className="text-sm text-gray-500">Type</span>
           <select
             value={questionType}
-            onChange={() => {}}
-            className="border border-gray-300 bg-white rounded-xl px-2 py-2 hover:bg-gray-200 cursor-pointer"
+            onChange={(e) =>
+              onQuestionTypeChange?.(e.target.value as QuestionKind)
+            }
+            disabled={settingsDisabled}
+            className={`border border-gray-300 bg-white rounded-xl px-2 py-2 ${
+              settingsDisabled
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : "hover:bg-gray-200 cursor-pointer"
+            }`}
           >
             <option value="standard">{questionKindLabels.standard}</option>
             <option value="multiAnswer">{questionKindLabels.multiAnswer}</option>

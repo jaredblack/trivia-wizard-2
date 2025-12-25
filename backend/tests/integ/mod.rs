@@ -6,4 +6,5 @@ mod host_reconnection_test;
 mod message_validation_test;
 mod question_navigation_test;
 mod server_lifecycle_test;
+mod settings_test;
 mod team_reconnection_test;

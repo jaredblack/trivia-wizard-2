@@ -317,6 +317,71 @@ impl Game {
         }
     }
 
+    // === Settings operations ===
+
+    /// Update game-level settings.
+    /// Also updates any existing questions that have NOT yet received answers.
+    pub fn update_game_settings(&mut self, settings: GameSettings) {
+        self.game_settings = settings.clone();
+
+        // Update all questions that don't have answers yet
+        for question in &mut self.questions {
+            if !question.question_data.has_responses() {
+                question.timer_duration = settings.default_timer_duration;
+                question.question_points = settings.default_question_points;
+                question.bonus_increment = settings.default_bonus_increment;
+            }
+        }
+
+        // Update timer display if on unanswered question and timer not running
+        let current_q = &self.questions[self.current_question_number - 1];
+        if !current_q.question_data.has_responses() && !self.timer_running {
+            self.timer_seconds_remaining = Some(settings.default_timer_duration);
+        }
+    }
+
+    /// Update settings for a specific question.
+    /// Returns Err if the question has answers or doesn't exist.
+    pub fn update_question_settings(
+        &mut self,
+        question_number: usize,
+        timer_duration: u32,
+        question_points: u32,
+        bonus_increment: u32,
+        question_type: QuestionKind,
+    ) -> Result<(), &'static str> {
+        let question_idx = question_number - 1;
+        if question_idx >= self.questions.len() {
+            return Err("Question does not exist");
+        }
+
+        let question = &mut self.questions[question_idx];
+        if question.question_data.has_responses() {
+            return Err("Cannot update settings for a question that has answers");
+        }
+
+        question.timer_duration = timer_duration;
+        question.question_points = question_points;
+        question.bonus_increment = bonus_increment;
+
+        // Update question type by creating new QuestionData variant
+        question.question_data = match question_type {
+            QuestionKind::Standard => QuestionData::Standard { responses: vec![] },
+            QuestionKind::MultiAnswer => QuestionData::MultiAnswer { responses: vec![] },
+            QuestionKind::MultipleChoice => QuestionData::MultipleChoice {
+                choices: vec![],
+                responses: vec![],
+            },
+        };
+
+        // Update timer display if this is current question and timer not running
+        if question_number == self.current_question_number && !self.timer_running {
+            self.timer_seconds_remaining = Some(timer_duration);
+        }
+
+        Ok(())
+    }
+
     // === Team connection status ===
 
     /// Set a team's connected status

@@ -4,6 +4,7 @@ interface GameSettingsProps {
   questionPoints: number;
   bonusIncrement: number;
   timerLength: number;
+  disabled?: boolean;
   onQuestionPointsChange?: (value: number) => void;
   onBonusIncrementChange?: (value: number) => void;
   onTimerLengthChange?: (value: number) => void;
@@ -14,6 +15,7 @@ export default function GameSettings({
   questionPoints,
   bonusIncrement,
   timerLength,
+  disabled,
   onQuestionPointsChange,
   onBonusIncrementChange,
   onTimerLengthChange,
@@ -29,7 +31,10 @@ export default function GameSettings({
             type="number"
             value={questionPoints}
             onChange={(e) => onQuestionPointsChange?.(Number(e.target.value))}
-            className="w-16 px-2 py-1 border border-gray-300 rounded-xl text-center"
+            disabled={disabled}
+            className={`w-16 px-2 py-1 border border-gray-300 rounded-xl text-center ${
+              disabled ? "bg-gray-100 text-gray-400 cursor-not-allowed" : ""
+            }`}
           />
         </div>
 
@@ -40,7 +45,10 @@ export default function GameSettings({
             type="number"
             value={bonusIncrement}
             onChange={(e) => onBonusIncrementChange?.(Number(e.target.value))}
-            className="w-16 px-2 py-1 border border-gray-300 rounded-xl text-center"
+            disabled={disabled}
+            className={`w-16 px-2 py-1 border border-gray-300 rounded-xl text-center ${
+              disabled ? "bg-gray-100 text-gray-400 cursor-not-allowed" : ""
+            }`}
           />
         </div>
 
@@ -51,7 +59,10 @@ export default function GameSettings({
             type="number"
             value={timerLength}
             onChange={(e) => onTimerLengthChange?.(Number(e.target.value))}
-            className="w-16 px-2 py-1 border border-gray-300 rounded-xl text-center"
+            disabled={disabled}
+            className={`w-16 px-2 py-1 border border-gray-300 rounded-xl text-center ${
+              disabled ? "bg-gray-100 text-gray-400 cursor-not-allowed" : ""
+            }`}
           />
         </div>
       </div>

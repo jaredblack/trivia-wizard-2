@@ -235,7 +235,10 @@ async fn next_question_stops_running_timer() {
     let response: ServerMessage = host.recv_json().await;
     match response {
         ServerMessage::GameState { state } => {
-            assert!(!state.timer_running, "Timer should be stopped after navigation");
+            assert!(
+                !state.timer_running,
+                "Timer should be stopped after navigation"
+            );
         }
         other => panic!("Expected GameState, got {other:?}"),
     }

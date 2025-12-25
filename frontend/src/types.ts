@@ -184,6 +184,23 @@ export interface OverrideTeamScoreAction {
   overridePoints: number;
 }
 
+export interface UpdateGameSettingsAction {
+  type: "updateGameSettings";
+  defaultTimerDuration: number;
+  defaultQuestionPoints: number;
+  defaultBonusIncrement: number;
+  defaultQuestionType: QuestionKind;
+}
+
+export interface UpdateQuestionSettingsAction {
+  type: "updateQuestionSettings";
+  questionNumber: number;
+  timerDuration: number;
+  questionPoints: number;
+  bonusIncrement: number;
+  questionType: QuestionKind;
+}
+
 export type HostAction =
   | CreateGameAction
   | StartTimerAction
@@ -192,7 +209,9 @@ export type HostAction =
   | NextQuestionAction
   | PrevQuestionAction
   | ScoreAnswerAction
-  | OverrideTeamScoreAction;
+  | OverrideTeamScoreAction
+  | UpdateGameSettingsAction
+  | UpdateQuestionSettingsAction;
 
 export interface JoinGameAction {
   type: "joinGame";

@@ -70,6 +70,9 @@ export default function HostGame() {
   // Timer display uses server state, falling back to question default
   const displaySeconds = timerSecondsRemaining ?? currentQuestion.timerDuration;
 
+  // Check if the current question has any responses (used to disable settings)
+  const questionHasAnswers = currentQuestion.questionData.responses.length > 0;
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header with question controls */}
@@ -78,11 +81,24 @@ export default function HostGame() {
         questionType={questionType}
         timerSeconds={displaySeconds}
         timerRunning={timerRunning}
+        settingsDisabled={questionHasAnswers}
         onStartTimer={() => sendMessage({ host: { type: "startTimer" } })}
         onPauseTimer={() => sendMessage({ host: { type: "pauseTimer" } })}
         onResetTimer={() => sendMessage({ host: { type: "resetTimer" } })}
         onPrevQuestion={() => sendMessage({ host: { type: "prevQuestion" } })}
         onNextQuestion={() => sendMessage({ host: { type: "nextQuestion" } })}
+        onQuestionTypeChange={(type) => {
+          sendMessage({
+            host: {
+              type: "updateQuestionSettings",
+              questionNumber: currentQuestionNumber,
+              timerDuration: currentQuestion.timerDuration,
+              questionPoints: currentQuestion.questionPoints,
+              bonusIncrement: currentQuestion.bonusIncrement,
+              questionType: type,
+            },
+          });
+        }}
         onExit={handleExit}
       />
 
@@ -128,17 +144,42 @@ export default function HostGame() {
         questionPoints={currentQuestion.questionPoints}
         bonusIncrement={currentQuestion.bonusIncrement}
         timerLength={currentQuestion.timerDuration}
+        disabled={questionHasAnswers}
         onQuestionPointsChange={(value) => {
-          // TODO: Update in store
-          console.log("Question points:", value);
+          sendMessage({
+            host: {
+              type: "updateQuestionSettings",
+              questionNumber: currentQuestionNumber,
+              timerDuration: currentQuestion.timerDuration,
+              questionPoints: value,
+              bonusIncrement: currentQuestion.bonusIncrement,
+              questionType: currentQuestion.questionData.type,
+            },
+          });
         }}
         onBonusIncrementChange={(value) => {
-          // TODO: Update in store
-          console.log("Bonus increment:", value);
+          sendMessage({
+            host: {
+              type: "updateQuestionSettings",
+              questionNumber: currentQuestionNumber,
+              timerDuration: currentQuestion.timerDuration,
+              questionPoints: currentQuestion.questionPoints,
+              bonusIncrement: value,
+              questionType: currentQuestion.questionData.type,
+            },
+          });
         }}
         onTimerLengthChange={(value) => {
-          // TODO: Update in store
-          console.log("Timer length:", value);
+          sendMessage({
+            host: {
+              type: "updateQuestionSettings",
+              questionNumber: currentQuestionNumber,
+              timerDuration: value,
+              questionPoints: currentQuestion.questionPoints,
+              bonusIncrement: currentQuestion.bonusIncrement,
+              questionType: currentQuestion.questionData.type,
+            },
+          });
         }}
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
@@ -149,8 +190,15 @@ export default function HostGame() {
           settings={gameSettings}
           onClose={() => setIsSettingsOpen(false)}
           onSettingsChange={(newSettings) => {
-            // TODO: Update settings in store and sync with server
-            console.log("Settings changed:", newSettings);
+            sendMessage({
+              host: {
+                type: "updateGameSettings",
+                defaultTimerDuration: newSettings.defaultTimerDuration,
+                defaultQuestionPoints: newSettings.defaultQuestionPoints,
+                defaultBonusIncrement: newSettings.defaultBonusIncrement,
+                defaultQuestionType: newSettings.defaultQuestionType,
+              },
+            });
           }}
         />
       )}

@@ -2,6 +2,7 @@ use crate::{TestClient, TestServer};
 
 use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::ServerMessage;
+use backend::model::types::QuestionKind;
 
 #[tokio::test]
 async fn timer_start_opens_submissions_and_broadcasts_state() {
@@ -133,14 +134,23 @@ async fn submissions_rejected_after_timer_expires() {
     // Consume the GameState broadcast to host when team joined
     let _: ServerMessage = host.recv_json().await;
 
-    // Start timer (uses question's default timer_duration of 30s)
+    host.send_json(&ClientMessage::Host(HostAction::UpdateQuestionSettings {
+        question_number: 1,
+        timer_duration: 2,
+        question_points: 50,
+        bonus_increment: 5,
+        question_type: QuestionKind::Standard,
+    }))
+    .await;
+
+    // Start timer (Should used the update timer duration of 2s)
     host.send_json(&ClientMessage::Host(HostAction::StartTimer))
         .await;
     let _: ServerMessage = host.recv_json().await; // consume initial GameState
     let _: ServerMessage = team.recv_json().await; // consume initial TeamGameState
 
     // Wait for timer to expire (30 seconds)
-    for _ in 0..30 {
+    for _ in 0..3 {
         let _: ServerMessage = host.recv_json().await;
         let _: ServerMessage = team.recv_json().await;
     }
