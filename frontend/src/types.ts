@@ -91,39 +91,122 @@ export interface TeamData {
   connected: boolean;
 }
 
-// === Server Messages ===
+// === GameState (Server → Host) ===
 
-export interface GameCreated {
-  currentQuestionNumber: number;
+export interface GameState {
   gameCode: string;
-  gameSettings: GameSettings;
-  currentQuestion: Question;
+  currentQuestionNumber: number;
+  timerRunning: boolean;
+  timerSecondsRemaining: number | null;
   teams: TeamData[];
+  questions: Question[];
+  gameSettings: GameSettings;
 }
 
-export interface NewAnswer {
+// === TeamGameState (Server → Team) ===
+
+export interface TeamGameState {
+  gameCode: string;
+  currentQuestionNumber: number;
+  timerRunning: boolean;
+  timerSecondsRemaining: number | null;
+  team: TeamData;
+  currentQuestionKind: QuestionKind;
+  currentQuestionChoices?: string[];
+}
+
+// === Server Messages (tagged union with "type" discriminator) ===
+
+export interface GameStateMessage {
+  type: "gameState";
+  state: GameState;
+}
+
+export interface TeamGameStateMessage {
+  type: "teamGameState";
+  state: TeamGameState;
+}
+
+export interface TimerTickMessage {
+  type: "timerTick";
+  secondsRemaining: number;
+}
+
+export interface ErrorMessage {
+  type: "error";
+  message: string;
+  state?: GameState;
+}
+
+export type ServerMessage =
+  | GameStateMessage
+  | TeamGameStateMessage
+  | TimerTickMessage
+  | ErrorMessage;
+
+// === Client Messages ===
+
+export interface CreateGameAction {
+  type: "createGame";
+  gameCode?: string;
+}
+
+export interface StartTimerAction {
+  type: "startTimer";
+}
+
+export interface PauseTimerAction {
+  type: "pauseTimer";
+}
+
+export interface ResetTimerAction {
+  type: "resetTimer";
+}
+
+export interface ScoreAnswerAction {
+  type: "scoreAnswer";
+  questionNumber: number;
+  teamName: string;
+  score: ScoreData;
+}
+
+export interface OverrideTeamScoreAction {
+  type: "overrideTeamScore";
+  teamName: string;
+  overridePoints: number;
+}
+
+export type HostAction =
+  | CreateGameAction
+  | StartTimerAction
+  | PauseTimerAction
+  | ResetTimerAction
+  | ScoreAnswerAction
+  | OverrideTeamScoreAction;
+
+export interface JoinGameAction {
+  type: "joinGame";
+  teamName: string;
+  gameCode: string;
+  colorHex: string;
+  colorName: string;
+  teamMembers: string[];
+}
+
+export interface SubmitAnswerAction {
+  type: "submitAnswer";
+  teamName: string;
   answer: string;
-  teamName: string;
 }
 
-export interface ScoreUpdate {
-  teamName: string;
-  score: number;
+export type TeamAction = JoinGameAction | SubmitAnswerAction;
+
+export interface HostClientMessage {
+  host: HostAction;
 }
 
-export interface HostServerMessage {
-  gameCreated?: GameCreated;
-  newAnswer?: NewAnswer;
-  scoreUpdate?: ScoreUpdate;
+export interface TeamClientMessage {
+  team: TeamAction;
 }
 
-export interface TeamServerMessage {
-  gameJoined?: { gameCode: string };
-  answerSubmitted?: true;
-}
-
-export interface ServerMessage {
-  host?: HostServerMessage;
-  team?: TeamServerMessage;
-  error?: string;
-}
+export type ClientMessage = HostClientMessage | TeamClientMessage;

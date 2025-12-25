@@ -1,49 +1,30 @@
 import { useOutletContext, useNavigate } from "react-router-dom";
 import type { AuthOutletContext } from "../../ProtectedRoute";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { startServer } from "../../aws";
-import { isLocalMode, wsUrl, healthUrl } from "../../config";
+import { isLocalMode, healthUrl } from "../../config";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import ProgressBar from "../../components/ui/ProgressBar";
 import Header from "../../components/layout/Header";
 import { useHostStore } from "../../stores/useHostStore";
-import type { GameCreated } from "../../types";
-
-async function buildWsUrl(): Promise<string> {
-  if (isLocalMode) {
-    return wsUrl;
-  }
-  const session = await fetchAuthSession();
-  const token = session.tokens?.accessToken?.toString();
-  if (!token) {
-    throw new Error(
-      "No access token available - user may not be authenticated"
-    );
-  }
-  return `${wsUrl}?token=${encodeURIComponent(token)}`;
-}
-
-type ConnectionState =
-  | "idle"
-  | "connecting"
-  | "connected"
-  | "disconnected"
-  | "error";
+import { useWebSocket } from "../../hooks/useWebSocket";
+import type { HostClientMessage } from "../../types";
 
 export default function HostLanding() {
   const { user, signOut } = useOutletContext<AuthOutletContext>();
   const navigate = useNavigate();
-  const setGameData = useHostStore((state) => state.setGameData);
+  const gameCode = useHostStore((state) => state.gameCode);
+  const { connectionState, send, connect } = useWebSocket();
 
   const [serverRunning, setServerRunning] = useState(false);
   const [isHost, setIsHost] = useState(false);
   const [isStartingServer, setIsStartingServer] = useState(false);
   const [serverStartFailed, setServerStartFailed] = useState(false);
   const [customGameCode, setCustomGameCode] = useState("");
-  const [connectionState, setConnectionState] =
-    useState<ConnectionState>("idle");
+  const [isCreatingGame, setIsCreatingGame] = useState(false);
+  const hasNavigated = useRef(false);
 
   useEffect(() => {
     if (isLocalMode) {
@@ -122,49 +103,24 @@ export default function HostLanding() {
     }
   };
 
+  // Navigate to game page when game is created (gameCode is set)
+  useEffect(() => {
+    if (gameCode && !hasNavigated.current) {
+      hasNavigated.current = true;
+      navigate("/host/game");
+    }
+  }, [gameCode, navigate]);
+
   const createGame = async (_useCustomCode: boolean) => {
-    setConnectionState("connecting");
+    setIsCreatingGame(true);
     try {
-      const url = await buildWsUrl();
-      const ws = new WebSocket(url);
-
-      ws.onopen = () => {
-        console.log("WebSocket connected");
-        setConnectionState("connected");
-        // TODO: support custom game codes when backend supports it
-        ws.send(JSON.stringify({ host: { type: "createGame" }}));
-      };
-
-      ws.onmessage = (event) => {
-        console.log("Message from server: ", event.data);
-        try {
-          const message = JSON.parse(event.data);
-          if (message.type === "gameState") {
-            const gameCreated = message.host.gameCreated as GameCreated;
-            setGameData(gameCreated);
-            navigate("/host/game");
-          } else if (message.error) {
-            console.error("Server error:", message.error);
-          }
-        } catch {
-          console.log("Non-JSON message from server:", event.data);
-        }
-      };
-
-      ws.onclose = (event) => {
-        console.log("WebSocket disconnected", event.code, event.reason);
-        setConnectionState((prev) =>
-          prev === "connected" ? "disconnected" : "error"
-        );
-      };
-
-      ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        setConnectionState("error");
-      };
+      await connect();
+      // TODO: support custom game codes when backend supports it
+      const msg: HostClientMessage = { host: { type: "createGame" } };
+      send(msg);
     } catch (error) {
       console.error("Error creating game:", error);
-      setConnectionState("error");
+      setIsCreatingGame(false);
     }
   };
 
@@ -242,7 +198,7 @@ export default function HostLanding() {
                 </p>
                 <Button
                   variant="secondary"
-                  onClick={() => setConnectionState("idle")}
+                  onClick={() => setIsCreatingGame(false)}
                 >
                   Retry
                 </Button>
@@ -259,9 +215,7 @@ export default function HostLanding() {
                   <Button
                     variant="primary"
                     onClick={() => createGame(true)}
-                    disabled={
-                      connectionState === "connecting" || !customGameCode
-                    }
+                    disabled={isCreatingGame || !customGameCode}
                   >
                     Create Game
                   </Button>
@@ -269,7 +223,7 @@ export default function HostLanding() {
                 <Button
                   variant="secondary"
                   onClick={() => createGame(false)}
-                  disabled={connectionState === "connecting"}
+                  disabled={isCreatingGame}
                   className="flex flex-col items-center py-4"
                 >
                   <span>Create Game</span>

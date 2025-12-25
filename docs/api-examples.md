@@ -14,8 +14,9 @@
     "team": {
         "joinGame": {
             "teamName": "AS 7",
-            "gameCode": "YFJW",
+            "gameCode": "ABUH",
             "colorHex": "0000FF",
+            "colorName": "blue",
             "teamMembers": ["jared"]
         }
 
@@ -27,7 +28,7 @@
 {
     "team": {
         "submitAnswer": {
-            "teamName": "grace",
+            "teamName": "AS 7",
             "answer": "BingBong"
         }
     }

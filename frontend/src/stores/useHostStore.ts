@@ -1,21 +1,24 @@
 import { create } from "zustand";
 import type {
-  GameCreated,
+  GameState,
   GameSettings,
   Question,
   TeamData,
 } from "../types";
 
 interface HostStore {
-  // State from GameCreated
+  // State from GameState
   gameCode: string | null;
   currentQuestionNumber: number;
+  timerRunning: boolean;
+  timerSecondsRemaining: number | null;
   gameSettings: GameSettings | null;
-  currentQuestion: Question | null;
+  questions: Question[];
   teams: TeamData[];
 
   // Actions
-  setGameData: (data: GameCreated) => void;
+  setGameState: (state: GameState) => void;
+  setTimerSecondsRemaining: (seconds: number) => void;
   clearGame: () => void;
 }
 
@@ -23,26 +26,37 @@ export const useHostStore = create<HostStore>((set) => ({
   // Initial state
   gameCode: null,
   currentQuestionNumber: 0,
+  timerRunning: false,
+  timerSecondsRemaining: null,
   gameSettings: null,
-  currentQuestion: null,
+  questions: [],
   teams: [],
 
   // Actions
-  setGameData: (data: GameCreated) =>
+  setGameState: (state: GameState) =>
     set({
-      gameCode: data.gameCode,
-      currentQuestionNumber: data.currentQuestionNumber,
-      gameSettings: data.gameSettings,
-      currentQuestion: data.currentQuestion,
-      teams: data.teams,
+      gameCode: state.gameCode,
+      currentQuestionNumber: state.currentQuestionNumber,
+      timerRunning: state.timerRunning,
+      timerSecondsRemaining: state.timerSecondsRemaining,
+      gameSettings: state.gameSettings,
+      questions: state.questions,
+      teams: state.teams,
+    }),
+
+  setTimerSecondsRemaining: (seconds: number) =>
+    set({
+      timerSecondsRemaining: seconds,
     }),
 
   clearGame: () =>
     set({
       gameCode: null,
       currentQuestionNumber: 0,
+      timerRunning: false,
+      timerSecondsRemaining: null,
       gameSettings: null,
-      currentQuestion: null,
+      questions: [],
       teams: [],
     }),
 }));

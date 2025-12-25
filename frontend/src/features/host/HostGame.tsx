@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useHostStore } from "../../stores/useHostStore";
+import { useWebSocket } from "../../hooks/useWebSocket";
 import QuestionControls from "./components/QuestionControls";
 import AnswerList from "./components/AnswerList";
 import Scoreboard from "./components/Scoreboard";
 import GameSettings from "./components/GameSettings";
 import SettingsModal from "./components/SettingsModal";
-import type { QuestionKind } from "../../types";
+import type { QuestionKind, ClientMessage } from "../../types";
 
 export default function HostGame() {
   const navigate = useNavigate();
@@ -14,11 +15,27 @@ export default function HostGame() {
   const {
     gameCode,
     currentQuestionNumber,
-    currentQuestion,
+    timerRunning,
+    timerSecondsRemaining,
+    questions,
     gameSettings,
     teams,
     clearGame,
   } = useHostStore();
+  const { connectionState, send, disconnect } = useWebSocket();
+
+  // Get current question from questions array (0-indexed)
+  const currentQuestion = questions[currentQuestionNumber - 1] ?? null;
+
+  // Redirect if WebSocket disconnected
+  useEffect(() => {
+    if (connectionState === "disconnected" || connectionState === "error") {
+      // Only redirect if we had a game but lost connection
+      if (gameCode) {
+        console.log("WebSocket disconnected, redirecting to host landing");
+      }
+    }
+  }, [connectionState, gameCode]);
 
   // If no game data, redirect to host landing
   if (!gameCode || !currentQuestion) {
@@ -38,12 +55,20 @@ export default function HostGame() {
   }
 
   const handleExit = () => {
+    disconnect();
     clearGame();
     navigate("/host");
   };
 
+  const sendMessage = (msg: ClientMessage) => {
+    send(msg);
+  };
+
   // Derive question type from questionData
   const questionType: QuestionKind = currentQuestion.questionData.type;
+
+  // Timer display uses server state, falling back to question default
+  const displaySeconds = timerSecondsRemaining ?? currentQuestion.timerDuration;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -51,27 +76,48 @@ export default function HostGame() {
       <QuestionControls
         questionNumber={currentQuestionNumber}
         questionType={questionType}
-        timerDuration={currentQuestion.timerDuration}
+        timerSeconds={displaySeconds}
+        timerRunning={timerRunning}
+        onStartTimer={() => sendMessage({ host: { type: "startTimer" } })}
+        onPauseTimer={() => sendMessage({ host: { type: "pauseTimer" } })}
+        onResetTimer={() => sendMessage({ host: { type: "resetTimer" } })}
         onExit={handleExit}
       />
 
       {/* Main content area */}
       <main className="flex-1 flex overflow-hidden mx-12">
-        {/* Left panel - Answer list (60%) */}
-        <div className="w-auto border-r border-gray-200 overflow-y-auto">
+        <div className="flex-1 border-r border-gray-200 overflow-y-auto">
           <AnswerList
             question={currentQuestion}
+            questionNumber={currentQuestionNumber}
             teams={teams}
-            onTeamScoreChange={(teamName, score) => {
-              // TODO: Update team score in store and sync with server
-              console.log("Score change:", teamName, score);
+            onScoreAnswer={(teamName, score) => {
+              sendMessage({
+                host: {
+                  type: "scoreAnswer",
+                  questionNumber: currentQuestionNumber,
+                  teamName,
+                  score,
+                },
+              });
             }}
           />
         </div>
 
-        {/* Right panel - Scoreboard (40%) */}
-        <div className="w-2xl overflow-y-auto">
-          <Scoreboard gameCode={gameCode} teams={teams} />
+        <div className="w-md shrink-0 overflow-y-auto">
+          <Scoreboard
+            gameCode={gameCode}
+            teams={teams}
+            onOverrideScore={(teamName, overridePoints) => {
+              sendMessage({
+                host: {
+                  type: "overrideTeamScore",
+                  teamName,
+                  overridePoints,
+                },
+              });
+            }}
+          />
         </div>
       </main>
 

@@ -1,23 +1,31 @@
-import { Play, RotateCcw, ArrowLeft, ArrowRight } from "lucide-react";
+import { Play, Pause, RotateCcw, ArrowLeft, ArrowRight } from "lucide-react";
 import { questionKindLabels } from "../../../types";
 import type { QuestionKind } from "../../../types";
 
 interface QuestionControlsProps {
   questionNumber: number;
   questionType: QuestionKind;
-  timerDuration: number;
+  timerSeconds: number;
+  timerRunning: boolean;
+  onStartTimer: () => void;
+  onPauseTimer: () => void;
+  onResetTimer: () => void;
   onExit: () => void;
 }
 
 export default function QuestionControls({
   questionNumber,
   questionType,
-  timerDuration,
+  timerSeconds,
+  timerRunning,
+  onStartTimer,
+  onPauseTimer,
+  onResetTimer,
   onExit,
 }: QuestionControlsProps) {
   // Format timer as M:SS
-  const minutes = Math.floor(timerDuration / 60);
-  const seconds = timerDuration % 60;
+  const minutes = Math.floor(timerSeconds / 60);
+  const seconds = timerSeconds % 60;
   const timerDisplay = `${minutes}:${seconds.toString().padStart(2, "0")}`;
 
 
@@ -59,13 +67,19 @@ export default function QuestionControls({
         {/* Timer */}
         <div className="flex items-center gap-2 bg-white rounded-2xl p-2">
           <button
+            onClick={timerRunning ? onPauseTimer : onStartTimer}
             className="p-2 hover:bg-gray-100 rounded-full cursor-pointer"
-            aria-label="Start timer"
+            aria-label={timerRunning ? "Pause timer" : "Start timer"}
           >
-            <Play className="w-6 h-6" />
+            {timerRunning ? (
+              <Pause className="w-6 h-6" />
+            ) : (
+              <Play className="w-6 h-6" />
+            )}
           </button>
           <span className="text-4xl font-mono font-bold">{timerDisplay}</span>
           <button
+            onClick={onResetTimer}
             className="p-2 hover:bg-gray-100 rounded-full cursor-pointer"
             aria-label="Reset timer"
           >

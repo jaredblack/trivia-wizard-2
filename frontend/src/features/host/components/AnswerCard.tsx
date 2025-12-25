@@ -1,5 +1,4 @@
 import { Check, X, Plus, Minus } from "lucide-react";
-import { useState } from "react";
 import type { ScoreData } from "../../../types";
 import { getScore } from "../../../types";
 
@@ -7,37 +6,30 @@ interface AnswerCardProps {
   teamName: string;
   answerText: string;
   teamColor: string;
-  initialScore: ScoreData;
+  score: ScoreData;
   questionPoints: number; // Points awarded when marking correct
   bonusIncrement: number; // Points added/removed per +/- click
-  onScoreChange?: (score: ScoreData) => void;
+  onScoreChange: (score: ScoreData) => void;
 }
 
 export default function AnswerCard({
   teamName,
   answerText,
   teamColor,
-  initialScore,
+  score,
   questionPoints,
   bonusIncrement,
   onScoreChange,
 }: AnswerCardProps) {
-  const [score, setScore] = useState<ScoreData>(initialScore);
-
   // Is marked correct if questionPoints > 0
   const isCorrect = score.questionPoints > 0;
-
-  const updateScore = (newScore: ScoreData) => {
-    setScore(newScore);
-    onScoreChange?.(newScore);
-  };
 
   const handleToggleCorrect = () => {
     const newScore: ScoreData = {
       ...score,
       questionPoints: isCorrect ? 0 : questionPoints,
     };
-    updateScore(newScore);
+    onScoreChange(newScore);
   };
 
   const handleIncrement = () => {
@@ -45,7 +37,7 @@ export default function AnswerCard({
       ...score,
       bonusPoints: score.bonusPoints + bonusIncrement,
     };
-    updateScore(newScore);
+    onScoreChange(newScore);
   };
 
   const handleDecrement = () => {
@@ -53,7 +45,7 @@ export default function AnswerCard({
       ...score,
       bonusPoints: score.bonusPoints - bonusIncrement,
     };
-    updateScore(newScore);
+    onScoreChange(newScore);
   };
 
   const totalScore = getScore(score);

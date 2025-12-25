@@ -3,14 +3,15 @@ import type { TeamData, Question, ScoreData } from "../../../types";
 
 interface AnswerListProps {
   question: Question;
+  questionNumber: number;
   teams: TeamData[];
-  onTeamScoreChange?: (teamName: string, score: ScoreData) => void;
+  onScoreAnswer: (teamName: string, score: ScoreData) => void;
 }
 
 export default function AnswerList({
   question,
   teams,
-  onTeamScoreChange,
+  onScoreAnswer,
 }: AnswerListProps) {
   // For now, only handle Standard question type
   if (question.questionData.type !== "standard") {
@@ -37,11 +38,11 @@ export default function AnswerList({
             key={response.teamName}
             teamName={response.teamName}
             answerText={response.answerText}
-            teamColor={team?.teamColor.hexCode ?? "#666666"}
-            initialScore={response.score}
+            teamColor={team?.teamColor.hexCode ? team.teamColor.hexCode : "#666666"}
+            score={response.score}
             questionPoints={question.questionPoints}
             bonusIncrement={question.bonusIncrement}
-            onScoreChange={(score) => onTeamScoreChange?.(response.teamName, score)}
+            onScoreChange={(score) => onScoreAnswer(response.teamName, score)}
           />
         );
       })}

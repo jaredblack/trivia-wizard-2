@@ -5,7 +5,7 @@ import { getScore } from "../../../types";
 interface ScoreboardProps {
   gameCode: string;
   teams: TeamData[];
-  onScoreUpdate?: (teamName: string, newOverridePoints: number) => void;
+  onOverrideScore: (teamName: string, overridePoints: number) => void;
 }
 
 function parseScoreExpression(input: string): number | null {
@@ -115,7 +115,7 @@ function EditableScore({ score, isHovered, onScoreChange }: EditableScoreProps) 
   );
 }
 
-export default function Scoreboard({ gameCode, teams, onScoreUpdate }: ScoreboardProps) {
+export default function Scoreboard({ gameCode, teams, onOverrideScore }: ScoreboardProps) {
   const [hoveredTeam, setHoveredTeam] = useState<string | null>(null);
 
   // Sort teams by total score (descending)
@@ -155,7 +155,7 @@ export default function Scoreboard({ gameCode, teams, onScoreUpdate }: Scoreboar
               <EditableScore
                 score={team.score}
                 isHovered={isHovered}
-                onScoreChange={(newOverride) => onScoreUpdate?.(team.teamName, newOverride)}
+                onScoreChange={(newOverride) => onOverrideScore(team.teamName, newOverride)}
               />
 
               {/* Team color dot */}
