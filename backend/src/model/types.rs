@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
-// === Question Kind (discriminant only, no data) ===
+// === Question Kind ===
+// NOTE: When we implement MultipleChoice, this enum will need to carry
+// question-level settings (e.g., `MultipleChoice { choices: Vec<String> }`).
+// For now it's just a discriminant.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,85 +33,38 @@ impl ScoreData {
     }
 }
 
-// === Team Response Types ===
+// === Answer Types ===
+// An Answer represents a single team's submission for a question.
+// Answers are stored in order of submission (first to last).
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TeamResponse {
+pub struct Answer {
     pub team_name: String,
-    pub answer_text: String,
-    pub score: ScoreData,
+    pub score: Option<ScoreData>,
+    pub content: AnswerContent,
 }
+
+/// The content of a team's answer, varying by question type.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum AnswerContent {
+    #[serde(rename_all = "camelCase")]
+    Standard { answer_text: String },
+    #[serde(rename_all = "camelCase")]
+    MultiAnswer { answers: Vec<String> },
+    #[serde(rename_all = "camelCase")]
+    MultipleChoice { selected: String },
+}
+
+// === Team Question (filtered view for team clients) ===
+// Contains only the team's own answer and score for a question.
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MultiAnswerResponse {
-    pub team_name: String,
-    pub answers: Vec<String>,
-    pub scores: HashMap<String, ScoreData>,
-}
-
-// === Question Data (tagged union with data) ===
-// Note: responses are stored as Vec to preserve submission order (first to last)
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "type")]
-pub enum QuestionData {
-    #[serde(rename_all = "camelCase")]
-    Standard { responses: Vec<TeamResponse> },
-    #[serde(rename_all = "camelCase")]
-    MultiAnswer { responses: Vec<MultiAnswerResponse> },
-    #[serde(rename_all = "camelCase")]
-    MultipleChoice {
-        choices: Vec<String>,
-        responses: Vec<TeamResponse>,
-    },
-}
-
-impl QuestionData {
-    pub fn has_responses(&self) -> bool {
-        match self {
-            QuestionData::Standard { responses } => !responses.is_empty(),
-            QuestionData::MultiAnswer { responses } => !responses.is_empty(),
-            QuestionData::MultipleChoice { responses, .. } => !responses.is_empty(),
-        }
-    }
-
-    /// Filter question data to only include a specific team's response
-    pub fn filter_for_team(&self, team_name: &str) -> TeamQuestionData {
-        match self {
-            QuestionData::Standard { responses } => TeamQuestionData::Standard {
-                response: responses.iter().find(|r| r.team_name == team_name).cloned(),
-            },
-            QuestionData::MultiAnswer { responses } => TeamQuestionData::MultiAnswer {
-                response: responses.iter().find(|r| r.team_name == team_name).cloned(),
-            },
-            QuestionData::MultipleChoice { choices, responses } => {
-                TeamQuestionData::MultipleChoice {
-                    choices: choices.clone(),
-                    response: responses.iter().find(|r| r.team_name == team_name).cloned(),
-                }
-            }
-        }
-    }
-}
-
-// === Team Question Data (filtered for a single team) ===
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "type")]
-pub enum TeamQuestionData {
-    #[serde(rename_all = "camelCase")]
-    Standard { response: Option<TeamResponse> },
-    #[serde(rename_all = "camelCase")]
-    MultiAnswer {
-        response: Option<MultiAnswerResponse>,
-    },
-    #[serde(rename_all = "camelCase")]
-    MultipleChoice {
-        choices: Vec<String>,
-        response: Option<TeamResponse>,
-    },
+pub struct TeamQuestion {
+    pub score: Option<ScoreData>,
+    pub answer: Option<AnswerContent>,
 }
 
 // === Question ===
@@ -120,7 +75,24 @@ pub struct Question {
     pub timer_duration: u32,
     pub question_points: u32,
     pub bonus_increment: u32,
-    pub question_data: QuestionData,
+    pub question_kind: QuestionKind,
+    pub answers: Vec<Answer>,
+}
+
+impl Question {
+    /// Check if any team has submitted an answer
+    pub fn has_answers(&self) -> bool {
+        !self.answers.is_empty()
+    }
+
+    /// Filter question to only include a specific team's data
+    pub fn filter_for_team(&self, team_name: &str) -> TeamQuestion {
+        let team_answer = self.answers.iter().find(|a| a.team_name == team_name);
+        TeamQuestion {
+            score: team_answer.and_then(|a| a.score.clone()),
+            answer: team_answer.map(|a| a.content.clone()),
+        }
+    }
 }
 
 // === Game Settings ===

@@ -110,14 +110,14 @@ export default function HostGame() {
     send(msg);
   };
 
-  // Derive question type from questionData
-  const questionType: QuestionKind = currentQuestion.questionData.type;
+  // Derive question type from questionKind
+  const questionType: QuestionKind = currentQuestion.questionKind;
 
   // Timer display uses server state, falling back to question default
   const displaySeconds = timerSecondsRemaining ?? currentQuestion.timerDuration;
 
-  // Check if the current question has any responses (used to disable settings)
-  const questionHasAnswers = currentQuestion.questionData.responses.length > 0;
+  // Check if the current question has any answers (used to disable settings)
+  const questionHasAnswers = currentQuestion.answers.length > 0;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -199,7 +199,7 @@ export default function HostGame() {
               timerDuration: currentQuestion.timerDuration,
               questionPoints: value,
               bonusIncrement: currentQuestion.bonusIncrement,
-              questionType: currentQuestion.questionData.type,
+              questionType: currentQuestion.questionKind,
             },
           });
         }}
@@ -211,7 +211,7 @@ export default function HostGame() {
               timerDuration: currentQuestion.timerDuration,
               questionPoints: currentQuestion.questionPoints,
               bonusIncrement: value,
-              questionType: currentQuestion.questionData.type,
+              questionType: currentQuestion.questionKind,
             },
           });
         }}
@@ -223,7 +223,7 @@ export default function HostGame() {
               timerDuration: value,
               questionPoints: currentQuestion.questionPoints,
               bonusIncrement: currentQuestion.bonusIncrement,
-              questionType: currentQuestion.questionData.type,
+              questionType: currentQuestion.questionKind,
             },
           });
         }}

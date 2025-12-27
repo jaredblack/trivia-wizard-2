@@ -14,40 +14,49 @@ export default function AnswerList({
   onScoreAnswer,
 }: AnswerListProps) {
   // For now, only handle Standard question type
-  if (question.questionData.type !== "standard") {
+  if (question.questionKind !== "standard") {
     return (
       <div className="p-4 text-gray-500">
-        Question type "{question.questionData.type}" not yet implemented
+        Question type "{question.questionKind}" not yet implemented
       </div>
     );
   }
 
-  // Responses are already ordered by submission time
-  const responses = question.questionData.responses;
+  // Answers are already ordered by submission time
+  const answers = question.answers;
 
   // Create a map of team name to team data for quick lookup
   const teamMap = new Map(teams.map((t) => [t.teamName, t]));
 
   return (
     <div className="flex flex-col gap-4 p-4 overflow-y-auto">
-      {responses.map((response) => {
-        const team = teamMap.get(response.teamName);
+      {answers.map((answer) => {
+        const team = teamMap.get(answer.teamName);
+        // Get answer text from content (only Standard type for now)
+        const answerText =
+          answer.content.type === "standard" ? answer.content.answerText : "";
+        // Default score for unscored answers
+        const score = answer.score ?? {
+          questionPoints: 0,
+          bonusPoints: 0,
+          overridePoints: 0,
+        };
 
         return (
           <AnswerCard
-            key={response.teamName}
-            teamName={response.teamName}
-            answerText={response.answerText}
+            key={answer.teamName}
+            teamName={answer.teamName}
+            answerText={answerText}
             teamColor={team?.teamColor.hexCode ? team.teamColor.hexCode : "#666666"}
-            score={response.score}
+            score={score}
             questionPoints={question.questionPoints}
             bonusIncrement={question.bonusIncrement}
-            onScoreChange={(score) => onScoreAnswer(response.teamName, score)}
+            onScoreChange={(score) => onScoreAnswer(answer.teamName, score)}
           />
         );
       })}
 
-      {responses.length === 0 && (
+      {answers.length === 0 && (
         <div className="text-gray-500 text-center py-8">
           No answers submitted yet
         </div>

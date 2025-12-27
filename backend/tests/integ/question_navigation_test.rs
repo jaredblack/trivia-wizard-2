@@ -1,7 +1,7 @@
 use crate::{TestClient, TestServer};
 use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::ServerMessage;
-use backend::model::types::{QuestionData, ScoreData};
+use backend::model::types::{AnswerContent, ScoreData};
 
 #[tokio::test]
 async fn next_question_increments_question_number_and_creates_new_question() {
@@ -120,26 +120,36 @@ async fn navigation_preserves_answers_and_scores_across_questions() {
             assert_eq!(state.current_question_number, 1);
             assert_eq!(state.questions.len(), 2, "Should still have 2 questions");
 
-            let q1_responses = match &state.questions[0].question_data {
-                QuestionData::Standard { responses } => responses,
-                other => panic!("Expected Standard question, got {other:?}"),
-            };
+            let q1_answers = &state.questions[0].answers;
+            assert_eq!(q1_answers.len(), 2, "Q1 should have 2 answers");
 
-            assert_eq!(q1_responses.len(), 2, "Q1 should have 2 answers");
-
-            let alpha_response = q1_responses
+            let alpha_answer = q1_answers
                 .iter()
-                .find(|r| r.team_name == "Team Alpha")
+                .find(|a| a.team_name == "Team Alpha")
                 .expect("Team Alpha's answer should exist");
-            assert_eq!(alpha_response.answer_text, "Answer from Alpha on Q1");
-            assert_eq!(alpha_response.score.question_points, 50);
-            assert_eq!(alpha_response.score.bonus_points, 10);
+            match &alpha_answer.content {
+                AnswerContent::Standard { answer_text } => {
+                    assert_eq!(answer_text, "Answer from Alpha on Q1");
+                }
+                other => panic!("Expected Standard answer, got {other:?}"),
+            }
+            let alpha_score = alpha_answer
+                .score
+                .as_ref()
+                .expect("Team Alpha should have a score");
+            assert_eq!(alpha_score.question_points, 50);
+            assert_eq!(alpha_score.bonus_points, 10);
 
-            let beta_response = q1_responses
+            let beta_answer = q1_answers
                 .iter()
-                .find(|r| r.team_name == "Team Beta")
+                .find(|a| a.team_name == "Team Beta")
                 .expect("Team Beta's answer should exist");
-            assert_eq!(beta_response.answer_text, "Answer from Beta on Q1");
+            match &beta_answer.content {
+                AnswerContent::Standard { answer_text } => {
+                    assert_eq!(answer_text, "Answer from Beta on Q1");
+                }
+                other => panic!("Expected Standard answer, got {other:?}"),
+            }
         }
         other => panic!("Expected GameState, got {other:?}"),
     }
@@ -156,14 +166,15 @@ async fn navigation_preserves_answers_and_scores_across_questions() {
             assert_eq!(state.current_question_number, 2);
             assert_eq!(state.questions.len(), 2, "Should not create Q3");
 
-            let q2_responses = match &state.questions[1].question_data {
-                QuestionData::Standard { responses } => responses,
-                other => panic!("Expected Standard question, got {other:?}"),
-            };
-
-            assert_eq!(q2_responses.len(), 1, "Q2 should have 1 answer");
-            assert_eq!(q2_responses[0].team_name, "Team Alpha");
-            assert_eq!(q2_responses[0].answer_text, "Answer from Alpha on Q2");
+            let q2_answers = &state.questions[1].answers;
+            assert_eq!(q2_answers.len(), 1, "Q2 should have 1 answer");
+            assert_eq!(q2_answers[0].team_name, "Team Alpha");
+            match &q2_answers[0].content {
+                AnswerContent::Standard { answer_text } => {
+                    assert_eq!(answer_text, "Answer from Alpha on Q2");
+                }
+                other => panic!("Expected Standard answer, got {other:?}"),
+            }
         }
         other => panic!("Expected GameState, got {other:?}"),
     }

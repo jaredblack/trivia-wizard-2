@@ -5,8 +5,7 @@
 
 use crate::model::server_message::{GameState, ServerMessage};
 use crate::model::types::{
-    GameSettings, Question, QuestionData, QuestionKind, ScoreData, TeamColor, TeamData,
-    TeamResponse,
+    Answer, AnswerContent, GameSettings, Question, QuestionKind, ScoreData, TeamColor, TeamData,
 };
 
 /// Creates a fake GameState message for testing the host view.
@@ -19,51 +18,61 @@ pub fn fake_game_state(game_code: String) -> ServerMessage {
         default_question_type: QuestionKind::Standard,
     };
 
-    // Responses ordered by submission time (first to last)
-    let responses = vec![
-        TeamResponse {
+    // Answers ordered by submission time (first to last)
+    let answers = vec![
+        Answer {
             team_name: "The Geniuses".to_string(),
-            answer_text: "Cinnamon brown sugar".to_string(),
-            score: ScoreData {
+            score: Some(ScoreData {
                 question_points: 50,
                 bonus_points: 0,
                 override_points: 0,
+            }),
+            content: AnswerContent::Standard {
+                answer_text: "Cinnamon brown sugar".to_string(),
             },
         },
-        TeamResponse {
+        Answer {
             team_name: "Smink".to_string(),
-            answer_text: "Strawberry".to_string(),
-            score: ScoreData {
+            score: Some(ScoreData {
                 question_points: 0,
                 bonus_points: 0,
                 override_points: 0,
+            }),
+            content: AnswerContent::Standard {
+                answer_text: "Strawberry".to_string(),
             },
         },
-        TeamResponse {
+        Answer {
             team_name: "Team Treetops".to_string(),
-            answer_text: "P".to_string(),
-            score: ScoreData {
+            score: Some(ScoreData {
                 question_points: 50,
                 bonus_points: 0,
                 override_points: 0,
+            }),
+            content: AnswerContent::Standard {
+                answer_text: "P".to_string(),
             },
         },
-        TeamResponse {
+        Answer {
             team_name: "We Really Want To Win".to_string(),
-            answer_text: "Umm I'm really not sure. Please just give us points Jared!! We deserve so many points pleeeeeaseeeeeeee".to_string(),
-            score: ScoreData {
+            score: Some(ScoreData {
                 question_points: 50,
                 bonus_points: 0,
                 override_points: 0,
+            }),
+            content: AnswerContent::Standard {
+                answer_text: "Umm I'm really not sure. Please just give us points Jared!! We deserve so many points pleeeeeaseeeeeeee".to_string(),
             },
         },
-        TeamResponse {
+        Answer {
             team_name: "Jason's Former Friends, well, before the incident".to_string(),
-            answer_text: "Cinnamon brown sugar".to_string(),
-            score: ScoreData {
+            score: Some(ScoreData {
                 question_points: 50,
                 bonus_points: 0,
                 override_points: 0,
+            }),
+            content: AnswerContent::Standard {
+                answer_text: "Cinnamon brown sugar".to_string(),
             },
         },
     ];
@@ -72,7 +81,8 @@ pub fn fake_game_state(game_code: String) -> ServerMessage {
         timer_duration: 30,
         question_points: 50,
         bonus_increment: 5,
-        question_data: QuestionData::Standard { responses },
+        question_kind: QuestionKind::Standard,
+        answers,
     };
 
     let teams = vec![

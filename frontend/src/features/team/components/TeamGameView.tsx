@@ -17,7 +17,12 @@ export default function TeamGameView() {
 
   const currentQuestionNumber = teamGameState?.currentQuestionNumber;
   const timerRunning = teamGameState?.timerRunning;
-  const hasAnswer = teamGameState?.currentQuestionData?.response !== null;
+  const currentQuestion =
+    teamGameState && currentQuestionNumber
+      ? teamGameState.questions[currentQuestionNumber - 1]
+      : undefined;
+  const answer = currentQuestion?.answer;
+  const hasAnswer = answer != null;
 
   // Reset timerHasOpened and draftAnswer when question changes
   useEffect(() => {
@@ -41,13 +46,11 @@ export default function TeamGameView() {
     );
   }
 
-  const { team, timerSecondsRemaining, currentQuestionData } = teamGameState;
+  const { team, timerSecondsRemaining } = teamGameState;
 
   // Get the submitted answer text (for Standard type)
   const submittedAnswerText =
-    currentQuestionData.type === "standard"
-      ? currentQuestionData.response?.answerText
-      : null;
+    answer?.type === "standard" ? answer.answerText : null;
 
   const handleSubmitAnswer = () => {
     if (!draftAnswer.trim()) return;
@@ -164,7 +167,7 @@ export default function TeamGameView() {
       </div>
 
       {/* Footer buttons (shown when not in answer input mode) */}
-      {!timerRunning && (
+      {(!timerRunning || hasAnswer) && (
         <div className="p-4 flex gap-3">
           <Button
             variant="primary"

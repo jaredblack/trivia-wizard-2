@@ -1,7 +1,6 @@
 use crate::model::server_message::{GameState, ServerMessage, TeamGameState, send_msg};
 use crate::model::types::{
-    GameSettings, Question, QuestionData, QuestionKind, ScoreData, TeamColor, TeamData,
-    TeamResponse,
+    Answer, AnswerContent, GameSettings, Question, QuestionKind, ScoreData, TeamColor, TeamData,
 };
 use crate::server::Tx;
 use std::collections::HashMap;
@@ -44,7 +43,8 @@ impl Game {
             timer_duration: DEFAULT_TIMER_DURATION,
             question_points: DEFAULT_QUESTION_POINTS,
             bonus_increment: DEFAULT_BONUS_INCREMENT,
-            question_data: QuestionData::Standard { responses: vec![] },
+            question_kind: QuestionKind::Standard,
+            answers: vec![],
         };
 
         Self {
@@ -121,7 +121,11 @@ impl Game {
     /// Convert to the filtered wire format for team clients
     pub fn to_team_game_state(&self, team_name: &str) -> Option<TeamGameState> {
         let team = self.teams.iter().find(|t| t.team_name == team_name)?;
-        let current_q = self.current_question();
+        let questions: Vec<_> = self
+            .questions
+            .iter()
+            .map(|q| q.filter_for_team(team_name))
+            .collect();
 
         Some(TeamGameState {
             game_code: self.game_code.clone(),
@@ -129,7 +133,7 @@ impl Game {
             timer_running: self.timer_running,
             timer_seconds_remaining: self.timer_seconds_remaining,
             team: team.clone(),
-            current_question_data: current_q.question_data.filter_for_team(team_name),
+            questions,
         })
     }
 
@@ -137,20 +141,12 @@ impl Game {
 
     /// Create a new question using game settings
     fn create_question_from_settings(&self) -> Question {
-        let question_data = match self.game_settings.default_question_type {
-            QuestionKind::Standard => QuestionData::Standard { responses: vec![] },
-            QuestionKind::MultiAnswer => QuestionData::MultiAnswer { responses: vec![] },
-            QuestionKind::MultipleChoice => QuestionData::MultipleChoice {
-                choices: vec![],
-                responses: vec![],
-            },
-        };
-
         Question {
             timer_duration: self.game_settings.default_timer_duration,
             question_points: self.game_settings.default_question_points,
             bonus_increment: self.game_settings.default_bonus_increment,
-            question_data,
+            question_kind: self.game_settings.default_question_type,
+            answers: vec![],
         }
     }
 
@@ -223,21 +219,23 @@ impl Game {
     /// Add an answer to the current question. Returns false if team already submitted.
     pub fn add_answer(&mut self, team_name: &str, answer_text: String) -> bool {
         let question = self.current_question_mut();
-        let responses = match &mut question.question_data {
-            QuestionData::Standard { responses } => responses,
-            QuestionData::MultipleChoice { responses, .. } => responses,
-            QuestionData::MultiAnswer { .. } => return false, // Not supported yet
-        };
 
         // Check if team already submitted
-        if responses.iter().any(|r| r.team_name == team_name) {
+        if question.answers.iter().any(|a| a.team_name == team_name) {
             return false;
         }
 
-        responses.push(TeamResponse {
+        // Create answer content based on question type
+        let content = match question.question_kind {
+            QuestionKind::Standard => AnswerContent::Standard { answer_text },
+            QuestionKind::MultipleChoice => AnswerContent::MultipleChoice { selected: answer_text },
+            QuestionKind::MultiAnswer => return false, // Not supported yet
+        };
+
+        question.answers.push(Answer {
             team_name: team_name.to_string(),
-            answer_text,
-            score: ScoreData::new(),
+            score: None,
+            content,
         });
 
         true
@@ -258,14 +256,10 @@ impl Game {
         }
 
         let question = &mut self.questions[question_idx];
-        let responses = match &mut question.question_data {
-            QuestionData::Standard { responses } => responses,
-            QuestionData::MultipleChoice { responses, .. } => responses,
-            QuestionData::MultiAnswer { .. } => return false,
-        };
 
-        if let Some(response) = responses.iter_mut().find(|r| r.team_name == team_name) {
-            response.score = score;
+        // Find and update the team's answer score
+        if let Some(answer) = question.answers.iter_mut().find(|a| a.team_name == team_name) {
+            answer.score = Some(score);
             self.recalculate_team_score(team_name);
             true
         } else {
@@ -288,21 +282,17 @@ impl Game {
         }
     }
 
-    /// Recalculate a team's cumulative score from all question responses
+    /// Recalculate a team's cumulative score from all their answer scores
     fn recalculate_team_score(&mut self, team_name: &str) {
         let mut total_question_points = 0i32;
         let mut total_bonus_points = 0i32;
 
         for question in &self.questions {
-            let responses = match &question.question_data {
-                QuestionData::Standard { responses } => responses,
-                QuestionData::MultipleChoice { responses, .. } => responses,
-                QuestionData::MultiAnswer { .. } => continue,
-            };
-
-            if let Some(response) = responses.iter().find(|r| r.team_name == team_name) {
-                total_question_points += response.score.question_points;
-                total_bonus_points += response.score.bonus_points;
+            if let Some(answer) = question.answers.iter().find(|a| a.team_name == team_name) {
+                if let Some(score) = &answer.score {
+                    total_question_points += score.question_points;
+                    total_bonus_points += score.bonus_points;
+                }
             }
         }
 
@@ -322,7 +312,7 @@ impl Game {
 
         // Update all questions that don't have answers yet
         for question in &mut self.questions {
-            if !question.question_data.has_responses() {
+            if !question.has_answers() {
                 question.timer_duration = settings.default_timer_duration;
                 question.question_points = settings.default_question_points;
                 question.bonus_increment = settings.default_bonus_increment;
@@ -331,7 +321,7 @@ impl Game {
 
         // Update timer display if on unanswered question and timer not running
         let current_q = &self.questions[self.current_question_number - 1];
-        if !current_q.question_data.has_responses() && !self.timer_running {
+        if !current_q.has_answers() && !self.timer_running {
             self.timer_seconds_remaining = Some(settings.default_timer_duration);
         }
     }
@@ -352,23 +342,14 @@ impl Game {
         }
 
         let question = &mut self.questions[question_idx];
-        if question.question_data.has_responses() {
+        if question.has_answers() {
             return Err("Cannot update settings for a question that has answers");
         }
 
         question.timer_duration = timer_duration;
         question.question_points = question_points;
         question.bonus_increment = bonus_increment;
-
-        // Update question type by creating new QuestionData variant
-        question.question_data = match question_type {
-            QuestionKind::Standard => QuestionData::Standard { responses: vec![] },
-            QuestionKind::MultiAnswer => QuestionData::MultiAnswer { responses: vec![] },
-            QuestionKind::MultipleChoice => QuestionData::MultipleChoice {
-                choices: vec![],
-                responses: vec![],
-            },
-        };
+        question.question_kind = question_type;
 
         // Update timer display if this is current question and timer not running
         if question_number == self.current_question_number && !self.timer_running {

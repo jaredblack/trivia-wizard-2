@@ -50,6 +50,33 @@ S0: New question created (a) -> S1: Answers are open (b) -> S2 -> Answer submitt
 When the host navigates to a new question, we go will back to S0. If the host navigates to an old question, the 
 team will see view C with the old answer they submitted for that question.
 
+We're going to implement the view that comes up with the View Score Log button. I want this to be a drawer that animates up from the
+  bottom, and shows a log of every question and how it was scored. Here's what I want it to display:
+
+  Top to bottom:
+
+  <Team name>
+
+New data model
+```
+pub struct HostQuestion {
+    pub timer_duration: u32,
+    pub question_points: u32,
+    pub bonus_increment: u32,
+    pub question_kind: QuestionKind
+    pub question_data: Vec<Answer>,
+}
+
+struct Answer {
+   team_name: String
+   score: Option<ScoreData>,
+   content: AnswerData
+}
+
+```
+
+
+   
 
 ## CR comments
 - [ ] still just stringifying JSON in create game, should be using strong types

@@ -20,43 +20,36 @@ export function getScore(score: ScoreData): number {
   return score.questionPoints + score.bonusPoints + score.overridePoints;
 }
 
-// === Team Response Types ===
-// Note: responses are stored as arrays to preserve submission order (first to last)
+// === Answer Types ===
+// An Answer represents a single team's submission for a question.
+// Answers are stored in order of submission (first to last).
 
-export interface TeamResponse {
+export interface Answer {
   teamName: string;
-  answerText: string;
-  score: ScoreData;
+  score: ScoreData | null;
+  content: AnswerContent;
 }
 
-export interface MultiAnswerResponse {
-  teamName: string;
-  answers: string[];
-  scores: Record<string, ScoreData>;
-}
-
-// === Question Data (discriminated union) ===
-
-export interface StandardQuestionData {
+// The content of a team's answer, varying by question type.
+export interface StandardAnswerContent {
   type: "standard";
-  responses: TeamResponse[];
+  answerText: string;
 }
 
-export interface MultiAnswerQuestionData {
+export interface MultiAnswerAnswerContent {
   type: "multiAnswer";
-  responses: MultiAnswerResponse[];
+  answers: string[];
 }
 
-export interface MultipleChoiceQuestionData {
+export interface MultipleChoiceAnswerContent {
   type: "multipleChoice";
-  choices: string[];
-  responses: TeamResponse[];
+  selected: string;
 }
 
-export type QuestionData =
-  | StandardQuestionData
-  | MultiAnswerQuestionData
-  | MultipleChoiceQuestionData;
+export type AnswerContent =
+  | StandardAnswerContent
+  | MultiAnswerAnswerContent
+  | MultipleChoiceAnswerContent;
 
 // === Question ===
 
@@ -64,7 +57,8 @@ export interface Question {
   timerDuration: number;
   questionPoints: number;
   bonusIncrement: number;
-  questionData: QuestionData;
+  questionKind: QuestionKind;
+  answers: Answer[];
 }
 
 // === Game Settings ===
@@ -91,28 +85,13 @@ export interface TeamData {
   connected: boolean;
 }
 
-// === Team Question Data (filtered for a single team) ===
+// === Team Question (filtered view for team clients) ===
+// Contains only the team's own answer and score for a question.
 
-export interface StandardTeamQuestionData {
-  type: "standard";
-  response?: TeamResponse;
+export interface TeamQuestion {
+  score: ScoreData | null;
+  answer: AnswerContent | null;
 }
-
-export interface MultiAnswerTeamQuestionData {
-  type: "multiAnswer";
-  response?: MultiAnswerResponse;
-}
-
-export interface MultipleChoiceTeamQuestionData {
-  type: "multipleChoice";
-  choices: string[];
-  response?: TeamResponse;
-}
-
-export type TeamQuestionData =
-  | StandardTeamQuestionData
-  | MultiAnswerTeamQuestionData
-  | MultipleChoiceTeamQuestionData;
 
 // === GameState (Server → Host) ===
 
@@ -134,7 +113,7 @@ export interface TeamGameState {
   timerRunning: boolean;
   timerSecondsRemaining: number | null;
   team: TeamData;
-  currentQuestionData: TeamQuestionData;
+  questions: TeamQuestion[];
 }
 
 // === Server Messages (tagged union with "type" discriminator) ===

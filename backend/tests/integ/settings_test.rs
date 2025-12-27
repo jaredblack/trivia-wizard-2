@@ -1,7 +1,7 @@
 use crate::{TestClient, TestServer};
 use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::ServerMessage;
-use backend::model::types::{QuestionData, QuestionKind};
+use backend::model::types::QuestionKind;
 
 #[tokio::test]
 async fn update_game_settings_changes_defaults() {
@@ -157,10 +157,11 @@ async fn update_question_settings_changes_specific_question() {
             assert_eq!(state.questions[0].bonus_increment, 20);
 
             // Question type should change
-            match &state.questions[0].question_data {
-                QuestionData::MultiAnswer { .. } => {} // Expected
-                other => panic!("Expected MultiAnswer question, got {other:?}"),
-            }
+            assert_eq!(
+                state.questions[0].question_kind,
+                QuestionKind::MultiAnswer,
+                "Question kind should be MultiAnswer"
+            );
 
             // Timer display should be updated
             assert_eq!(state.timer_seconds_remaining, Some(120));
@@ -300,10 +301,11 @@ async fn new_questions_use_updated_game_settings() {
             assert_eq!(state.questions[1].question_points, 200);
             assert_eq!(state.questions[1].bonus_increment, 25);
 
-            match &state.questions[1].question_data {
-                QuestionData::MultipleChoice { .. } => {} // Expected
-                other => panic!("Expected MultipleChoice question, got {other:?}"),
-            }
+            assert_eq!(
+                state.questions[1].question_kind,
+                QuestionKind::MultipleChoice,
+                "Question kind should be MultipleChoice"
+            );
         }
         other => panic!("Expected GameState, got {other:?}"),
     }

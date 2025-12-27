@@ -229,20 +229,16 @@ pub async fn assert_answer_submission_flow(
     match host_response {
         ServerMessage::GameState { state } => {
             // Verify the answer was added to the current question
-            let responses = match &state
+            let question = state
                 .questions
                 .get(state.current_question_number - 1)
-                .expect("Current question number doesn't correspond to a question in the state")
-                .question_data
-            {
-                backend::model::types::QuestionData::Standard { responses } => responses,
-                _ => panic!("Expected Standard question type"),
-            };
+                .expect("Current question number doesn't correspond to a question in the state");
             assert!(
-                responses
-                    .iter()
-                    .any(|r| r.team_name == team_name && r.answer_text == answer),
-                "Answer should appear in responses"
+                question.answers.iter().any(|a| {
+                    a.team_name == team_name
+                        && matches!(&a.content, backend::model::types::AnswerContent::Standard { answer_text } if answer_text == answer)
+                }),
+                "Answer should appear in question answers"
             );
         }
         other => panic!("Expected GameState message, got {other:?}"),
