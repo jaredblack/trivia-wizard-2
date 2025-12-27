@@ -2,226 +2,54 @@ We are building the Trivia Wizard app as described in overview.md. We will only 
 
 ---
 
-## Story: Real-Time Game State Synchronization
+Hello! Today we are going to plan the implementation for basic team joining functionality in Trivia Wizard. All of the
+backend functionality supporting this UI is already in place. I will explain the basic flow, which is also 
+represented in the images I provided. All of these views will have a header with the Trivia Wizard 2.0 logo, and
+for items 2-4, there will be a back chevron which will take the team back to the previous view (preserving previously entered data.):
+1. Team selects "Join game". The client establishes a websocket connection to the backend (technically this is earlier than necessary, but later we'll want to add a call here to check that the game code/team name are valid before continuing on so we'll put the initial WS connection here for now).
+2. Team inputs game code & team name, presses "next"
+3. Team sees a new view consisting of a single text input, a button to add more text inputs, and a "Next" 
+button. On this view, they'll input the names of all team members before pressing "Next", pressing the + button 
+to add more team member names if needed
+4. Team will see a color selection screen consisting of 16 color choices. The team will select a color, the 
+button below will dynamically update to say "Choose <color name>". When they press that button, all of the data 
+necessary to join the game will have been collected, and the client will send a JoinGame action to the server. NOTE: this means game code & team name won't be validated until the end of the flow. This is an intentional simplification. Later we will add another action to validate those things before fully joining the game.
 
-**Goal:** Implement WebSocket-based game state sync between teams and host, including answer submission, scoring, and timer functionality.
+Once the game is joined, we'll go to a placeholder in-game view where we will later add all the answer submission UI.
 
-**Scope:**
-- Standard questions only (no multiAnswer or multipleChoice)
-- Single question (no nextQuestion/prevQuestion navigation)
-- Timer with auto-close on expiry
-- Host frontend changes only (team frontend out of scope)
-- Backend test updates included
-- Fixed game settings (50 point questions, 5 point bonus increment) — not configurable
+The backend operation (JoinGame) is already available for this. Additionally, the host UI is 
+already implemented. In creating an implementation plan for what I described, you should explore the code to see
+ what you'll need to add.
 
----
+An error returned from the server on the JoinGame operation will display a toast and send the user back to the screen where they should input game code.
 
-### Phase 1: Backend Game State Model
+It may also help to consult frontend-structure.md.
 
-Extend the `Game` struct in `backend/src/model/game.rs` to hold the full game state per the proposed API shape.
+These views will be all optimized for mobile layouts as they are in the mocks. What questions do you have for me
+ before planning and then implementing this? 
 
-**Tasks:**
 
-1. **Expand `Game` struct** to include:
-   - `current_question_number: u32` (always 1 for this iteration)
-   - `timer_running: bool` (also determines if submissions are open)
-   - `timer_seconds_remaining: Option<u32>`
-   - `teams: Vec<TeamData>`
-   - `questions: Vec<Question>` (will have exactly 1 question)
-   - `game_settings: GameSettings`
+ 5. If successful, the team will now be in-game. There are three views here. All views have a header (below the 
+logo header) with team color, team name, question number, and the game timer.
+a. "Submissions are not yet open". The View Score Log and Team Settings buttons will be available on the bottom 
+of the screen.
+b. Score input. This will vary by Question Type. For the Standard question type (which is the only question type
+ we are implementing for now), it will be a single multi-line text input and a "Submit answer" button. This 
+button will have a background color of the team color.
+c. "Submissions closed." This view will also show what answer the team submitted for the current question. This 
+view will again have the View Score Log and Team Settings buttons. These buttons will just be stubs for now, but
+ in the future they will open modals on top of the current view.
 
-2. **Add `GameState` response type** in `server_message.rs`:
-   - Serializable struct matching `proposed-api-shape.md`
-   - Method `Game::to_game_state()` to convert internal state to wire format
+The three views can roughly be thought of as following a state machine:
+S0: New question created (a) -> S1: Answers are open (b) -> S2 -> Answer submitted (c).
+  - "Submissions not yet open": timerRunning === false AND team has no answer for current question
+  - "Answer input": timerRunning === true
+  - "Submissions closed": timerRunning === false AND team has submitted answer for current question
 
-3. **Add `TeamGameState` response type**:
-   - Filtered view for teams (no other teams' answers, no scoring details)
-   - Method `Game::to_team_game_state(team_name: &str)`
 
-4. **Initialize game state on creation**:
-   - Start with 1 empty standard question
-   - Hardcoded `GameSettings`: 30s timer, 50 point questions, 5 point bonus increment, standard type
-   - `submissions_open: false`, `timer_running: false`
+When the host navigates to a new question, we go will back to S0. If the host navigates to an old question, the 
+team will see view C with the old answer they submitted for that question.
 
----
-
-### Phase 2: Backend Message Handlers
-
-Update `server.rs` to handle the host and team actions that mutate game state.
-
-**Tasks:**
-
-1. **Update `HostAction` enum** in `client_message.rs`:
-   - `StartTimer { seconds: Option<u32> }`
-   - `PauseTimer`
-   - `ResetTimer`
-   - `ScoreAnswer { question_number: u32, team_name: String, score: ScoreData }`
-   - `OverrideTeamScore { team_name: String, override_points: i32 }`
-
-   Note: No separate OpenSubmissions/CloseSubmissions — submissions are open iff timer is running.
-
-2. **Update `ServerMessage` enum** in `server_message.rs`:
-   - `GameState { state: GameState }` — full state update
-   - `TimerTick { seconds_remaining: u32 }` — lightweight tick
-   - `Error { message: String, state: Option<GameState> }` — error with optional rollback state
-
-3. **Implement handler for `ScoreAnswer`**:
-   - Find the team's response in `questions[0].responses`
-   - Update the `ScoreData` on that response
-   - Recalculate team's cumulative score
-   - Broadcast updated state to host AND the scored team
-
-5. **Implement handler for `OverrideTeamScore`**:
-   - Update the team's `score.override_points`
-   - Broadcast updated state to host and team
-
-6. **Update `SubmitAnswer` handler**:
-   - Only accept if `timer_running == true` (submissions open)
-   - Append `TeamResponse` to `questions[0].responses` with zeroed score
-   - Broadcast updated `GameState` to host
-   - Send `TeamGameState` to the submitting team
-
-7. **Update `JoinGame` handler**:
-   - Add team to `teams` array with zeroed score and `connected: true`
-   - Broadcast updated `GameState` to host
-   - Send `TeamGameState` to the joining team
-
-8. **Handle team disconnect**:
-   - Set `team.connected = false`
-   - Broadcast updated state to host
-
----
-
-### Phase 3: Backend Timer Implementation
-
-Implement server-side timer with tick broadcasts.
-
-**Tasks:**
-
-1. **Add timer task infrastructure**:
-   - Store `timer_handle: Option<JoinHandle>` in `Game` to track running timer task
-   - Timer task sends `TimerTick` every second to host + all teams
-
-2. **Implement `StartTimer` handler**:
-   - If `seconds` provided, use that; otherwise use `timer_seconds_remaining` or 30s default
-   - Set `timer_running = true` (opens submissions)
-   - Spawn async task that:
-     - Decrements `timer_seconds_remaining` each second
-     - Broadcasts `TimerTick` to all connections
-     - On reaching 0: sets `timer_running = false`, broadcasts full `GameState`
-   - Broadcast `GameState` immediately
-
-3. **Implement `PauseTimer` handler**:
-   - Cancel the timer task
-   - Set `timer_running = false` (closes submissions)
-   - Keep `timer_seconds_remaining` at current value
-   - Broadcast `GameState`
-
-4. **Implement `ResetTimer` handler**:
-   - Cancel the timer task if running
-   - Set `timer_seconds_remaining = 30` (hardcoded default)
-   - Set `timer_running = false`
-   - Broadcast `GameState`
-
----
-
-### Phase 4: Frontend WebSocket Service
-
-Create a persistent WebSocket connection for the host during gameplay.
-
-**Tasks:**
-
-1. **Create `frontend/src/services/websocket.ts`**:
-   - `WebSocketService` class or module
-   - `connect(url: string): Promise<void>`
-   - `disconnect(): void`
-   - `send(message: ClientMessage): void`
-   - `onMessage(handler: (msg: ServerMessage) => void): void`
-
-2. **Create `frontend/src/hooks/useWebSocket.ts`**:
-   - Hook that wraps `WebSocketService`
-   - Returns `{ send, connectionState }`
-   - Handles cleanup on unmount
-
-3. **Update `HostLanding.tsx`**:
-   - After game creation, navigate to `/host/game` with WebSocket still connected
-   - Pass WebSocket connection via context or keep in service singleton
-
-4. **Update `HostGame.tsx`**:
-   - Use `useWebSocket` hook
-   - On mount, if not connected, redirect to `/host`
-
----
-
-### Phase 5: Frontend State Updates
-
-Update Zustand store and components to handle real-time state updates.
-
-**Tasks:**
-
-1. **Expand `useHostStore`**:
-   - Add all `GameState` fields
-   - Add `setGameState(state: GameState)` action that replaces entire state
-   - Add `handleTimerTick(seconds: number)` action
-
-2. **Wire WebSocket messages to store**:
-   - In `useWebSocket` or a dedicated effect in `HostGame`:
-     - On `gameState` message → `setGameState(state)`
-     - On `timerTick` message → `handleTimerTick(seconds)`
-     - On `error` message → show toast/alert, optionally rollback state
-
-3. **Update `AnswerCard.tsx`**:
-   - On score button click, call `send({ host: { type: "scoreAnswer", ... } })`
-   - Remove local scoring state (let server be source of truth)
-   - Display score from props (server state)
-
-4. **Update `Scoreboard.tsx`**:
-   - On override score edit, call `send({ host: { type: "overrideTeamScore", ... } })`
-   - Display scores from store
-
-5. **Update `QuestionControls.tsx`**:
-   - Timer play button → `send({ host: { type: "startTimer" } })`
-   - Timer pause button → `send({ host: { type: "pauseTimer" } })`
-   - Timer reset button → `send({ host: { type: "resetTimer" } })`
-   - Display `timerSecondsRemaining` from store
-
-   Note: Submissions are controlled via timer — no separate open/close button needed.
-
----
-
-### Phase 6: Backend Tests
-
-Update the existing test suite in `backend/tests/`.
-
-**Tasks:**
-
-1. **Update existing tests** to work with new message format
-
-2. **Add tests for**:
-   - Team join broadcasts `GameState` to host
-   - Answer submission broadcasts `GameState` to host
-   - Score answer updates state for host and team
-   - Timer start/pause/reset behavior
-   - Timer reaching 0 closes submissions (timer_running = false)
-   - Submissions rejected when timer not running
-   - Override team score
-
----
-
-### Acceptance Criteria
-
-- [ ] Host creates game → sees empty game state with 1 question
-- [ ] Team joins → host sees team appear in real-time
-- [ ] Host starts timer → submissions open, timer ticks down on host view
-- [ ] Team submits answer (while timer running) → host sees answer appear in real-time
-- [ ] Host scores answer → score reflected in host view AND team receives update
-- [ ] Timer reaches 0 → submissions auto-close (timer_running = false)
-- [ ] Host can pause timer (closes submissions) and resume
-- [ ] Host can reset timer
-- [ ] Host can override team total score
-- [ ] All backend tests pass
-
-We need to implement two new Host actions: UpdateGameSettings and UpdateQuestionSettings. Game settings can be updated at any time, but updates to settings will always only apply to (1) any question in the game's state that has not yet received any answers and (2) all questions that are subsequently created for the game. Settings updates will not apply to questions which have already received answers. UpdateQuestionSettings override the game settings on a per-question basis, with the same rule: question settings may not be updated once answers have started to be recived. This will require changes in the backend/ to add the new operations, and in the frontend to wire up the currently existing host settings UI to these operations. No team UI changes will be needed. The server should return an error in the event that these conditions are violated. Please create a plan for making this change that I can approve, then move forward with implementation. Be sure to ask me any clarifying questions as well. 
 
 ## CR comments
 - [ ] still just stringifying JSON in create game, should be using strong types
@@ -273,6 +101,7 @@ let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
 - game db lifecycle - I've never actually gone back to look at old trivia games since they're not that interesting. maybe they shouldn't really be persisted for that long? I think no DB at all, while removing a dependency which would be nice, would just be asking for trouble. The way things are going now, we'll start with no persistence and then figure out what the best way to do it is. Writing to a DB with every operation like I did for TW1 feels unnecessary when the server can track the state that realistically only needs to be temporary. One halfway option could be just serializing the whole game state every once in a while and writing it to S3 or a document DB? 
 - submissions should auto-close when all answers have been received
 - Also need to validate that user id matches when reclaiming a game
+- Add a PartialJoin (need a better name) API for the frontend to call after you put in a game code/team name to verify that (a) game code is valid and (b) team name is available
 
 ## concerns
 - The big game state Mutex<HashMap> gets touched _a lot_. We're not doing anything expensive while holding the lock (I think), but intuitively it feels like there could be contention which could lead to issues in when messages get processed, timer updates going out on time, etc. I think for now we continue down this path but if things look problematic in testing, we might have to consider a radically different architecture.

@@ -3,6 +3,7 @@ import LandingPage from './LandingPage';
 import ProtectedRoute from './ProtectedRoute';
 import HostLanding from './features/host/HostLanding';
 import HostGame from './features/host/HostGame';
+import TeamFlow from './features/team/TeamFlow';
 
 export default function App() {
   return (
@@ -13,7 +14,7 @@ export default function App() {
         <Route path="/home" element={<LandingPage />} />
 
         {/* Team routes */}
-        <Route path="/join" element={<p>Join Game (coming soon)</p>} />
+        <Route path="/join" element={<TeamFlow />} />
         <Route path="/watch" element={<p>Watch Scoreboard (coming soon)</p>} />
 
         {/* Host routes (protected) */}

@@ -129,11 +129,7 @@ impl Game {
             timer_running: self.timer_running,
             timer_seconds_remaining: self.timer_seconds_remaining,
             team: team.clone(),
-            current_question_kind: self.game_settings.default_question_type,
-            current_question_choices: match &current_q.question_data {
-                QuestionData::MultipleChoice { choices, .. } => Some(choices.clone()),
-                _ => None,
-            },
+            current_question_data: current_q.question_data.filter_for_team(team_name),
         })
     }
 

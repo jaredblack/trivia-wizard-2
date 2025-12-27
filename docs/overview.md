@@ -28,6 +28,26 @@ Question Type is a new concept with Trivia Wizard 2. The Question Type that the 
     - replicating bar trivia format I've done where you wager 2,4,6 points for each question within a category depending on your confidence. would need to think through the UI for this a bit more
 5. Numeric - basically an automation of how I score numeric ones today. 
     - Host can put in the correct answer and how much margin of error teams can have for full points or half points. Or could also have it calculate points more granularly based on how close you are but that would take some math.
+6. Map - kind of like geoguessr where you have to place on a map where something is and you get more points if you're closer. Stephen has some interesting question ideas that would use this mechanic too 
+
+# Beyond the MVP
+## In-app questions
+Trivia Wizard 2 with the minimum feature set already provides many conveniences over TW1. The natural next step is eliminating the need to create a separate Google Slides presentation to accompany. 
+
+A new presentation view:
+- looks roughly like what the slide looks like
+- easily insert a photo and select whether it should show with question or with answer. or, if it should be full-screen
+
+Other advantages:
+- it will know the answer already so auto-scoring will just work
+- can preselect question settings (timer, question type, points) to minimize stuff you have to change in-game
+
+Entering questions
+- A good starting place could be to just allow json import for question editor, then adding a question editor on the website
+
+Technical
+- How to store the question data - json in s3?
+
 # API Descriptions
 ## Host
 ### CreateGame

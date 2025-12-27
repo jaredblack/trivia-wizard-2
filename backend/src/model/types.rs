@@ -74,6 +74,42 @@ impl QuestionData {
             QuestionData::MultipleChoice { responses, .. } => !responses.is_empty(),
         }
     }
+
+    /// Filter question data to only include a specific team's response
+    pub fn filter_for_team(&self, team_name: &str) -> TeamQuestionData {
+        match self {
+            QuestionData::Standard { responses } => TeamQuestionData::Standard {
+                response: responses.iter().find(|r| r.team_name == team_name).cloned(),
+            },
+            QuestionData::MultiAnswer { responses } => TeamQuestionData::MultiAnswer {
+                response: responses.iter().find(|r| r.team_name == team_name).cloned(),
+            },
+            QuestionData::MultipleChoice { choices, responses } => {
+                TeamQuestionData::MultipleChoice {
+                    choices: choices.clone(),
+                    response: responses.iter().find(|r| r.team_name == team_name).cloned(),
+                }
+            }
+        }
+    }
+}
+
+// === Team Question Data (filtered for a single team) ===
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum TeamQuestionData {
+    #[serde(rename_all = "camelCase")]
+    Standard { response: Option<TeamResponse> },
+    #[serde(rename_all = "camelCase")]
+    MultiAnswer {
+        response: Option<MultiAnswerResponse>,
+    },
+    #[serde(rename_all = "camelCase")]
+    MultipleChoice {
+        choices: Vec<String>,
+        response: Option<TeamResponse>,
+    },
 }
 
 // === Question ===

@@ -1,0 +1,62 @@
+import { useRef } from "react";
+import { useTeamStore } from "../../../stores/useTeamStore";
+import Input from "../../../components/ui/Input";
+import Button from "../../../components/ui/Button";
+
+export default function JoinStep() {
+  const { gameCode, teamName, setGameCode, setTeamName, setStep } =
+    useTeamStore();
+  const teamNameRef = useRef<HTMLInputElement>(null);
+
+  const canProceed = gameCode.trim() !== "" && teamName.trim() !== "";
+
+  const handleNext = () => {
+    if (canProceed) {
+      setStep("members");
+    }
+  };
+
+  const handleGameCodeChange = (value: string) => {
+    setGameCode(value.toUpperCase());
+  };
+
+  const focusTeamName = () => {
+    teamNameRef.current?.focus();
+  };
+
+  return (
+    <div className="flex flex-col gap-6 p-4">
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-medium text-gray-700">Game code</label>
+        <Input
+          value={gameCode}
+          onChange={handleGameCodeChange}
+          placeholder="Enter game code"
+          className="w-full"
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
+          enterKeyHint="next"
+          onEnter={focusTeamName}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-medium text-gray-700">Team name</label>
+        <Input
+          ref={teamNameRef}
+          value={teamName}
+          onChange={setTeamName}
+          placeholder="Enter team name"
+          className="w-full"
+          enterKeyHint="done"
+          onEnter={handleNext}
+        />
+      </div>
+
+      <Button onClick={handleNext} disabled={!canProceed} className="w-full mt-4">
+        Next
+      </Button>
+    </div>
+  );
+}

@@ -2,7 +2,7 @@ use log::{error, info};
 use serde::{Deserialize, Serialize};
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::model::types::{GameSettings, Question, QuestionKind, TeamData};
+use crate::model::types::{GameSettings, Question, TeamData, TeamQuestionData};
 use crate::server::Tx;
 
 // === GameState (Server → Host) ===
@@ -33,9 +33,7 @@ pub struct TeamGameState {
     pub timer_running: bool,
     pub timer_seconds_remaining: Option<u32>,
     pub team: TeamData,
-    pub current_question_kind: QuestionKind,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub current_question_choices: Option<Vec<String>>,
+    pub current_question_data: TeamQuestionData,
 }
 
 // === Server Messages ===

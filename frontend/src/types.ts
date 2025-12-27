@@ -213,8 +213,8 @@ export type HostAction =
   | UpdateGameSettingsAction
   | UpdateQuestionSettingsAction;
 
-export interface JoinGameAction {
-  type: "joinGame";
+// Team actions use externally tagged enum format (variant name as key)
+export interface JoinGameData {
   teamName: string;
   gameCode: string;
   colorHex: string;
@@ -222,13 +222,14 @@ export interface JoinGameAction {
   teamMembers: string[];
 }
 
-export interface SubmitAnswerAction {
-  type: "submitAnswer";
+export interface SubmitAnswerData {
   teamName: string;
   answer: string;
 }
 
-export type TeamAction = JoinGameAction | SubmitAnswerAction;
+export type TeamAction =
+  | { joinGame: JoinGameData }
+  | { submitAnswer: SubmitAnswerData };
 
 export interface HostClientMessage {
   host: HostAction;

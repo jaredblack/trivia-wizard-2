@@ -5,6 +5,7 @@ import {
 } from "../services/websocket";
 import type { ClientMessage, ServerMessage } from "../types";
 import { useHostStore } from "../stores/useHostStore";
+import { useTeamStore } from "../stores/useTeamStore";
 
 export function useWebSocket() {
   const [connectionState, setConnectionState] = useState<ConnectionState>(
@@ -15,6 +16,11 @@ export function useWebSocket() {
   const setTimerSecondsRemaining = useHostStore(
     (state) => state.setTimerSecondsRemaining
   );
+
+  // Team store actions
+  const setTeamGameState = useTeamStore((state) => state.setTeamGameState);
+  const setTeamError = useTeamStore((state) => state.setError);
+  const setTeamStep = useTeamStore((state) => state.setStep);
 
   useEffect(() => {
     // Subscribe to connection state changes
@@ -34,13 +40,17 @@ export function useWebSocket() {
             break;
           case "error":
             console.error("Server error:", message.message);
-            // Optionally rollback state if provided
+            // Handle error for host (rollback state if provided)
             if (message.state) {
               setGameState(message.state);
             }
+            // Handle error for team (show error and go back to join step)
+            setTeamError(message.message);
+            setTeamStep("join");
             break;
           case "teamGameState":
-            // Host doesn't use team game state
+            // Update team store with game state
+            setTeamGameState(message.state);
             break;
         }
       }
@@ -53,7 +63,7 @@ export function useWebSocket() {
       unsubscribeState();
       unsubscribeMessage();
     };
-  }, [setGameState, setTimerSecondsRemaining]);
+  }, [setGameState, setTimerSecondsRemaining, setTeamGameState, setTeamError, setTeamStep]);
 
   const send = useCallback((message: ClientMessage) => {
     webSocketService.send(message);
