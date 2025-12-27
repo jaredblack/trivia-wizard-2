@@ -1,6 +1,7 @@
 import { Play, Pause, RotateCcw, ArrowLeft, ArrowRight } from "lucide-react";
 import { questionKindLabels } from "../../../types";
 import type { QuestionKind } from "../../../types";
+import TimerDisplay from "../../../components/ui/TimerDisplay";
 
 interface QuestionControlsProps {
   questionNumber: number;
@@ -31,12 +32,6 @@ export default function QuestionControls({
   onQuestionTypeChange,
   onExit,
 }: QuestionControlsProps) {
-  // Format timer as M:SS
-  const minutes = Math.floor(timerSeconds / 60);
-  const seconds = timerSeconds % 60;
-  const timerDisplay = `${minutes}:${seconds.toString().padStart(2, "0")}`;
-
-
   return (
     <header className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
       {/* Logo */}
@@ -92,7 +87,7 @@ export default function QuestionControls({
               <Play className="w-6 h-6" />
             )}
           </button>
-          <span className="text-4xl font-mono font-bold">{timerDisplay}</span>
+          <TimerDisplay seconds={timerSeconds} className="text-4xl" />
           <button
             onClick={onResetTimer}
             className="p-2 hover:bg-gray-100 rounded-full cursor-pointer"

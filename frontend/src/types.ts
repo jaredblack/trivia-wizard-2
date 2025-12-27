@@ -91,6 +91,29 @@ export interface TeamData {
   connected: boolean;
 }
 
+// === Team Question Data (filtered for a single team) ===
+
+export interface StandardTeamQuestionData {
+  type: "standard";
+  response?: TeamResponse;
+}
+
+export interface MultiAnswerTeamQuestionData {
+  type: "multiAnswer";
+  response?: MultiAnswerResponse;
+}
+
+export interface MultipleChoiceTeamQuestionData {
+  type: "multipleChoice";
+  choices: string[];
+  response?: TeamResponse;
+}
+
+export type TeamQuestionData =
+  | StandardTeamQuestionData
+  | MultiAnswerTeamQuestionData
+  | MultipleChoiceTeamQuestionData;
+
 // === GameState (Server → Host) ===
 
 export interface GameState {
@@ -111,8 +134,7 @@ export interface TeamGameState {
   timerRunning: boolean;
   timerSecondsRemaining: number | null;
   team: TeamData;
-  currentQuestionKind: QuestionKind;
-  currentQuestionChoices?: string[];
+  currentQuestionData: TeamQuestionData;
 }
 
 // === Server Messages (tagged union with "type" discriminator) ===

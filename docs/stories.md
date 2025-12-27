@@ -29,7 +29,7 @@ These views will be all optimized for mobile layouts as they are in the mocks. W
  before planning and then implementing this? 
 
 
- 5. If successful, the team will now be in-game. There are three views here. All views have a header (below the 
+1. If successful, the team will now be in-game. There are three views here. All views have a header (below the 
 logo header) with team color, team name, question number, and the game timer.
 a. "Submissions are not yet open". The View Score Log and Team Settings buttons will be available on the bottom 
 of the screen.
