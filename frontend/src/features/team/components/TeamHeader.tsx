@@ -15,7 +15,7 @@ export default function TeamHeader({ onBack }: TeamHeaderProps) {
       </button>
       <h1 className="text-2xl font-bold">
         Trivia Wizard{" "}
-        <span style={{ fontFamily: "Birthstone" }} className="text-3xl">
+        <span style={{ fontFamily: "Birthstone" }} className="text-3xl text-red-500">
           2.0!
         </span>
       </h1>

@@ -1,17 +1,23 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useHostStore } from "../../stores/useHostStore";
 import { useWebSocket } from "../../hooks/useWebSocket";
+import {
+  getHostRejoin,
+  clearHostRejoin,
+} from "../../utils/rejoinStorage";
 import QuestionControls from "./components/QuestionControls";
 import AnswerList from "./components/AnswerList";
 import Scoreboard from "./components/Scoreboard";
 import GameSettings from "./components/GameSettings";
 import SettingsModal from "./components/SettingsModal";
-import type { QuestionKind, ClientMessage } from "../../types";
+import type { QuestionKind, ClientMessage, HostClientMessage } from "../../types";
 
 export default function HostGame() {
   const navigate = useNavigate();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isRejoining, setIsRejoining] = useState(false);
+  const hasAttemptedRejoin = useRef(false);
   const {
     gameCode,
     currentQuestionNumber,
@@ -22,23 +28,62 @@ export default function HostGame() {
     teams,
     clearGame,
   } = useHostStore();
-  const { connectionState, send, disconnect } = useWebSocket();
+  const { connectionState, send, connect, disconnect } = useWebSocket();
 
   // Get current question from questions array (0-indexed)
   const currentQuestion = questions[currentQuestionNumber - 1] ?? null;
 
-  // Redirect if WebSocket disconnected
+  // Auto-rejoin: check for saved game code on mount
   useEffect(() => {
-    if (connectionState === "disconnected" || connectionState === "error") {
-      // Only redirect if we had a game but lost connection
-      if (gameCode) {
-        console.log("WebSocket disconnected, redirecting to host landing");
-      }
-    }
-  }, [connectionState, gameCode]);
+    if (hasAttemptedRejoin.current) return;
 
-  // If no game data, redirect to host landing
+    const rejoinData = getHostRejoin();
+    if (!rejoinData) return;
+
+    hasAttemptedRejoin.current = true;
+    setIsRejoining(true);
+
+    const attemptRejoin = async () => {
+      try {
+        await connect();
+        const msg: HostClientMessage = {
+          host: { type: "createGame", gameCode: rejoinData.gameCode },
+        };
+        send(msg);
+      } catch (error) {
+        console.error("Failed to rejoin game:", error);
+        clearHostRejoin();
+        setIsRejoining(false);
+      }
+    };
+    attemptRejoin();
+  }, [connect, send]);
+
+  // Clear rejoin state when game data arrives
+  useEffect(() => {
+    if (gameCode && isRejoining) {
+      setIsRejoining(false);
+    }
+  }, [gameCode, isRejoining]);
+
+  // Handle rejoin failure (connection error)
+  useEffect(() => {
+    if (isRejoining && connectionState === "error") {
+      clearHostRejoin();
+      setIsRejoining(false);
+    }
+  }, [isRejoining, connectionState]);
+
+  // If no game data and not rejoining, show fallback
   if (!gameCode || !currentQuestion) {
+    if (isRejoining) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <p className="text-gray-600">Refresh to reconnect to game...</p>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -55,6 +100,7 @@ export default function HostGame() {
   }
 
   const handleExit = () => {
+    clearHostRejoin();
     disconnect();
     clearGame();
     navigate("/host");

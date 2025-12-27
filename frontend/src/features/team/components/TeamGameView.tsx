@@ -1,13 +1,19 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTeamStore } from "../../../stores/useTeamStore";
 import { webSocketService } from "../../../services/websocket";
+import { clearTeamRejoin } from "../../../utils/rejoinStorage";
 import TimerDisplay from "../../../components/ui/TimerDisplay";
 import Button from "../../../components/ui/Button";
+import ConfirmationModal from "../../../components/ui/ConfirmationModal";
+import TeamHeader from "./TeamHeader";
 
 export default function TeamGameView() {
-  const { teamGameState } = useTeamStore();
+  const navigate = useNavigate();
+  const { teamGameState, reset } = useTeamStore();
   const [draftAnswer, setDraftAnswer] = useState("");
   const [timerHasOpened, setTimerHasOpened] = useState(false);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
 
   const currentQuestionNumber = teamGameState?.currentQuestionNumber;
   const timerRunning = teamGameState?.timerRunning;
@@ -58,6 +64,13 @@ export default function TeamGameView() {
 
   const handleStubButton = (feature: string) => {
     alert(`${feature} - Coming soon!`);
+  };
+
+  const handleLeaveGame = () => {
+    clearTeamRejoin();
+    webSocketService.disconnect();
+    reset();
+    navigate("/");
   };
 
   // Timer display value (default to 0 if null)
@@ -112,32 +125,37 @@ export default function TeamGameView() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Logo Header - centered */}
-      <header className="p-4 text-center">
-        <h1 className="text-2xl font-bold">
-          Trivia Wizard{" "}
-          <span style={{ fontFamily: "Birthstone" }} className="text-3xl">
-            2.0!
-          </span>
-        </h1>
-      </header>
+      <TeamHeader onBack={() => setShowLeaveModal(true)} />
+
+      {showLeaveModal && (
+        <ConfirmationModal
+          title="Leave game?"
+          message="Are you sure you want to leave the game?"
+          confirmLabel="Leave"
+          onConfirm={handleLeaveGame}
+          onCancel={() => setShowLeaveModal(false)}
+        />
+      )}
 
       {/* Game Info Header */}
       <div className="flex items-end justify-between px-4 py-3">
         {/* Left side: Team info + Question number */}
         <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <div
-              className="w-4 h-4 rounded-full"
-              style={{ backgroundColor: team.teamColor.hexCode }}
-            />
-            <span className="text-sm">{team.teamName}</span>
-          </div>
+            <div className="flex items-center gap-2">
+              <div
+                className="w-4 h-4 rounded-full"
+                style={{ backgroundColor: team.teamColor.hexCode }}
+              />
+              <span className="text-md">{team.teamName}</span>
+            </div>
           <span className="text-2xl font-bold">Question {currentQuestionNumber}</span>
         </div>
 
         {/* Right side: Timer */}
-        <TimerDisplay seconds={timerSeconds} className="text-4xl" />
+        <div className="flex flex-col">
+          <span className="text-md">Game code: bonko</span>
+          <TimerDisplay seconds={timerSeconds} className="text-4xl ml-auto" />
+        </div>
       </div>
 
       {/* Main Content Area */}

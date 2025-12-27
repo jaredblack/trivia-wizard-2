@@ -1,7 +1,12 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { useTeamStore } from "../../stores/useTeamStore";
+import {
+  getTeamRejoin,
+  saveTeamRejoin,
+  clearTeamRejoin,
+} from "../../utils/rejoinStorage";
 import Toast from "../../components/ui/Toast";
 import TeamHeader from "./components/TeamHeader";
 import JoinStep from "./components/JoinStep";
@@ -20,9 +25,16 @@ export default function TeamFlow() {
     selectedColor,
     error,
     setStep,
+    setGameCode,
+    setTeamName,
+    setTeamMembers,
+    setColor,
     setError,
     reset,
   } = useTeamStore();
+
+  const [isRejoining, setIsRejoining] = useState(false);
+  const hasAttemptedRejoin = useRef(false);
 
   // Connect WebSocket on mount
   useEffect(() => {
@@ -33,9 +45,73 @@ export default function TeamFlow() {
     };
   }, [connect, disconnect, reset]);
 
+  // Auto-rejoin: check for saved team data on mount
+  useEffect(() => {
+    if (hasAttemptedRejoin.current) return;
+
+    const rejoinData = getTeamRejoin();
+    if (!rejoinData) return;
+
+    hasAttemptedRejoin.current = true;
+    setIsRejoining(true);
+
+    // Populate store with saved data
+    setGameCode(rejoinData.gameCode);
+    setTeamName(rejoinData.teamName);
+    setTeamMembers(rejoinData.teamMembers);
+    setColor({ hex: rejoinData.colorHex, name: rejoinData.colorName });
+
+    // Wait for connection then send join message
+    const attemptRejoin = async () => {
+      try {
+        await connect();
+        send({
+          team: {
+            joinGame: {
+              gameCode: rejoinData.gameCode,
+              teamName: rejoinData.teamName,
+              colorHex: rejoinData.colorHex,
+              colorName: rejoinData.colorName,
+              teamMembers: rejoinData.teamMembers,
+            },
+          },
+        });
+      } catch (error) {
+        console.error("Failed to rejoin game:", error);
+        clearTeamRejoin();
+        setIsRejoining(false);
+      }
+    };
+    attemptRejoin();
+  }, [connect, send, setGameCode, setTeamName, setTeamMembers, setColor]);
+
+  // Save team data when successfully joined (step becomes "game")
+  useEffect(() => {
+    if (step === "game" && selectedColor) {
+      const filledMembers = teamMembers.filter((m) => m.trim() !== "");
+      saveTeamRejoin({
+        gameCode: gameCode.trim(),
+        teamName: teamName.trim(),
+        teamMembers: filledMembers,
+        colorHex: selectedColor.hex,
+        colorName: selectedColor.name,
+      });
+      setIsRejoining(false);
+    }
+  }, [step, gameCode, teamName, teamMembers, selectedColor]);
+
+  // Clear storage on error during rejoin
+  useEffect(() => {
+    if (isRejoining && error) {
+      clearTeamRejoin();
+      setIsRejoining(false);
+    }
+  }, [isRejoining, error]);
+
   const handleBack = useCallback(() => {
     switch (step) {
       case "join":
+        clearTeamRejoin();
         disconnect();
         reset();
         navigate("/");
@@ -77,10 +153,10 @@ export default function TeamFlow() {
   // Show game view without header
   if (step === "game") {
     return (
-      <>
+      <div className="px-4">
         {error && <Toast message={error} onClose={handleDismissError} />}
         <TeamGameView />
-      </>
+      </div>
     );
   }
 
@@ -105,11 +181,19 @@ export default function TeamFlow() {
       )}
 
       {connectionState === "connected" && (
-        <>
-          {step === "join" && <JoinStep />}
-          {step === "members" && <MembersStep />}
-          {step === "color" && <ColorStep onJoinGame={handleJoinGame} />}
-        </>
+        <div className="flex-1 flex flex-col px-6">
+          {isRejoining ? (
+            <div className="flex-1 flex items-center justify-center">
+              <p className="text-gray-500">Refresh to reconnect to game...</p>
+            </div>
+          ) : (
+            <>
+              {step === "join" && <JoinStep />}
+              {step === "members" && <MembersStep />}
+              {step === "color" && <ColorStep onJoinGame={handleJoinGame} />}
+            </>
+          )}
+        </div>
       )}
     </div>
   );

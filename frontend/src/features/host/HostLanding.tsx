@@ -10,13 +10,14 @@ import ProgressBar from "../../components/ui/ProgressBar";
 import Header from "../../components/layout/Header";
 import { useHostStore } from "../../stores/useHostStore";
 import { useWebSocket } from "../../hooks/useWebSocket";
+import { saveHostRejoin } from "../../utils/rejoinStorage";
 import type { HostClientMessage } from "../../types";
 
 export default function HostLanding() {
   const { user, signOut } = useOutletContext<AuthOutletContext>();
   const navigate = useNavigate();
   const gameCode = useHostStore((state) => state.gameCode);
-  const { connectionState, send, connect } = useWebSocket();
+  const { connectionState, connect, send } = useWebSocket();
 
   const [serverRunning, setServerRunning] = useState(false);
   const [isHost, setIsHost] = useState(false);
@@ -103,20 +104,24 @@ export default function HostLanding() {
     }
   };
 
+  const handleCustomGameCodeChange = (value: string) => {
+    setCustomGameCode(value.toUpperCase());
+  };
+
   // Navigate to game page when game is created (gameCode is set)
   useEffect(() => {
     if (gameCode && !hasNavigated.current) {
       hasNavigated.current = true;
+      saveHostRejoin({ gameCode });
       navigate("/host/game");
     }
   }, [gameCode, navigate]);
 
-  const createGame = async (_useCustomCode: boolean) => {
+  const createGame = async (useCustomCode: boolean) => {
     setIsCreatingGame(true);
     try {
       await connect();
-      // TODO: support custom game codes when backend supports it
-      const msg: HostClientMessage = { host: { type: "createGame" } };
+      const msg: HostClientMessage = { host: { type: "createGame", gameCode: useCustomCode ? customGameCode : undefined } };
       send(msg);
     } catch (error) {
       console.error("Error creating game:", error);
@@ -208,7 +213,8 @@ export default function HostLanding() {
                 <div className="flex items-center gap-2">
                   <Input
                     value={customGameCode}
-                    onChange={setCustomGameCode}
+                    onChange={handleCustomGameCodeChange}
+                    autoCapitalize="characters"
                     placeholder="Game code"
                     className="w-32 text-center"
                   />

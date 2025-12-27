@@ -41,8 +41,28 @@ class WebSocketService {
   }
 
   async connect(): Promise<void> {
+    // Already connected
     if (this.ws && this._connectionState === "connected") {
       return;
+    }
+
+    // Connection already in progress - wait for it
+    if (this.ws && this._connectionState === "connecting") {
+      return new Promise<void>((resolve, reject) => {
+        const checkConnection = () => {
+          if (this._connectionState === "connected") {
+            resolve();
+          } else if (
+            this._connectionState === "error" ||
+            this._connectionState === "disconnected"
+          ) {
+            reject(new Error("WebSocket connection failed"));
+          } else {
+            setTimeout(checkConnection, 50);
+          }
+        };
+        checkConnection();
+      });
     }
 
     this.setConnectionState("connecting");
@@ -114,7 +134,7 @@ class WebSocketService {
   }
 
   send(message: ClientMessage): void {
-    if (!this.ws || this._connectionState !== "connected") {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.error("Cannot send message: WebSocket not connected");
       return;
     }
