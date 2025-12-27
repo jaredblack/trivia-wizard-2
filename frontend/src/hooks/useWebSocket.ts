@@ -19,6 +19,9 @@ export function useWebSocket() {
 
   // Team store actions
   const setTeamGameState = useTeamStore((state) => state.setTeamGameState);
+  const setTeamTimerSecondsRemaining = useTeamStore(
+    (state) => state.setTimerSecondsRemaining
+  );
   const setTeamError = useTeamStore((state) => state.setError);
   const setTeamStep = useTeamStore((state) => state.setStep);
 
@@ -37,6 +40,7 @@ export function useWebSocket() {
             break;
           case "timerTick":
             setTimerSecondsRemaining(message.secondsRemaining);
+            setTeamTimerSecondsRemaining(message.secondsRemaining);
             break;
           case "error":
             console.error("Server error:", message.message);
@@ -63,7 +67,7 @@ export function useWebSocket() {
       unsubscribeState();
       unsubscribeMessage();
     };
-  }, [setGameState, setTimerSecondsRemaining, setTeamGameState, setTeamError, setTeamStep]);
+  }, [setGameState, setTimerSecondsRemaining, setTeamGameState, setTeamTimerSecondsRemaining, setTeamError, setTeamStep]);
 
   const send = useCallback((message: ClientMessage) => {
     webSocketService.send(message);

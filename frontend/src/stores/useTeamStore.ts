@@ -28,6 +28,7 @@ interface TeamStore {
   setMemberName: (index: number, name: string) => void;
   setColor: (color: TeamColorOption) => void;
   setTeamGameState: (state: TeamGameState) => void;
+  setTimerSecondsRemaining: (seconds: number) => void;
   setError: (error: string | null) => void;
   reset: () => void;
 }
@@ -71,6 +72,13 @@ export const useTeamStore = create<TeamStore>((set) => ({
   setColor: (selectedColor) => set({ selectedColor }),
 
   setTeamGameState: (teamGameState) => set({ teamGameState, step: "game" }),
+
+  setTimerSecondsRemaining: (seconds) =>
+    set((state) => ({
+      teamGameState: state.teamGameState
+        ? { ...state.teamGameState, timerSecondsRemaining: seconds }
+        : null,
+    })),
 
   setError: (error) => set({ error }),
 
