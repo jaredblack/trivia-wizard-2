@@ -8,10 +8,11 @@ import Button from "../../../components/ui/Button";
 import ConfirmationModal from "../../../components/ui/ConfirmationModal";
 import TeamHeader from "./TeamHeader";
 import ScoreLogDrawer from "./ScoreLogDrawer";
+import { getScore } from "../../../types";
 
 export default function TeamGameView() {
   const navigate = useNavigate();
-  const { teamGameState, reset } = useTeamStore();
+  const { teamGameState, gameCode, reset } = useTeamStore();
   const [draftAnswer, setDraftAnswer] = useState("");
   const [timerHasOpened, setTimerHasOpened] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
@@ -165,8 +166,9 @@ export default function TeamGameView() {
         </div>
 
         {/* Right side: Timer */}
-        <div className="flex flex-col">
-          <span className="text-md">Game code: bonko</span>
+        <div className="flex flex-col align-end">
+          <span className="text-md">Game code: {gameCode}</span>
+          <span className="text-md ml-auto">Score: {getScore(teamGameState.team.score)}</span>
           <TimerDisplay seconds={timerSeconds} className="text-4xl ml-auto" />
         </div>
       </div>
