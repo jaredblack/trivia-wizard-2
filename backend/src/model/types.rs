@@ -33,16 +33,19 @@ impl ScoreData {
     }
 }
 
-// === Answer Types ===
-// An Answer represents a single team's submission for a question.
-// Answers are stored in order of submission (first to last).
+// === TeamQuestionResult ===
+// Represents a team's state for a question, including their answer (if any) and score.
+// - On the host side (Question.answers): only contains entries for teams that submitted,
+//   so content is always present in practice.
+// - On the team side (TeamGameState.questions): includes all historic questions,
+//   so content may be None if the team didn't submit.
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Answer {
+pub struct TeamQuestionResult {
     pub team_name: String,
-    pub score: Option<ScoreData>,
-    pub content: AnswerContent,
+    pub score: ScoreData,
+    pub content: Option<AnswerContent>,
 }
 
 /// The content of a team's answer, varying by question type.
@@ -57,16 +60,6 @@ pub enum AnswerContent {
     MultipleChoice { selected: String },
 }
 
-// === Team Question (filtered view for team clients) ===
-// Contains only the team's own answer and score for a question.
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TeamQuestion {
-    pub score: Option<ScoreData>,
-    pub answer: Option<AnswerContent>,
-}
-
 // === Question ===
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,7 +69,7 @@ pub struct Question {
     pub question_points: u32,
     pub bonus_increment: u32,
     pub question_kind: QuestionKind,
-    pub answers: Vec<Answer>,
+    pub answers: Vec<TeamQuestionResult>,
 }
 
 impl Question {
@@ -86,12 +79,16 @@ impl Question {
     }
 
     /// Filter question to only include a specific team's data
-    pub fn filter_for_team(&self, team_name: &str) -> TeamQuestion {
-        let team_answer = self.answers.iter().find(|a| a.team_name == team_name);
-        TeamQuestion {
-            score: team_answer.and_then(|a| a.score.clone()),
-            answer: team_answer.map(|a| a.content.clone()),
-        }
+    pub fn filter_for_team(&self, team_name: &str) -> TeamQuestionResult {
+        self.answers
+            .iter()
+            .find(|a| a.team_name == team_name)
+            .cloned()
+            .unwrap_or_else(|| TeamQuestionResult {
+                team_name: team_name.to_string(),
+                score: ScoreData::new(),
+                content: None,
+            })
     }
 }
 

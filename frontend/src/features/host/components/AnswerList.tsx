@@ -33,14 +33,9 @@ export default function AnswerList({
       {answers.map((answer) => {
         const team = teamMap.get(answer.teamName);
         // Get answer text from content (only Standard type for now)
+        // On host side, content is always present since we only show submitted answers
         const answerText =
-          answer.content.type === "standard" ? answer.content.answerText : "";
-        // Default score for unscored answers
-        const score = answer.score ?? {
-          questionPoints: 0,
-          bonusPoints: 0,
-          overridePoints: 0,
-        };
+          answer.content?.type === "standard" ? answer.content.answerText : "";
 
         return (
           <AnswerCard
@@ -48,7 +43,7 @@ export default function AnswerList({
             teamName={answer.teamName}
             answerText={answerText}
             teamColor={team?.teamColor.hexCode ? team.teamColor.hexCode : "#666666"}
-            score={score}
+            score={answer.score}
             questionPoints={question.questionPoints}
             bonusIncrement={question.bonusIncrement}
             onScoreChange={(score) => onScoreAnswer(answer.teamName, score)}

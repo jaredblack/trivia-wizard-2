@@ -50,14 +50,31 @@ S0: New question created (a) -> S1: Answers are open (b) -> S2 -> Answer submitt
 When the host navigates to a new question, we go will back to S0. If the host navigates to an old question, the 
 team will see view C with the old answer they submitted for that question.
 
-We're going to implement the view that comes up with the View Score Log button. I want this to be a drawer that animates up from the
-  bottom, and shows a log of every question and how it was scored. Here's what I want it to display:
+We're going to implement the view that comes up with the View Score Log button. I want this to be a drawer that animates up from the bottom of the screen, and shows a log of every question and how it was scored. Here's what I want it to display:
 
-  Top to bottom:
+Top to bottom:
 
-  <Team name>
+Score Log
+<Team name>
+Questions: {score.questionPoints}, Bonus: {score.bonusPoints}, Override: {score.overridePoints}
 
+Question 5:
+Your answer: {question.answer.toString()}
+Score: Question: {question.score.questionPoints}, Bonus: {question.score.bonusPoints}
+
+Question 4:
+Your answer: {question.answer.toString()}
+Score: Question: {question.score.questionPoints}, Bonus: {question.score.bonusPoints}
 New data model
+...
+
+(questions should display in reverse order)
+
+
+We're going to need to define custom toString implementations for each question type that will give us a displayable version of the answer for here. For standard question type, it will just be answer.answerText.
+
+The drawer should fill 80% of the screen. There will be an X button in the top right to close it, or pressing outside of the drawer area should also cause it to close (animate back down to the bottom of the screen.)
+
 ```
 pub struct HostQuestion {
     pub timer_duration: u32,
@@ -129,6 +146,10 @@ let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
 - submissions should auto-close when all answers have been received
 - Also need to validate that user id matches when reclaiming a game
 - Add a PartialJoin (need a better name) API for the frontend to call after you put in a game code/team name to verify that (a) game code is valid and (b) team name is available
+- Right now it says "not yet scored" even if 0. I don't think a scoredata gets created unless I press the correct button. So if I cycle back to incorrect, it works. I think the ScoreData shouldn't actually be an Option in the GameState
+- Also we still have the TeamQuestion type which arguably should not exist anymore.
+- Need to add total score to drawer and to standard game view by the team name
+- need to make the button text black if it's a light color
 
 ## concerns
 - The big game state Mutex<HashMap> gets touched _a lot_. We're not doing anything expensive while holding the lock (I think), but intuitively it feels like there could be contention which could lead to issues in when messages get processed, timer updates going out on time, etc. I think for now we continue down this path but if things look problematic in testing, we might have to consider a radically different architecture.

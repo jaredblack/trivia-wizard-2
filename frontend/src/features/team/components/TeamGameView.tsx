@@ -7,6 +7,7 @@ import TimerDisplay from "../../../components/ui/TimerDisplay";
 import Button from "../../../components/ui/Button";
 import ConfirmationModal from "../../../components/ui/ConfirmationModal";
 import TeamHeader from "./TeamHeader";
+import ScoreLogDrawer from "./ScoreLogDrawer";
 
 export default function TeamGameView() {
   const navigate = useNavigate();
@@ -14,6 +15,7 @@ export default function TeamGameView() {
   const [draftAnswer, setDraftAnswer] = useState("");
   const [timerHasOpened, setTimerHasOpened] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [showScoreLog, setShowScoreLog] = useState(false);
 
   const currentQuestionNumber = teamGameState?.currentQuestionNumber;
   const timerRunning = teamGameState?.timerRunning;
@@ -21,8 +23,8 @@ export default function TeamGameView() {
     teamGameState && currentQuestionNumber
       ? teamGameState.questions[currentQuestionNumber - 1]
       : undefined;
-  const answer = currentQuestion?.answer;
-  const hasAnswer = answer != null;
+  const content = currentQuestion?.content;
+  const hasAnswer = content != null;
 
   // Reset timerHasOpened and draftAnswer when question changes
   useEffect(() => {
@@ -50,7 +52,7 @@ export default function TeamGameView() {
 
   // Get the submitted answer text (for Standard type)
   const submittedAnswerText =
-    answer?.type === "standard" ? answer.answerText : null;
+    content?.type === "standard" ? content.answerText : null;
 
   const handleSubmitAnswer = () => {
     if (!draftAnswer.trim()) return;
@@ -66,7 +68,7 @@ export default function TeamGameView() {
   };
 
   const handleStubButton = (feature: string) => {
-    alert(`${feature} - Coming soon!`);
+    console.log(`${feature} - Coming soon!`);
   };
 
   const handleLeaveGame = () => {
@@ -140,6 +142,14 @@ export default function TeamGameView() {
         />
       )}
 
+      <ScoreLogDrawer
+        isOpen={showScoreLog}
+        onClose={() => setShowScoreLog(false)}
+        teamName={team.teamName}
+        totalScore={team.score}
+        questions={teamGameState.questions}
+      />
+
       {/* Game Info Header */}
       <div className="flex items-end justify-between px-4 py-3">
         {/* Left side: Team info + Question number */}
@@ -171,7 +181,7 @@ export default function TeamGameView() {
         <div className="p-4 flex gap-3">
           <Button
             variant="primary"
-            onClick={() => handleStubButton("View Score Log")}
+            onClick={() => setShowScoreLog(true)}
             className="flex-1"
           >
             View Score Log

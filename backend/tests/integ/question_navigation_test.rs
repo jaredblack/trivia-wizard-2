@@ -3,6 +3,153 @@ use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::ServerMessage;
 use backend::model::types::{AnswerContent, ScoreData};
 
+/// Tests the scenario where a team skips a question, answers a later question,
+/// then goes back to answer and score the earlier question.
+/// This validates the TeamQuestionResult model with optional content works correctly.
+#[tokio::test]
+async fn team_can_answer_earlier_question_after_skipping() {
+    let server = TestServer::start().await;
+    let (mut host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
+
+    // Team A joins
+    let mut team_a = TestClient::connect(&server.ws_url()).await;
+    team_a.join_game(&game_code, "Team A").await;
+    let _: ServerMessage = host.recv_json().await; // consume team join broadcast
+
+    // === Q1: Host opens submissions, Team A doesn't answer ===
+    host.send_json(&ClientMessage::Host(HostAction::StartTimer))
+        .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team_a.recv_json().await;
+
+    // Host closes submissions (pause timer)
+    host.send_json(&ClientMessage::Host(HostAction::PauseTimer))
+        .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team_a.recv_json().await;
+
+    // === Move to Q2, open submissions ===
+    host.send_json(&ClientMessage::Host(HostAction::NextQuestion))
+        .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team_a.recv_json().await;
+
+    host.send_json(&ClientMessage::Host(HostAction::StartTimer))
+        .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team_a.recv_json().await;
+
+    // === Team A answers Q2 ===
+    team_a
+        .send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
+            team_name: "Team A".to_string(),
+            answer: "Answer for Q2".to_string(),
+        }))
+        .await;
+    let _: ServerMessage = team_a.recv_json().await;
+    let _: ServerMessage = host.recv_json().await;
+
+    // === Host scores Team A's Q2 answer correct ===
+    host.send_json(&ClientMessage::Host(HostAction::ScoreAnswer {
+        question_number: 2,
+        team_name: "Team A".to_string(),
+        score: ScoreData {
+            question_points: 50,
+            bonus_points: 5,
+            override_points: 0,
+        },
+    }))
+    .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team_a.recv_json().await;
+
+    // === Host moves back to Q1 ===
+    host.send_json(&ClientMessage::Host(HostAction::PrevQuestion))
+        .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team_a.recv_json().await;
+
+    // === Host re-opens submissions on Q1 ===
+    host.send_json(&ClientMessage::Host(HostAction::StartTimer))
+        .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team_a.recv_json().await;
+
+    // === Team A submits answer on Q1 ===
+    team_a
+        .send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
+            team_name: "Team A".to_string(),
+            answer: "Late answer for Q1".to_string(),
+        }))
+        .await;
+    let _: ServerMessage = team_a.recv_json().await;
+    let _: ServerMessage = host.recv_json().await;
+
+    // === Host scores Team A's Q1 answer ===
+    host.send_json(&ClientMessage::Host(HostAction::ScoreAnswer {
+        question_number: 1,
+        team_name: "Team A".to_string(),
+        score: ScoreData {
+            question_points: 50,
+            bonus_points: 10,
+            override_points: 0,
+        },
+    }))
+    .await;
+
+    let response: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team_a.recv_json().await;
+
+    // === Verify final state ===
+    match response {
+        ServerMessage::GameState { state } => {
+            // Q1 should have Team A's answer with score
+            let q1_answers = &state.questions[0].answers;
+            assert_eq!(q1_answers.len(), 1, "Q1 should have 1 answer");
+            let q1_answer = &q1_answers[0];
+            assert_eq!(q1_answer.team_name, "Team A");
+            match &q1_answer.content {
+                Some(AnswerContent::Standard { answer_text }) => {
+                    assert_eq!(answer_text, "Late answer for Q1");
+                }
+                other => panic!("Expected Standard answer for Q1, got {other:?}"),
+            }
+            assert_eq!(q1_answer.score.question_points, 50);
+            assert_eq!(q1_answer.score.bonus_points, 10);
+
+            // Q2 should have Team A's answer with score
+            let q2_answers = &state.questions[1].answers;
+            assert_eq!(q2_answers.len(), 1, "Q2 should have 1 answer");
+            let q2_answer = &q2_answers[0];
+            assert_eq!(q2_answer.team_name, "Team A");
+            match &q2_answer.content {
+                Some(AnswerContent::Standard { answer_text }) => {
+                    assert_eq!(answer_text, "Answer for Q2");
+                }
+                other => panic!("Expected Standard answer for Q2, got {other:?}"),
+            }
+            assert_eq!(q2_answer.score.question_points, 50);
+            assert_eq!(q2_answer.score.bonus_points, 5);
+
+            // Team A's total score should be sum of both questions
+            let team_a_data = state
+                .teams
+                .iter()
+                .find(|t| t.team_name == "Team A")
+                .expect("Team A should exist");
+            assert_eq!(
+                team_a_data.score.question_points, 100,
+                "Total question points should be 50 + 50"
+            );
+            assert_eq!(
+                team_a_data.score.bonus_points, 15,
+                "Total bonus points should be 10 + 5"
+            );
+        }
+        other => panic!("Expected GameState, got {other:?}"),
+    }
+}
+
 #[tokio::test]
 async fn next_question_increments_question_number_and_creates_new_question() {
     let server = TestServer::start().await;
@@ -128,24 +275,20 @@ async fn navigation_preserves_answers_and_scores_across_questions() {
                 .find(|a| a.team_name == "Team Alpha")
                 .expect("Team Alpha's answer should exist");
             match &alpha_answer.content {
-                AnswerContent::Standard { answer_text } => {
+                Some(AnswerContent::Standard { answer_text }) => {
                     assert_eq!(answer_text, "Answer from Alpha on Q1");
                 }
                 other => panic!("Expected Standard answer, got {other:?}"),
             }
-            let alpha_score = alpha_answer
-                .score
-                .as_ref()
-                .expect("Team Alpha should have a score");
-            assert_eq!(alpha_score.question_points, 50);
-            assert_eq!(alpha_score.bonus_points, 10);
+            assert_eq!(alpha_answer.score.question_points, 50);
+            assert_eq!(alpha_answer.score.bonus_points, 10);
 
             let beta_answer = q1_answers
                 .iter()
                 .find(|a| a.team_name == "Team Beta")
                 .expect("Team Beta's answer should exist");
             match &beta_answer.content {
-                AnswerContent::Standard { answer_text } => {
+                Some(AnswerContent::Standard { answer_text }) => {
                     assert_eq!(answer_text, "Answer from Beta on Q1");
                 }
                 other => panic!("Expected Standard answer, got {other:?}"),
@@ -170,7 +313,7 @@ async fn navigation_preserves_answers_and_scores_across_questions() {
             assert_eq!(q2_answers.len(), 1, "Q2 should have 1 answer");
             assert_eq!(q2_answers[0].team_name, "Team Alpha");
             match &q2_answers[0].content {
-                AnswerContent::Standard { answer_text } => {
+                Some(AnswerContent::Standard { answer_text }) => {
                     assert_eq!(answer_text, "Answer from Alpha on Q2");
                 }
                 other => panic!("Expected Standard answer, got {other:?}"),

@@ -20,14 +20,17 @@ export function getScore(score: ScoreData): number {
   return score.questionPoints + score.bonusPoints + score.overridePoints;
 }
 
-// === Answer Types ===
-// An Answer represents a single team's submission for a question.
-// Answers are stored in order of submission (first to last).
+// === TeamQuestionResult ===
+// Represents a team's state for a question, including their answer (if any) and score.
+// - On the host side (Question.answers): only contains entries for teams that submitted,
+//   so content is always present in practice.
+// - On the team side (TeamGameState.questions): includes all historic questions,
+//   so content may be null if the team didn't submit.
 
-export interface Answer {
+export interface TeamQuestionResult {
   teamName: string;
-  score: ScoreData | null;
-  content: AnswerContent;
+  score: ScoreData;
+  content: AnswerContent | null;
 }
 
 // The content of a team's answer, varying by question type.
@@ -51,6 +54,17 @@ export type AnswerContent =
   | MultiAnswerAnswerContent
   | MultipleChoiceAnswerContent;
 
+export function answerToString(content: AnswerContent): string {
+  switch (content.type) {
+    case "standard":
+      return content.answerText;
+    case "multiAnswer":
+      return content.answers.join(", ");
+    case "multipleChoice":
+      return content.selected;
+  }
+}
+
 // === Question ===
 
 export interface Question {
@@ -58,7 +72,7 @@ export interface Question {
   questionPoints: number;
   bonusIncrement: number;
   questionKind: QuestionKind;
-  answers: Answer[];
+  answers: TeamQuestionResult[];
 }
 
 // === Game Settings ===
@@ -85,14 +99,6 @@ export interface TeamData {
   connected: boolean;
 }
 
-// === Team Question (filtered view for team clients) ===
-// Contains only the team's own answer and score for a question.
-
-export interface TeamQuestion {
-  score: ScoreData | null;
-  answer: AnswerContent | null;
-}
-
 // === GameState (Server → Host) ===
 
 export interface GameState {
@@ -113,7 +119,7 @@ export interface TeamGameState {
   timerRunning: boolean;
   timerSecondsRemaining: number | null;
   team: TeamData;
-  questions: TeamQuestion[];
+  questions: TeamQuestionResult[];
 }
 
 // === Server Messages (tagged union with "type" discriminator) ===

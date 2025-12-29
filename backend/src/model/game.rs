@@ -1,6 +1,7 @@
 use crate::model::server_message::{GameState, ServerMessage, TeamGameState, send_msg};
 use crate::model::types::{
-    Answer, AnswerContent, GameSettings, Question, QuestionKind, ScoreData, TeamColor, TeamData,
+    AnswerContent, GameSettings, Question, QuestionKind, ScoreData, TeamColor, TeamData,
+    TeamQuestionResult,
 };
 use crate::server::Tx;
 use std::collections::HashMap;
@@ -228,14 +229,16 @@ impl Game {
         // Create answer content based on question type
         let content = match question.question_kind {
             QuestionKind::Standard => AnswerContent::Standard { answer_text },
-            QuestionKind::MultipleChoice => AnswerContent::MultipleChoice { selected: answer_text },
+            QuestionKind::MultipleChoice => AnswerContent::MultipleChoice {
+                selected: answer_text,
+            },
             QuestionKind::MultiAnswer => return false, // Not supported yet
         };
 
-        question.answers.push(Answer {
+        question.answers.push(TeamQuestionResult {
             team_name: team_name.to_string(),
-            score: None,
-            content,
+            score: ScoreData::new(),
+            content: Some(content),
         });
 
         true
@@ -258,8 +261,12 @@ impl Game {
         let question = &mut self.questions[question_idx];
 
         // Find and update the team's answer score
-        if let Some(answer) = question.answers.iter_mut().find(|a| a.team_name == team_name) {
-            answer.score = Some(score);
+        if let Some(answer) = question
+            .answers
+            .iter_mut()
+            .find(|a| a.team_name == team_name)
+        {
+            answer.score = score;
             self.recalculate_team_score(team_name);
             true
         } else {
@@ -289,10 +296,8 @@ impl Game {
 
         for question in &self.questions {
             if let Some(answer) = question.answers.iter().find(|a| a.team_name == team_name) {
-                if let Some(score) = &answer.score {
-                    total_question_points += score.question_points;
-                    total_bonus_points += score.bonus_points;
-                }
+                total_question_points += answer.score.question_points;
+                total_bonus_points += answer.score.bonus_points;
             }
         }
 

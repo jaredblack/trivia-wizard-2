@@ -236,7 +236,7 @@ pub async fn assert_answer_submission_flow(
             assert!(
                 question.answers.iter().any(|a| {
                     a.team_name == team_name
-                        && matches!(&a.content, backend::model::types::AnswerContent::Standard { answer_text } if answer_text == answer)
+                        && matches!(&a.content, Some(backend::model::types::AnswerContent::Standard { answer_text }) if answer_text == answer)
                 }),
                 "Answer should appear in question answers"
             );
