@@ -5,6 +5,7 @@ import { webSocketService } from "../../../services/websocket";
 import { clearTeamRejoin } from "../../../utils/rejoinStorage";
 import TimerDisplay from "../../../components/ui/TimerDisplay";
 import Button from "../../../components/ui/Button";
+import ColorButton from "../../../components/ui/ColorButton";
 import ConfirmationModal from "../../../components/ui/ConfirmationModal";
 import TeamHeader from "./TeamHeader";
 import ScoreLogDrawer from "./ScoreLogDrawer";
@@ -105,14 +106,14 @@ export default function TeamGameView() {
             rows={3}
             className="w-full p-3 border border-gray-300 rounded-lg resize-y focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
           />
-          <button
+          <ColorButton
             onClick={handleSubmitAnswer}
             disabled={!draftAnswer.trim()}
-            style={{ backgroundColor: team.teamColor.hexCode }}
-            className="w-full py-3 text-white font-semibold rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            backgroundColor={team.teamColor.hexCode}
+            className="w-full py-3 rounded-lg"
           >
             Submit Answer
-          </button>
+          </ColorButton>
         </div>
       );
     }

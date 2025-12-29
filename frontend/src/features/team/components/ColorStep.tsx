@@ -1,6 +1,7 @@
 import { useTeamStore } from "../../../stores/useTeamStore";
 import { TEAM_COLORS } from "../../../utils/colors";
 import type { TeamColorOption } from "../../../utils/colors";
+import ColorButton from "../../../components/ui/ColorButton";
 
 interface ColorStepProps {
   onJoinGame: () => void;
@@ -42,16 +43,14 @@ export default function ColorStep({ onJoinGame }: ColorStepProps) {
         ))}
       </div>
 
-      <button
+      <ColorButton
         onClick={handleJoin}
         disabled={!selectedColor}
-        className="w-full py-4 rounded-2xl text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        style={{
-          backgroundColor: selectedColor?.hex ?? "#9CA3AF",
-        }}
+        backgroundColor={selectedColor?.hex ?? "#9CA3AF"}
+        className="w-full py-4 rounded-2xl"
       >
         {selectedColor ? `Choose ${selectedColor.name}` : "Select a color"}
-      </button>
+      </ColorButton>
     </div>
   );
 }
