@@ -146,10 +146,15 @@ let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
 - submissions should auto-close when all answers have been received
 - Also need to validate that user id matches when reclaiming a game
 - Add a PartialJoin (need a better name) API for the frontend to call after you put in a game code/team name to verify that (a) game code is valid and (b) team name is available
-- Right now it says "not yet scored" even if 0. I don't think a scoredata gets created unless I press the correct button. So if I cycle back to incorrect, it works. I think the ScoreData shouldn't actually be an Option in the GameState
-- Also we still have the TeamQuestion type which arguably should not exist anymore.
-- Need to add total score to drawer and to standard game view by the team name
-- need to make the button text black if it's a light color
+- favicon
+
+
+## beta
+- AUTO-SUBMIT
+- rejoin is very suspect. at least I need to invalidate cache on a failed rejoin.
+   "refresh to reconnect" page is kinda evil
+- need a ranking question type
+- it's showing nick as disconnected but he can stil submit
 
 ## concerns
 - The big game state Mutex<HashMap> gets touched _a lot_. We're not doing anything expensive while holding the lock (I think), but intuitively it feels like there could be contention which could lead to issues in when messages get processed, timer updates going out on time, etc. I think for now we continue down this path but if things look problematic in testing, we might have to consider a radically different architecture.

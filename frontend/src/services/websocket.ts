@@ -18,9 +18,7 @@ async function buildWsUrl(): Promise<string> {
   const session = await fetchAuthSession();
   const token = session.tokens?.accessToken?.toString();
   if (!token) {
-    throw new Error(
-      "No access token available - user may not be authenticated"
-    );
+    return wsUrl;
   }
   return `${wsUrl}?token=${encodeURIComponent(token)}`;
 }
