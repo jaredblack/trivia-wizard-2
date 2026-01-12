@@ -152,6 +152,38 @@ export default function TeamFlow() {
     }
   }, [connectionState, step, setError, reset, navigate]);
 
+  // Handle visibility change: disconnect when hidden, reconnect when visible
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.hidden) {
+        disconnect();
+      } else if (step === "game") {
+        const rejoinData = getTeamRejoin();
+        if (rejoinData) {
+          try {
+            await connect();
+            send({
+              team: {
+                joinGame: {
+                  gameCode: rejoinData.gameCode,
+                  teamName: rejoinData.teamName,
+                  colorHex: rejoinData.colorHex,
+                  colorName: rejoinData.colorName,
+                  teamMembers: rejoinData.teamMembers,
+                },
+              },
+            });
+          } catch (error) {
+            console.error("Failed to reconnect after visibility change:", error);
+          }
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [connect, disconnect, send, step]);
+
   const handleCancelReconnection = useCallback(() => {
     webSocketService.cancelReconnection();
     clearTeamRejoin();
