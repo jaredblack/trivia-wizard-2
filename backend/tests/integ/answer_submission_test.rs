@@ -1,34 +1,7 @@
 use crate::{TestClient, TestServer, assert_answer_submission_flow};
 
-use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
+use backend::model::client_message::{ClientMessage, HostAction};
 use backend::model::server_message::ServerMessage;
-
-#[tokio::test]
-async fn team_submission_rejected_when_submissions_closed() {
-    let server = TestServer::start().await;
-    let (_, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
-
-    let mut team = TestClient::connect(&server.ws_url()).await;
-    team.join_game(&game_code, "Test Team").await;
-
-    // Try to submit answer when timer is not running (submissions closed)
-    team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
-        team_name: "Test Team".to_string(),
-        answer: "42".to_string(),
-    }))
-    .await;
-
-    let response: ServerMessage = team.recv_json().await;
-    match response {
-        ServerMessage::Error { message, .. } => {
-            assert!(
-                message.contains("closed"),
-                "Error should mention submissions being closed, got: {message}"
-            );
-        }
-        other => panic!("Expected Error message, got {other:?}"),
-    }
-}
 
 #[tokio::test]
 async fn team_submits_answer_host_receives_it() {

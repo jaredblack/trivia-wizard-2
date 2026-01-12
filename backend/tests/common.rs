@@ -98,12 +98,22 @@ impl TestClient {
 
     pub async fn recv_json<T: DeserializeOwned>(&mut self) -> T {
         let timeout_duration = Duration::from_secs(2);
-        match tokio::time::timeout(timeout_duration, self.read.next()).await {
-            Ok(Some(Ok(msg))) => serde_json::from_str(msg.to_text().unwrap()).unwrap(),
-            Ok(Some(Err(e))) => panic!("WebSocket error: {e}"),
-            Ok(None) => panic!("WebSocket stream closed"),
-            Err(_) => {
-                panic!("Timeout waiting for message from server (waited {timeout_duration:?})")
+        let deadline = tokio::time::Instant::now() + timeout_duration;
+
+        loop {
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                panic!("Timeout waiting for message from server");
+            }
+
+            match tokio::time::timeout(remaining, self.read.next()).await {
+                Ok(Some(Ok(Message::Text(text)))) => {
+                    return serde_json::from_str(&text).unwrap();
+                }
+                Ok(Some(Ok(_))) => continue, // Skip Ping, Pong, Binary, Close
+                Ok(Some(Err(e))) => panic!("WebSocket error: {e}"),
+                Ok(None) => panic!("WebSocket stream closed"),
+                Err(_) => panic!("Timeout waiting for message from server"),
             }
         }
     }

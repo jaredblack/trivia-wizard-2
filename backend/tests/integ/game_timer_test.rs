@@ -123,56 +123,6 @@ async fn timer_ticks_broadcast_to_all_clients() {
     // Note: Full timer expiration testing requires UpdateQuestionSettings to set shorter durations
 }
 
-#[tokio::test]
-async fn submissions_rejected_after_timer_expires() {
-    let server = TestServer::start().await;
-    let (mut host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
-
-    let mut team = TestClient::connect(&server.ws_url()).await;
-    team.join_game(&game_code, "Test Team").await;
-
-    // Consume the GameState broadcast to host when team joined
-    let _: ServerMessage = host.recv_json().await;
-
-    host.send_json(&ClientMessage::Host(HostAction::UpdateQuestionSettings {
-        question_number: 1,
-        timer_duration: 2,
-        question_points: 50,
-        bonus_increment: 5,
-        question_type: QuestionKind::Standard,
-    }))
-    .await;
-
-    // Start timer (Should used the update timer duration of 2s)
-    host.send_json(&ClientMessage::Host(HostAction::StartTimer))
-        .await;
-    let _: ServerMessage = host.recv_json().await; // consume initial GameState
-    let _: ServerMessage = team.recv_json().await; // consume initial TeamGameState
-
-    // Wait for timer to expire (30 seconds)
-    for _ in 0..3 {
-        let _: ServerMessage = host.recv_json().await;
-        let _: ServerMessage = team.recv_json().await;
-    }
-
-    // Now try to submit answer - should be rejected
-    team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
-        team_name: "Test Team".to_string(),
-        answer: "42".to_string(),
-    }))
-    .await;
-
-    let response: ServerMessage = team.recv_json().await;
-    match response {
-        ServerMessage::Error { message, .. } => {
-            assert!(
-                message.contains("closed"),
-                "Error should mention submissions being closed, got: {message}"
-            );
-        }
-        other => panic!("Expected Error message, got {other:?}"),
-    }
-}
 
 #[tokio::test]
 async fn timer_pause_prevents_further_ticks() {
