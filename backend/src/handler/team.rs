@@ -74,14 +74,6 @@ fn process_team_action(action: TeamAction, game: &mut Game, team_name: &str) -> 
         },
 
         TeamAction::SubmitAnswer { answer, .. } => {
-            // Check if submissions are open (timer must be running)
-            if !game.timer_running {
-                return TeamActionResult {
-                    team_msg: ServerMessage::error("Submissions are closed"),
-                    host_msg: None,
-                };
-            }
-
             // Add the answer
             if !game.add_answer(team_name, answer) {
                 return TeamActionResult {
@@ -181,7 +173,6 @@ async fn handle_team(
             msg_result = ws_read.next() => {
                 match msg_result {
                     Some(Ok(Message::Pong(_))) => {
-                        warn!("hey i got a pong");
                         heartbeat.record_pong();
                     }
                     Some(Ok(Message::Text(text))) => {

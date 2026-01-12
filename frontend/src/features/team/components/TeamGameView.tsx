@@ -42,6 +42,22 @@ export default function TeamGameView() {
     }
   }, [timerRunning]);
 
+  // Auto-submit when timer reaches 0 (not when host closes early)
+  const timerSecondsRemaining = teamGameState?.timerSecondsRemaining;
+  const teamName = teamGameState?.team.teamName;
+  useEffect(() => {
+    if (timerSecondsRemaining === 0 && !hasAnswer && draftAnswer.trim() && teamName) {
+      webSocketService.send({
+        team: {
+          submitAnswer: {
+            teamName,
+            answer: draftAnswer.trim(),
+          },
+        },
+      });
+    }
+  }, [timerSecondsRemaining, hasAnswer, draftAnswer, teamName]);
+
   if (!teamGameState) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -50,7 +66,7 @@ export default function TeamGameView() {
     );
   }
 
-  const { team, timerSecondsRemaining } = teamGameState;
+  const { team } = teamGameState;
 
   // Get the submitted answer text (for Standard type)
   const submittedAnswerText =
