@@ -1,8 +1,9 @@
 use crate::{
+    heartbeat::{HeartbeatState, PING_INTERVAL},
     model::{
         client_message::{ClientMessage, TeamAction},
         game::Game,
-        server_message::{ServerMessage, send_msg},
+        server_message::{send_msg, ServerMessage},
         types::TeamColor,
     },
     server::{AppState, Rx, Tx},
@@ -11,7 +12,7 @@ use futures_util::{SinkExt, StreamExt};
 use log::*;
 use std::sync::Arc;
 use tokio::{net::TcpStream, sync::mpsc};
-use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
+use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 pub async fn join_game(
     app_state: Arc<AppState>,
@@ -164,30 +165,50 @@ async fn handle_team(
     team_name: String,
 ) {
     let (mut ws_write, mut ws_read) = ws_stream.split();
+    let mut heartbeat = HeartbeatState::new();
+    let mut ping_interval = tokio::time::interval(PING_INTERVAL);
 
-    let write_task = tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            if ws_write.send(msg).await.is_err() {
-                break;
+    loop {
+        tokio::select! {
+            // Outgoing messages from channel
+            Some(msg) = rx.recv() => {
+                if ws_write.send(msg).await.is_err() {
+                    break;
+                }
+            }
+
+            // Incoming messages from WebSocket
+            msg_result = ws_read.next() => {
+                match msg_result {
+                    Some(Ok(Message::Pong(_))) => {
+                        warn!("hey i got a pong");
+                        heartbeat.record_pong();
+                    }
+                    Some(Ok(Message::Text(text))) => {
+                        info!("Received message: {text}");
+                        process_team_message(&text, &app_state, &game_code, &team_name, &team_tx).await;
+                    }
+                    Some(Ok(Message::Close(_))) | None => {
+                        break;
+                    }
+                    Some(Err(_)) => {
+                        break;
+                    }
+                    _ => {} // Ignore Ping (auto-handled by tungstenite), Binary
+                }
+            }
+
+            // Heartbeat ping timer
+            _ = ping_interval.tick() => {
+                if !heartbeat.is_alive() {
+                    info!("Team {team_name} connection timed out (no pong received)");
+                    break;
+                }
+                if ws_write.send(Message::Ping(vec![].into())).await.is_err() {
+                    break;
+                }
             }
         }
-    });
-
-    let app_state2 = app_state.clone();
-    let game_code2 = game_code.clone();
-    let team_name2 = team_name.clone();
-
-    let read_task = tokio::spawn(async move {
-        while let Some(Ok(msg)) = ws_read.next().await {
-            if let Ok(text) = msg.to_text() {
-                info!("Received message: {text}");
-                process_team_message(text, &app_state2, &game_code2, &team_name2, &team_tx).await;
-            }
-        }
-    });
-    tokio::select! {
-        _ = write_task => {},
-        _ = read_task => {},
     }
 
     // Team disconnected - update state and notify host

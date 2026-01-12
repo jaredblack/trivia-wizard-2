@@ -1,8 +1,10 @@
 const HOST_REJOIN_KEY = "trivia_host_rejoin";
 const TEAM_REJOIN_KEY = "trivia_team_rejoin";
+const EXPIRATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export interface HostRejoinData {
   gameCode: string;
+  savedAt: number;
 }
 
 export interface TeamRejoinData {
@@ -11,11 +13,13 @@ export interface TeamRejoinData {
   teamMembers: string[];
   colorHex: string;
   colorName: string;
+  savedAt: number;
 }
 
-export function saveHostRejoin(data: HostRejoinData): void {
+export function saveHostRejoin(data: Omit<HostRejoinData, "savedAt">): void {
   try {
-    localStorage.setItem(HOST_REJOIN_KEY, JSON.stringify(data));
+    const dataWithTimestamp: HostRejoinData = { ...data, savedAt: Date.now() };
+    localStorage.setItem(HOST_REJOIN_KEY, JSON.stringify(dataWithTimestamp));
   } catch (e) {
     console.error("Failed to save host rejoin data:", e);
   }
@@ -27,6 +31,11 @@ export function getHostRejoin(): HostRejoinData | null {
     if (!data) return null;
     const parsed = JSON.parse(data);
     if (typeof parsed.gameCode === "string") {
+      // Check expiration
+      if (parsed.savedAt && Date.now() - parsed.savedAt > EXPIRATION_MS) {
+        clearHostRejoin();
+        return null;
+      }
       return parsed as HostRejoinData;
     }
     return null;
@@ -45,9 +54,10 @@ export function clearHostRejoin(): void {
   }
 }
 
-export function saveTeamRejoin(data: TeamRejoinData): void {
+export function saveTeamRejoin(data: Omit<TeamRejoinData, "savedAt">): void {
   try {
-    localStorage.setItem(TEAM_REJOIN_KEY, JSON.stringify(data));
+    const dataWithTimestamp: TeamRejoinData = { ...data, savedAt: Date.now() };
+    localStorage.setItem(TEAM_REJOIN_KEY, JSON.stringify(dataWithTimestamp));
   } catch (e) {
     console.error("Failed to save team rejoin data:", e);
   }
@@ -65,6 +75,11 @@ export function getTeamRejoin(): TeamRejoinData | null {
       typeof parsed.colorHex === "string" &&
       typeof parsed.colorName === "string"
     ) {
+      // Check expiration
+      if (parsed.savedAt && Date.now() - parsed.savedAt > EXPIRATION_MS) {
+        clearTeamRejoin();
+        return null;
+      }
       return parsed as TeamRejoinData;
     }
     return null;

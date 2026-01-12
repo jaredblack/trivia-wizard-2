@@ -1,11 +1,13 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useHostStore } from "../../stores/useHostStore";
 import { useWebSocket } from "../../hooks/useWebSocket";
+import { webSocketService } from "../../services/websocket";
 import {
   getHostRejoin,
   clearHostRejoin,
 } from "../../utils/rejoinStorage";
+import ReconnectionToast from "../../components/ui/ReconnectionToast";
 import QuestionControls from "./components/QuestionControls";
 import AnswerList from "./components/AnswerList";
 import Scoreboard from "./components/Scoreboard";
@@ -29,6 +31,7 @@ export default function HostGame() {
     clearGame,
   } = useHostStore();
   const { connectionState, send, connect, disconnect } = useWebSocket();
+  const prevConnectionState = useRef(connectionState);
 
   // Get current question from questions array (0-indexed)
   const currentQuestion = questions[currentQuestionNumber - 1] ?? null;
@@ -71,30 +74,62 @@ export default function HostGame() {
     if (isRejoining && connectionState === "error") {
       clearHostRejoin();
       setIsRejoining(false);
+      clearGame();
+      navigate("/host");
     }
-  }, [isRejoining, connectionState]);
+  }, [isRejoining, connectionState, clearGame, navigate]);
 
-  // If no game data and not rejoining, show fallback
+  // Handle reconnection success: re-send createGame to restore server state
+  useEffect(() => {
+    if (
+      prevConnectionState.current === "reconnecting" &&
+      connectionState === "connected" &&
+      gameCode
+    ) {
+      const rejoinData = getHostRejoin();
+      if (rejoinData) {
+        const msg: HostClientMessage = {
+          host: { type: "createGame", gameCode: rejoinData.gameCode },
+        };
+        send(msg);
+      }
+    }
+    prevConnectionState.current = connectionState;
+  }, [connectionState, gameCode, send]);
+
+  // Handle reconnection failure: redirect to host landing
+  useEffect(() => {
+    if (
+      prevConnectionState.current === "reconnecting" &&
+      connectionState === "error" &&
+      gameCode
+    ) {
+      clearHostRejoin();
+      clearGame();
+      navigate("/host");
+    }
+  }, [connectionState, gameCode, clearGame, navigate]);
+
+  const handleCancelReconnection = useCallback(() => {
+    webSocketService.cancelReconnection();
+    clearHostRejoin();
+    disconnect();
+    clearGame();
+    navigate("/host");
+  }, [disconnect, clearGame, navigate]);
+
+  // If no game data, redirect to host landing
+  useEffect(() => {
+    if (!isRejoining && !gameCode) {
+      navigate("/host");
+    }
+  }, [isRejoining, gameCode, navigate]);
+
+  // Show loading while rejoining
   if (!gameCode || !currentQuestion) {
-    if (isRejoining) {
-      return (
-        <div className="min-h-screen flex items-center justify-center">
-          <p className="text-gray-600">Refresh to reconnect to game...</p>
-        </div>
-      );
-    }
-
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600 mb-4">No active game</p>
-          <button
-            onClick={() => navigate("/host")}
-            className="text-blue-600 hover:underline"
-          >
-            Return to Host Landing
-          </button>
-        </div>
+        <p className="text-gray-600">Rejoining game...</p>
       </div>
     );
   }
@@ -121,6 +156,9 @@ export default function HostGame() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      {connectionState === "reconnecting" && (
+        <ReconnectionToast onCancel={handleCancelReconnection} />
+      )}
       {/* Header with question controls */}
       <QuestionControls
         questionNumber={currentQuestionNumber}

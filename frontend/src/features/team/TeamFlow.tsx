@@ -8,6 +8,8 @@ import {
   clearTeamRejoin,
 } from "../../utils/rejoinStorage";
 import Toast from "../../components/ui/Toast";
+import ReconnectionToast from "../../components/ui/ReconnectionToast";
+import { webSocketService } from "../../services/websocket";
 import TeamHeader from "./components/TeamHeader";
 import JoinStep from "./components/JoinStep";
 import MembersStep from "./components/MembersStep";
@@ -35,6 +37,7 @@ export default function TeamFlow() {
 
   const [isRejoining, setIsRejoining] = useState(false);
   const hasAttemptedRejoin = useRef(false);
+  const prevConnectionState = useRef(connectionState);
 
   // Connect WebSocket on mount
   useEffect(() => {
@@ -80,10 +83,12 @@ export default function TeamFlow() {
         console.error("Failed to rejoin game:", error);
         clearTeamRejoin();
         setIsRejoining(false);
+        reset();
+        navigate("/");
       }
     };
     attemptRejoin();
-  }, [connect, send, setGameCode, setTeamName, setTeamMembers, setColor]);
+  }, [connect, send, setGameCode, setTeamName, setTeamMembers, setColor, reset, navigate]);
 
   // Save team data when successfully joined (step becomes "game")
   useEffect(() => {
@@ -107,6 +112,53 @@ export default function TeamFlow() {
       setIsRejoining(false);
     }
   }, [isRejoining, error]);
+
+  // Handle reconnection success: re-send joinGame to restore server state
+  useEffect(() => {
+    if (
+      prevConnectionState.current === "reconnecting" &&
+      connectionState === "connected" &&
+      step === "game"
+    ) {
+      const rejoinData = getTeamRejoin();
+      if (rejoinData) {
+        send({
+          team: {
+            joinGame: {
+              gameCode: rejoinData.gameCode,
+              teamName: rejoinData.teamName,
+              colorHex: rejoinData.colorHex,
+              colorName: rejoinData.colorName,
+              teamMembers: rejoinData.teamMembers,
+            },
+          },
+        });
+      }
+    }
+    prevConnectionState.current = connectionState;
+  }, [connectionState, step, send]);
+
+  // Handle reconnection failure: show error and redirect
+  useEffect(() => {
+    if (
+      prevConnectionState.current === "reconnecting" &&
+      connectionState === "error" &&
+      step === "game"
+    ) {
+      setError("Unable to reconnect. Please rejoin the game.");
+      clearTeamRejoin();
+      reset();
+      navigate("/");
+    }
+  }, [connectionState, step, setError, reset, navigate]);
+
+  const handleCancelReconnection = useCallback(() => {
+    webSocketService.cancelReconnection();
+    clearTeamRejoin();
+    disconnect();
+    reset();
+    navigate("/");
+  }, [disconnect, reset, navigate]);
 
   const handleBack = useCallback(() => {
     switch (step) {
@@ -155,6 +207,9 @@ export default function TeamFlow() {
     return (
       <div className="px-4">
         {error && <Toast message={error} onClose={handleDismissError} />}
+        {connectionState === "reconnecting" && (
+          <ReconnectionToast onCancel={handleCancelReconnection} />
+        )}
         <TeamGameView />
       </div>
     );
@@ -184,7 +239,7 @@ export default function TeamFlow() {
         <div className="flex-1 flex flex-col px-6">
           {isRejoining ? (
             <div className="flex-1 flex items-center justify-center">
-              <p className="text-gray-500">Refresh to reconnect to game...</p>
+              <p className="text-gray-500">Rejoining game...</p>
             </div>
           ) : (
             <>

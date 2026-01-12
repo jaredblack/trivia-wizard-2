@@ -1,9 +1,10 @@
 use crate::{
     game_timer::{pause_timer, reset_timer, start_timer},
+    heartbeat::{HeartbeatState, PING_INTERVAL},
     model::{
         client_message::{ClientMessage, HostAction},
         game::Game,
-        server_message::{ServerMessage, send_msg},
+        server_message::{send_msg, ServerMessage},
         types::GameSettings,
     },
     server::{AppState, Rx, Tx},
@@ -12,7 +13,7 @@ use futures_util::{SinkExt, StreamExt};
 use log::*;
 use std::sync::Arc;
 use tokio::{net::TcpStream, sync::mpsc};
-use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
+use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 pub async fn create_game(
     app_state: Arc<AppState>,
@@ -315,35 +316,55 @@ async fn handle_host(
     game_code: String,
 ) {
     let (mut ws_write, mut ws_read) = ws_stream.split();
+    let mut heartbeat = HeartbeatState::new();
+    let mut ping_interval = tokio::time::interval(PING_INTERVAL);
 
-    let write_task = tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            if ws_write.send(msg).await.is_err() {
-                break;
-            }
-        }
-    });
-
-    let app_state2 = app_state.clone();
-    let game_code2 = game_code.clone();
-
-    let read_task = tokio::spawn(async move {
-        while let Some(Ok(msg)) = ws_read.next().await {
-            if let Ok(text) = msg.to_text() {
-                if text.is_empty() {
-                    log::warn!("Received empty message");
-                    continue;
+    loop {
+        tokio::select! {
+            // Outgoing messages from channel
+            Some(msg) = rx.recv() => {
+                if ws_write.send(msg).await.is_err() {
+                    break;
                 }
-                info!("Received message: {text}");
-                process_host_message(text, &app_state2, &game_code2, &host_tx).await;
+            }
+
+            // Incoming messages from WebSocket
+            msg_result = ws_read.next() => {
+                match msg_result {
+                    Some(Ok(Message::Pong(_))) => {
+                        heartbeat.record_pong();
+                    }
+                    Some(Ok(Message::Text(text))) => {
+                        if text.is_empty() {
+                            log::warn!("Received empty message");
+                            continue;
+                        }
+                        info!("Received message: {text}");
+                        process_host_message(&text, &app_state, &game_code, &host_tx).await;
+                    }
+                    Some(Ok(Message::Close(_))) | None => {
+                        break;
+                    }
+                    Some(Err(_)) => {
+                        break;
+                    }
+                    _ => {} // Ignore Ping (auto-handled by tungstenite), Binary
+                }
+            }
+
+            // Heartbeat ping timer
+            _ = ping_interval.tick() => {
+                if !heartbeat.is_alive() {
+                    info!("Host connection timed out (no pong received)");
+                    break;
+                }
+                if ws_write.send(Message::Ping(vec![].into())).await.is_err() {
+                    break;
+                }
             }
         }
-    });
-
-    tokio::select! {
-        _ = write_task => {},
-        _ = read_task => {},
     }
+
     info!("Host disconnected, clearing host_tx");
     if let Some(game) = app_state.games.lock().await.get_mut(&game_code) {
         game.clear_host_tx();
