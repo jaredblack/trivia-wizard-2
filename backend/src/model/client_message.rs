@@ -53,6 +53,12 @@ pub enum HostAction {
 #[serde(rename_all = "camelCase")]
 pub enum TeamAction {
     #[serde(rename_all = "camelCase")]
+    ValidateJoin {
+        team_name: String,
+        game_code: String,
+    },
+
+    #[serde(rename_all = "camelCase")]
     JoinGame {
         team_name: String,
         game_code: String,

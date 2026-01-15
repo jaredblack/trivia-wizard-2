@@ -1,19 +1,37 @@
 import { useRef } from "react";
 import { useTeamStore } from "../../../stores/useTeamStore";
+import { useWebSocket } from "../../../hooks/useWebSocket";
 import Input from "../../../components/ui/Input";
 import Button from "../../../components/ui/Button";
 
 export default function JoinStep() {
-  const { gameCode, teamName, setGameCode, setTeamName, setStep } =
-    useTeamStore();
+  const {
+    gameCode,
+    teamName,
+    isValidating,
+    setGameCode,
+    setTeamName,
+    setIsValidating,
+  } = useTeamStore();
+  const { send, connect } = useWebSocket();
   const teamNameRef = useRef<HTMLInputElement>(null);
 
-  const canProceed = gameCode.trim() !== "" && teamName.trim() !== "";
+  const canProceed =
+    gameCode.trim() !== "" && teamName.trim() !== "" && !isValidating;
 
-  const handleNext = () => {
-    if (canProceed) {
-      setStep("members");
-    }
+  const handleNext = async () => {
+    if (!canProceed) return;
+
+    setIsValidating(true);
+    await connect();
+    send({
+      team: {
+        validateJoin: {
+          gameCode: gameCode.trim(),
+          teamName: teamName.trim(),
+        },
+      },
+    });
   };
 
   const handleGameCodeChange = (value: string) => {
@@ -38,6 +56,7 @@ export default function JoinStep() {
           spellCheck={false}
           enterKeyHint="next"
           onEnter={focusTeamName}
+          disabled={isValidating}
         />
       </div>
 
@@ -51,11 +70,16 @@ export default function JoinStep() {
           className="w-full"
           enterKeyHint="done"
           onEnter={handleNext}
+          disabled={isValidating}
         />
       </div>
 
-      <Button onClick={handleNext} disabled={!canProceed} className="w-full mt-4">
-        Next
+      <Button
+        onClick={handleNext}
+        disabled={!canProceed}
+        className="w-full mt-4"
+      >
+        {isValidating ? "Validating..." : "Next"}
       </Button>
     </div>
   );

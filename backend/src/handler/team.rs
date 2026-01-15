@@ -3,7 +3,7 @@ use crate::{
     model::{
         client_message::{ClientMessage, TeamAction},
         game::Game,
-        server_message::{send_msg, ServerMessage},
+        server_message::{ServerMessage, send_msg},
         types::TeamColor,
     },
     server::{AppState, Rx, Tx},
@@ -12,7 +12,7 @@ use futures_util::{SinkExt, StreamExt};
 use log::*;
 use std::sync::Arc;
 use tokio::{net::TcpStream, sync::mpsc};
-use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
+use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
 
 pub async fn join_game(
     app_state: Arc<AppState>,
@@ -58,6 +58,39 @@ pub async fn join_game(
     }
 }
 
+/// Rejoin an existing team - preserves color and members from initial join.
+/// TeamGameState was already sent in the ValidateJoin response.
+pub async fn rejoin_game(
+    app_state: Arc<AppState>,
+    ws_stream: WebSocketStream<TcpStream>,
+    game_code: String,
+    team_name: String,
+) {
+    let (tx, rx) = mpsc::unbounded_channel::<Message>();
+    let mut games_map = app_state.games.lock().await;
+    if let Some(game) = games_map.get_mut(&game_code) {
+        info!("Team {team_name} rejoining game {game_code}");
+        game.rejoin_team(&team_name, tx.clone());
+
+        // TeamGameState already sent in ValidateJoin response, don't send again
+
+        // Send updated GameState to host (so they see team is back)
+        if let Some(host_tx) = &game.host_tx {
+            let host_msg = ServerMessage::GameState {
+                state: game.to_game_state(),
+            };
+            send_msg(host_tx, host_msg);
+        }
+
+        drop(games_map);
+        handle_team(ws_stream, app_state, rx, tx, game_code, team_name).await;
+    } else {
+        drop(games_map);
+        // This shouldn't happen since we validated in ValidateJoin
+        error!("Team {team_name} tried to rejoin game {game_code}, but it doesn't exist");
+    }
+}
+
 /// Result of processing a team action: messages to send after releasing the lock
 struct TeamActionResult {
     team_msg: ServerMessage,
@@ -68,6 +101,11 @@ struct TeamActionResult {
 /// The game reference must be held under a lock; this function does not await.
 fn process_team_action(action: TeamAction, game: &mut Game, team_name: &str) -> TeamActionResult {
     match action {
+        TeamAction::ValidateJoin { .. } => TeamActionResult {
+            team_msg: ServerMessage::error("Already validated"),
+            host_msg: None,
+        },
+
         TeamAction::JoinGame { .. } => TeamActionResult {
             team_msg: ServerMessage::error("Game already joined"),
             host_msg: None,

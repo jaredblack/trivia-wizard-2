@@ -1,6 +1,6 @@
 use crate::{TestClient, TestServer};
 
-use backend::model::client_message::{ClientMessage, HostAction};
+use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::ServerMessage;
 use backend::model::types::ScoreData;
 
@@ -73,11 +73,22 @@ async fn team_reconnects_and_score_persists() {
         other => panic!("Expected GameState with disconnected team, got {other:?}"),
     }
 
-    // Team A reconnects by sending JoinGame message again
+    // Team A reconnects by sending JoinGame message again, this time lowercase
     let mut team_a_reconnected = TestClient::connect(&server.ws_url()).await;
     team_a_reconnected
-        .join_game(&game_code, "Test Team A")
+        .send_json(&ClientMessage::Team(TeamAction::ValidateJoin {
+            team_name: "Test Team A".to_lowercase(),
+            game_code: game_code.clone(),
+        }))
         .await;
+    let response: ServerMessage = team_a_reconnected.recv_json().await;
+
+    match response {
+        ServerMessage::TeamGameState { state } => {
+            assert_eq!(state.game_code, game_code, "Game codes should match");
+        }
+        other => panic!("Expected TeamGameState message, got {other:?}"),
+    }
 
     // Host should receive GameState showing team reconnected
     let host_update: ServerMessage = host.recv_json().await;

@@ -11,6 +11,7 @@ interface TeamStore {
   teamName: string;
   teamMembers: string[];
   selectedColor: TeamColorOption | null;
+  isValidating: boolean;
 
   // Game state (from server after joining)
   teamGameState: TeamGameState | null;
@@ -27,6 +28,7 @@ interface TeamStore {
   removeMember: (index: number) => void;
   setMemberName: (index: number, name: string) => void;
   setColor: (color: TeamColorOption) => void;
+  setIsValidating: (isValidating: boolean) => void;
   setTeamGameState: (state: TeamGameState) => void;
   setTimerSecondsRemaining: (seconds: number) => void;
   setError: (error: string | null) => void;
@@ -39,6 +41,7 @@ const initialState = {
   teamName: "",
   teamMembers: [""],
   selectedColor: null,
+  isValidating: false,
   teamGameState: null,
   error: null,
 };
@@ -70,6 +73,8 @@ export const useTeamStore = create<TeamStore>((set) => ({
     })),
 
   setColor: (selectedColor) => set({ selectedColor }),
+
+  setIsValidating: (isValidating) => set({ isValidating }),
 
   setTeamGameState: (teamGameState) => set({ teamGameState, step: "game" }),
 

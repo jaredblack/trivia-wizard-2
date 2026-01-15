@@ -49,6 +49,9 @@ pub enum ServerMessage {
     #[serde(rename_all = "camelCase")]
     TeamGameState { state: TeamGameState },
 
+    /// Simple acknowledgement that join validation passed (new team, game exists)
+    JoinValidated,
+
     /// Lightweight timer tick (sent to all clients each second while timer runs)
     #[serde(rename_all = "camelCase")]
     TimerTick { seconds_remaining: u32 },

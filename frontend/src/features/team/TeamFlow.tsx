@@ -29,8 +29,6 @@ export default function TeamFlow() {
     setStep,
     setGameCode,
     setTeamName,
-    setTeamMembers,
-    setColor,
     setError,
     reset,
   } = useTeamStore();
@@ -61,21 +59,16 @@ export default function TeamFlow() {
     // Populate store with saved data
     setGameCode(rejoinData.gameCode);
     setTeamName(rejoinData.teamName);
-    setTeamMembers(rejoinData.teamMembers);
-    setColor({ hex: rejoinData.colorHex, name: rejoinData.colorName });
 
-    // Wait for connection then send join message
+    // Wait for connection then send validateJoin message
     const attemptRejoin = async () => {
       try {
         await connect();
         send({
           team: {
-            joinGame: {
+            validateJoin: {
               gameCode: rejoinData.gameCode,
               teamName: rejoinData.teamName,
-              colorHex: rejoinData.colorHex,
-              colorName: rejoinData.colorName,
-              teamMembers: rejoinData.teamMembers,
             },
           },
         });
@@ -88,22 +81,18 @@ export default function TeamFlow() {
       }
     };
     attemptRejoin();
-  }, [connect, send, setGameCode, setTeamName, setTeamMembers, setColor, reset, navigate]);
+  }, [connect, send, setGameCode, setTeamName, reset, navigate]);
 
   // Save team data when successfully joined (step becomes "game")
   useEffect(() => {
-    if (step === "game" && selectedColor) {
-      const filledMembers = teamMembers.filter((m) => m.trim() !== "");
+    if (step === "game") {
       saveTeamRejoin({
         gameCode: gameCode.trim(),
         teamName: teamName.trim(),
-        teamMembers: filledMembers,
-        colorHex: selectedColor.hex,
-        colorName: selectedColor.name,
       });
       setIsRejoining(false);
     }
-  }, [step, gameCode, teamName, teamMembers, selectedColor]);
+  }, [step, gameCode, teamName]);
 
   // Clear storage on error during rejoin
   useEffect(() => {
@@ -113,7 +102,7 @@ export default function TeamFlow() {
     }
   }, [isRejoining, error]);
 
-  // Handle reconnection success: re-send joinGame to restore server state
+  // Handle reconnection success: re-send validateJoin to restore server state
   useEffect(() => {
     if (
       prevConnectionState.current === "reconnecting" &&
@@ -124,12 +113,9 @@ export default function TeamFlow() {
       if (rejoinData) {
         send({
           team: {
-            joinGame: {
+            validateJoin: {
               gameCode: rejoinData.gameCode,
               teamName: rejoinData.teamName,
-              colorHex: rejoinData.colorHex,
-              colorName: rejoinData.colorName,
-              teamMembers: rejoinData.teamMembers,
             },
           },
         });
@@ -164,12 +150,9 @@ export default function TeamFlow() {
             await connect();
             send({
               team: {
-                joinGame: {
+                validateJoin: {
                   gameCode: rejoinData.gameCode,
                   teamName: rejoinData.teamName,
-                  colorHex: rejoinData.colorHex,
-                  colorName: rejoinData.colorName,
-                  teamMembers: rejoinData.teamMembers,
                 },
               },
             });

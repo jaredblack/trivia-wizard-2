@@ -62,6 +62,22 @@ impl Game {
         }
     }
 
+    /// Find a team by name (case-insensitive)
+    pub fn find_team(&self, team_name: &str) -> Option<&TeamData> {
+        let name_lower = team_name.to_lowercase();
+        self.teams
+            .iter()
+            .find(|t| t.team_name.to_lowercase() == name_lower)
+    }
+
+    /// Find a team by name (case-insensitive) with mutable access
+    pub fn find_team_mut(&mut self, team_name: &str) -> Option<&mut TeamData> {
+        let name_lower = team_name.to_lowercase();
+        self.teams
+            .iter_mut()
+            .find(|t| t.team_name.to_lowercase() == name_lower)
+    }
+
     pub fn set_host_tx(&mut self, host_tx: Tx) {
         self.host_tx = Some(host_tx);
     }
@@ -78,10 +94,10 @@ impl Game {
         team_members: Vec<String>,
     ) {
         // Add to connection tracking
-        self.teams_tx.insert(team_name.clone(), team_tx);
+        self.teams_tx.insert(team_name.to_lowercase(), team_tx);
 
         // Check if team already exists (reconnection scenario)
-        if let Some(team) = self.teams.iter_mut().find(|t| t.team_name == team_name) {
+        if let Some(team) = self.find_team_mut(&team_name) {
             // Team is reconnecting - preserve their score and update connection status
             team.connected = true;
             team.team_members = team_members;
@@ -96,6 +112,18 @@ impl Game {
                 connected: true,
             });
         }
+    }
+
+    /// Rejoin an existing team - preserves color and members, just marks connected
+    pub fn rejoin_team(&mut self, team_name: &str, team_tx: Tx) -> bool {
+        // Check if team exists first
+        if self.find_team(team_name).is_none() {
+            return false;
+        }
+        self.teams_tx.insert(team_name.to_lowercase(), team_tx);
+        // Safe to unwrap since we just checked existence
+        self.find_team_mut(team_name).unwrap().connected = true;
+        true
     }
 
     pub fn current_question(&self) -> &Question {
@@ -121,7 +149,7 @@ impl Game {
 
     /// Convert to the filtered wire format for team clients
     pub fn to_team_game_state(&self, team_name: &str) -> Option<TeamGameState> {
-        let team = self.teams.iter().find(|t| t.team_name == team_name)?;
+        let team = self.find_team(team_name)?;
         let questions: Vec<_> = self
             .questions
             .iter()
@@ -281,7 +309,7 @@ impl Game {
 
     /// Override a team's total score with additional points
     pub fn override_team_score(&mut self, team_name: &str, override_points: i32) -> bool {
-        if let Some(team) = self.teams.iter_mut().find(|t| t.team_name == team_name) {
+        if let Some(team) = self.find_team_mut(team_name) {
             team.score.override_points = override_points;
             true
         } else {
@@ -301,7 +329,7 @@ impl Game {
             }
         }
 
-        if let Some(team) = self.teams.iter_mut().find(|t| t.team_name == team_name) {
+        if let Some(team) = self.find_team_mut(team_name) {
             team.score.question_points = total_question_points;
             team.score.bonus_points = total_bonus_points;
             // override_points is preserved (not recalculated)
@@ -368,7 +396,7 @@ impl Game {
 
     /// Set a team's connected status
     pub fn set_team_connected(&mut self, team_name: &str, connected: bool) -> bool {
-        if let Some(team) = self.teams.iter_mut().find(|t| t.team_name == team_name) {
+        if let Some(team) = self.find_team_mut(team_name) {
             team.connected = connected;
             true
         } else {

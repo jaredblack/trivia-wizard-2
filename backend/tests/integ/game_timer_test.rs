@@ -123,7 +123,6 @@ async fn timer_ticks_broadcast_to_all_clients() {
     // Note: Full timer expiration testing requires UpdateQuestionSettings to set shorter durations
 }
 
-
 #[tokio::test]
 async fn timer_pause_prevents_further_ticks() {
     let server = TestServer::start().await;

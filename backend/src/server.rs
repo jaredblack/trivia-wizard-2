@@ -156,30 +156,100 @@ async fn handle_connection(stream: TcpStream, app_state: Arc<AppState>) -> Resul
                         }
                         ClientMessage::Team(action) => {
                             info!("Team message: {action:?}");
-                            if let TeamAction::JoinGame {
+                            if let TeamAction::ValidateJoin {
                                 game_code,
                                 team_name,
-                                color_hex,
-                                color_name,
-                                team_members,
                             } = action
                             {
-                                team::join_game(
-                                    app_state,
-                                    ws_stream,
-                                    game_code,
-                                    team_name,
-                                    color_hex,
-                                    color_name,
-                                    team_members,
-                                )
-                                .await;
+                                // Validate game code and team name
+                                let response = {
+                                    let games_map = app_state.games.lock().await;
+                                    if let Some(game) = games_map.get(&game_code) {
+                                        // Check if team exists and its connection status
+                                        if let Some(team_data) = game.find_team(&team_name) {
+                                            if team_data.connected {
+                                                ServerMessage::error("Team name already in use")
+                                            } else {
+                                                // Rejoin path - return TeamGameState
+                                                game.to_team_game_state(&team_name)
+                                                    .map(|state| ServerMessage::TeamGameState {
+                                                        state,
+                                                    })
+                                                    .unwrap_or_else(|| {
+                                                        ServerMessage::error(
+                                                            "Failed to get team state",
+                                                        )
+                                                    })
+                                            }
+                                        } else {
+                                            ServerMessage::JoinValidated
+                                        }
+                                    } else {
+                                        ServerMessage::error("Game code not found")
+                                    }
+                                };
+
+                                // Send response
+                                let msg = serde_json::to_string(&response).unwrap();
+                                ws_stream.send(Message::text(msg)).await?;
+
+                                match response {
+                                    ServerMessage::Error { .. } => {
+                                        // Error case: terminate connection
+                                        return Ok(());
+                                    }
+                                    ServerMessage::TeamGameState { .. } => {
+                                        // Rejoin case: enter game loop immediately
+                                        team::rejoin_game(
+                                            app_state, ws_stream, game_code, team_name,
+                                        )
+                                        .await;
+                                    }
+                                    ServerMessage::JoinValidated => {
+                                        // New team case: wait for JoinGame message
+                                        if let Some(Ok(msg)) = ws_stream.next().await {
+                                            if let Ok(text) = msg.to_text() {
+                                                match serde_json::from_str::<ClientMessage>(text) {
+                                                    Ok(ClientMessage::Team(
+                                                        TeamAction::JoinGame {
+                                                            game_code,
+                                                            team_name,
+                                                            color_hex,
+                                                            color_name,
+                                                            team_members,
+                                                        },
+                                                    )) => {
+                                                        team::join_game(
+                                                            app_state,
+                                                            ws_stream,
+                                                            game_code,
+                                                            team_name,
+                                                            color_hex,
+                                                            color_name,
+                                                            team_members,
+                                                        )
+                                                        .await;
+                                                    }
+                                                    _ => {
+                                                        let error = ServerMessage::error(
+                                                            "Expected JoinGame after ValidateJoin",
+                                                        );
+                                                        let msg =
+                                                            serde_json::to_string(&error).unwrap();
+                                                        ws_stream.send(Message::text(msg)).await?;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    _ => {}
+                                }
                             } else {
                                 error!(
-                                    "Expected JoinGame from new Team connection, instead got: {action:?}"
+                                    "Expected ValidateJoin from new Team connection, instead got: {action:?}"
                                 );
                                 let error_message =
-                                    ServerMessage::error("First action must be JoinGame");
+                                    ServerMessage::error("First action must be ValidateJoin");
                                 let msg = serde_json::to_string(&error_message).unwrap();
                                 ws_stream.send(Message::text(msg)).await?;
                             }

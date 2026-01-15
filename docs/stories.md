@@ -2,99 +2,6 @@ We are building the Trivia Wizard app as described in overview.md. We will only 
 
 ---
 
-Hello! Today we are going to plan the implementation for basic team joining functionality in Trivia Wizard. All of the
-backend functionality supporting this UI is already in place. I will explain the basic flow, which is also 
-represented in the images I provided. All of these views will have a header with the Trivia Wizard 2.0 logo, and
-for items 2-4, there will be a back chevron which will take the team back to the previous view (preserving previously entered data.):
-1. Team selects "Join game". The client establishes a websocket connection to the backend (technically this is earlier than necessary, but later we'll want to add a call here to check that the game code/team name are valid before continuing on so we'll put the initial WS connection here for now).
-2. Team inputs game code & team name, presses "next"
-3. Team sees a new view consisting of a single text input, a button to add more text inputs, and a "Next" 
-button. On this view, they'll input the names of all team members before pressing "Next", pressing the + button 
-to add more team member names if needed
-4. Team will see a color selection screen consisting of 16 color choices. The team will select a color, the 
-button below will dynamically update to say "Choose <color name>". When they press that button, all of the data 
-necessary to join the game will have been collected, and the client will send a JoinGame action to the server. NOTE: this means game code & team name won't be validated until the end of the flow. This is an intentional simplification. Later we will add another action to validate those things before fully joining the game.
-
-Once the game is joined, we'll go to a placeholder in-game view where we will later add all the answer submission UI.
-
-The backend operation (JoinGame) is already available for this. Additionally, the host UI is 
-already implemented. In creating an implementation plan for what I described, you should explore the code to see
- what you'll need to add.
-
-An error returned from the server on the JoinGame operation will display a toast and send the user back to the screen where they should input game code.
-
-It may also help to consult frontend-structure.md.
-
-These views will be all optimized for mobile layouts as they are in the mocks. What questions do you have for me
- before planning and then implementing this? 
-
-
-1. If successful, the team will now be in-game. There are three views here. All views have a header (below the 
-logo header) with team color, team name, question number, and the game timer.
-a. "Submissions are not yet open". The View Score Log and Team Settings buttons will be available on the bottom 
-of the screen.
-b. Score input. This will vary by Question Type. For the Standard question type (which is the only question type
- we are implementing for now), it will be a single multi-line text input and a "Submit answer" button. This 
-button will have a background color of the team color.
-c. "Submissions closed." This view will also show what answer the team submitted for the current question. This 
-view will again have the View Score Log and Team Settings buttons. These buttons will just be stubs for now, but
- in the future they will open modals on top of the current view.
-
-The three views can roughly be thought of as following a state machine:
-S0: New question created (a) -> S1: Answers are open (b) -> S2 -> Answer submitted (c).
-  - "Submissions not yet open": timerRunning === false AND team has no answer for current question
-  - "Answer input": timerRunning === true
-  - "Submissions closed": timerRunning === false AND team has submitted answer for current question
-
-
-When the host navigates to a new question, we go will back to S0. If the host navigates to an old question, the 
-team will see view C with the old answer they submitted for that question.
-
-We're going to implement the view that comes up with the View Score Log button. I want this to be a drawer that animates up from the bottom of the screen, and shows a log of every question and how it was scored. Here's what I want it to display:
-
-Top to bottom:
-
-Score Log
-<Team name>
-Questions: {score.questionPoints}, Bonus: {score.bonusPoints}, Override: {score.overridePoints}
-
-Question 5:
-Your answer: {question.answer.toString()}
-Score: Question: {question.score.questionPoints}, Bonus: {question.score.bonusPoints}
-
-Question 4:
-Your answer: {question.answer.toString()}
-Score: Question: {question.score.questionPoints}, Bonus: {question.score.bonusPoints}
-New data model
-...
-
-(questions should display in reverse order)
-
-
-We're going to need to define custom toString implementations for each question type that will give us a displayable version of the answer for here. For standard question type, it will just be answer.answerText.
-
-The drawer should fill 80% of the screen. There will be an X button in the top right to close it, or pressing outside of the drawer area should also cause it to close (animate back down to the bottom of the screen.)
-
-```
-pub struct HostQuestion {
-    pub timer_duration: u32,
-    pub question_points: u32,
-    pub bonus_increment: u32,
-    pub question_kind: QuestionKind
-    pub question_data: Vec<Answer>,
-}
-
-struct Answer {
-   team_name: String
-   score: Option<ScoreData>,
-   content: AnswerData
-}
-
-```
-
-
-   
-
 ## CR comments
 - [ ] still just stringifying JSON in create game, should be using strong types
    - this will be resolved with the frontend tasks
@@ -123,8 +30,28 @@ struct Answer {
 
 ## soonish
 - Words as game codes: I think bundling up some list of a few thousand words that can be random game codes seems reasonable enough. I don't think we need to do an external API call like in TW1
-- game settings updates should update the current question's settings iff there are no answers already for that question (which should be the same condition as being able to update question settings). there should be a warning on the game settings modal if you're trying to update after answers have come in: this won't update the current question (and also it won't retroactively change questions)
-- definitely need to add some server tests around scoring. as part of that, should break up websocket_tests into multiple semantically grouped files
+- [I think this is done] game settings updates should update the current question's settings iff there are no answers already for that question (which should be the same condition as being able to update question settings). there should be a warning on the game settings modal if you're trying to update after answers have come in: this won't update the current question (and also it won't retroactively change questions)
+
+## pre-IA (Jan trivia night)
+- Investigate "Failed to parse message: EOF while parsing a value at line 1 column 0"
+- Game code/team name validation immediately, not at the end of the flow
+   - Make sure we're trimming team names. Also should probably match case-insensitive
+   - I think this could also help as a shortcut for rejoiners
+- The "submissions closed" screen should only show if the timer got to 0, not just if it opened then closed (well, unless they submitted an answer)
+- Multiple choice question type
+- At least one other question type, possibly based on the questions that I write for this trivia night (probably multi-answer)
+
+## ideally also
+- auto-score identical answers
+   - game settings toggle for if it should do this at all, and if it should match bonus points or just base points
+- automatically applied speed bonuses
+
+# future playwright test cases
+- auto-submit
+
+# Current Status:
+- Most tests failing. They need to call ValidateJoin first
+- Auto-rejoin currently broken. They need to be modified to just call ValidateJoin (this is a simplifier as we no longer have to serialize/store color/member info)
 
 ## potential refactors
 - [ ] this block seems to be repeated (but this will also need to change with the above changes to HostActionResult):
@@ -143,6 +70,7 @@ let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
 - update verification email
 - set an alarm on log::error from my app?
 - game db lifecycle - I've never actually gone back to look at old trivia games since they're not that interesting. maybe they shouldn't really be persisted for that long? I think no DB at all, while removing a dependency which would be nice, would just be asking for trouble. The way things are going now, we'll start with no persistence and then figure out what the best way to do it is. Writing to a DB with every operation like I did for TW1 feels unnecessary when the server can track the state that realistically only needs to be temporary. One halfway option could be just serializing the whole game state every once in a while and writing it to S3 or a document DB? 
+   - I need to be able to have old games for Amy's usecase
 - submissions should auto-close when all answers have been received
 - Also need to validate that user id matches when reclaiming a game
 - Add a PartialJoin (need a better name) API for the frontend to call after you put in a game code/team name to verify that (a) game code is valid and (b) team name is available
@@ -150,9 +78,6 @@ let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
 
 
 ## beta
-- AUTO-SUBMIT
-- rejoin is very suspect. at least I need to invalidate cache on a failed rejoin.
-   "refresh to reconnect" page is kinda evil
 - need a ranking question type
 - it's showing nick as disconnected but he can stil submit
 

@@ -10,9 +10,6 @@ export interface HostRejoinData {
 export interface TeamRejoinData {
   gameCode: string;
   teamName: string;
-  teamMembers: string[];
-  colorHex: string;
-  colorName: string;
   savedAt: number;
 }
 
@@ -70,10 +67,7 @@ export function getTeamRejoin(): TeamRejoinData | null {
     const parsed = JSON.parse(data);
     if (
       typeof parsed.gameCode === "string" &&
-      typeof parsed.teamName === "string" &&
-      Array.isArray(parsed.teamMembers) &&
-      typeof parsed.colorHex === "string" &&
-      typeof parsed.colorName === "string"
+      typeof parsed.teamName === "string"
     ) {
       // Check expiration
       if (parsed.savedAt && Date.now() - parsed.savedAt > EXPIRATION_MS) {

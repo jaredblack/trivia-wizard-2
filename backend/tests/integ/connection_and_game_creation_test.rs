@@ -25,22 +25,18 @@ async fn team_joins_nonexistent_game_receives_error() {
     let server = TestServer::start().await;
 
     let mut team = TestClient::connect(&server.ws_url()).await;
-    team.send_json(&ClientMessage::Team(TeamAction::JoinGame {
-        game_code: "nonexistent".to_string(),
-        team_name: "Test Team".to_string(),
-        color_hex: "#DC2626".to_string(),
-        color_name: "Red".to_string(),
-        team_members: vec!["Test Player".to_string()],
+    team.send_json(&ClientMessage::Team(TeamAction::ValidateJoin {
+        team_name: "mememe".to_string(),
+        game_code: "NONE".to_string(),
     }))
     .await;
-
     let response: ServerMessage = team.recv_json().await;
-
     match response {
         ServerMessage::Error { message, .. } => {
             assert!(
-                message.contains("nonexistent"),
-                "Error should mention the game code"
+                message.contains("not found"),
+                "Error should mention the game code, got {}",
+                message
             );
         }
         other => panic!("Expected Error message, got {other:?}"),

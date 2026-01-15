@@ -143,6 +143,16 @@ impl TestClient {
 
     /// Send JoinGame and verify success
     pub async fn join_game(&mut self, game_code: &str, team_name: &str) {
+        self.send_json(&ClientMessage::Team(TeamAction::ValidateJoin {
+            team_name: team_name.to_string(),
+            game_code: game_code.to_string(),
+        }))
+        .await;
+        let response: ServerMessage = self.recv_json().await;
+        match response {
+            ServerMessage::JoinValidated => (),
+            other => panic!("Expected JoinValidated message, got {other:?}"),
+        }
         self.send_json(&ClientMessage::Team(TeamAction::JoinGame {
             game_code: game_code.to_string(),
             team_name: team_name.to_string(),

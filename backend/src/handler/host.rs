@@ -4,7 +4,7 @@ use crate::{
     model::{
         client_message::{ClientMessage, HostAction},
         game::Game,
-        server_message::{send_msg, ServerMessage},
+        server_message::{ServerMessage, send_msg},
         types::GameSettings,
     },
     server::{AppState, Rx, Tx},
@@ -13,7 +13,7 @@ use futures_util::{SinkExt, StreamExt};
 use log::*;
 use std::sync::Arc;
 use tokio::{net::TcpStream, sync::mpsc};
-use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
+use tokio_tungstenite::{WebSocketStream, tungstenite::Message};
 
 pub async fn create_game(
     app_state: Arc<AppState>,
@@ -159,11 +159,15 @@ fn process_host_action(
                 let host_msg = ServerMessage::GameState {
                     state: game.to_game_state(),
                 };
-                let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
-                    game.to_team_game_state(&team_name).map(|state| {
-                        TeamMessage::Single(tx, ServerMessage::TeamGameState { state })
-                    })
-                });
+                let team_msg = game
+                    .teams_tx
+                    .get(&team_name.to_lowercase())
+                    .cloned()
+                    .and_then(|tx| {
+                        game.to_team_game_state(&team_name).map(|state| {
+                            TeamMessage::Single(tx, ServerMessage::TeamGameState { state })
+                        })
+                    });
                 HostActionResult { host_msg, team_msg }
             } else {
                 HostActionResult {
@@ -184,11 +188,15 @@ fn process_host_action(
                 let host_msg = ServerMessage::GameState {
                     state: game.to_game_state(),
                 };
-                let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
-                    game.to_team_game_state(&team_name).map(|state| {
-                        TeamMessage::Single(tx, ServerMessage::TeamGameState { state })
-                    })
-                });
+                let team_msg = game
+                    .teams_tx
+                    .get(&team_name.to_lowercase())
+                    .cloned()
+                    .and_then(|tx| {
+                        game.to_team_game_state(&team_name).map(|state| {
+                            TeamMessage::Single(tx, ServerMessage::TeamGameState { state })
+                        })
+                    });
                 HostActionResult { host_msg, team_msg }
             } else {
                 HostActionResult {

@@ -145,11 +145,16 @@ export interface ErrorMessage {
   state?: GameState;
 }
 
+export interface JoinValidatedMessage {
+  type: "joinValidated";
+}
+
 export type ServerMessage =
   | GameStateMessage
   | TeamGameStateMessage
   | TimerTickMessage
-  | ErrorMessage;
+  | ErrorMessage
+  | JoinValidatedMessage;
 
 // === Client Messages ===
 
@@ -221,6 +226,11 @@ export type HostAction =
   | UpdateQuestionSettingsAction;
 
 // Team actions use externally tagged enum format (variant name as key)
+export interface ValidateJoinData {
+  teamName: string;
+  gameCode: string;
+}
+
 export interface JoinGameData {
   teamName: string;
   gameCode: string;
@@ -235,6 +245,7 @@ export interface SubmitAnswerData {
 }
 
 export type TeamAction =
+  | { validateJoin: ValidateJoinData }
   | { joinGame: JoinGameData }
   | { submitAnswer: SubmitAnswerData };
 

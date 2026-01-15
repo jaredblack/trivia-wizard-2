@@ -24,6 +24,9 @@ export function useWebSocket() {
   );
   const setTeamError = useTeamStore((state) => state.setError);
   const setTeamStep = useTeamStore((state) => state.setStep);
+  const setTeamIsValidating = useTeamStore((state) => state.setIsValidating);
+  const setTeamColor = useTeamStore((state) => state.setColor);
+  const setTeamMembers = useTeamStore((state) => state.setTeamMembers);
 
   useEffect(() => {
     // Subscribe to connection state changes
@@ -42,20 +45,43 @@ export function useWebSocket() {
             setTimerSecondsRemaining(message.secondsRemaining);
             setTeamTimerSecondsRemaining(message.secondsRemaining);
             break;
+          case "joinValidated":
+            // Validation passed - advance to members step
+            setTeamIsValidating(false);
+            setTeamStep("members");
+            break;
           case "error":
             console.error("Server error:", message.message);
             // Handle error for host (rollback state if provided)
             if (message.state) {
               setGameState(message.state);
             }
-            // Handle error for team (show error and go back to join step)
+            // Handle error for team (show error, stop validating, go back to join step)
+            setTeamIsValidating(false);
             setTeamError(message.message);
             setTeamStep("join");
             break;
-          case "teamGameState":
-            // Update team store with game state
+          case "teamGameState": {
+            // Check if this is a rejoin response (still on join step, isValidating)
+            const currentStep = useTeamStore.getState().step;
+            const isValidating = useTeamStore.getState().isValidating;
+
+            if (currentStep === "join" && isValidating) {
+              // Rejoin scenario - populate store from returned team data
+              // Backend handles the rejoin directly, no need to send JoinGame
+              const teamData = message.state.team;
+              setTeamColor({
+                hex: teamData.teamColor.hexCode,
+                name: teamData.teamColor.name,
+              });
+              setTeamMembers(teamData.teamMembers);
+            }
+
+            setTeamIsValidating(false);
+            // Update team store with game state (this also sets step to "game")
             setTeamGameState(message.state);
             break;
+          }
         }
       }
     );
@@ -67,7 +93,7 @@ export function useWebSocket() {
       unsubscribeState();
       unsubscribeMessage();
     };
-  }, [setGameState, setTimerSecondsRemaining, setTeamGameState, setTeamTimerSecondsRemaining, setTeamError, setTeamStep]);
+  }, [setGameState, setTimerSecondsRemaining, setTeamGameState, setTeamTimerSecondsRemaining, setTeamError, setTeamStep, setTeamIsValidating, setTeamColor, setTeamMembers]);
 
   const send = useCallback((message: ClientMessage) => {
     webSocketService.send(message);
