@@ -114,9 +114,9 @@ async fn handle_connection(stream: TcpStream, app_state: Arc<AppState>) -> Resul
 
     if let Some(msg) = ws_stream.next().await {
         let msg = msg?;
-        if let Ok(text) = msg.to_text() {
+        if let Message::Text(text) = msg {
             info!("Received message: {text}");
-            match serde_json::from_str::<ClientMessage>(text) {
+            match serde_json::from_str::<ClientMessage>(&text) {
                 Ok(client_message) => {
                     info!("Parsed message: {client_message:?}");
                     match client_message {
@@ -208,8 +208,8 @@ async fn handle_connection(stream: TcpStream, app_state: Arc<AppState>) -> Resul
                                     ServerMessage::JoinValidated => {
                                         // New team case: wait for JoinGame message
                                         if let Some(Ok(msg)) = ws_stream.next().await {
-                                            if let Ok(text) = msg.to_text() {
-                                                match serde_json::from_str::<ClientMessage>(text) {
+                                            if let Message::Text(text) = msg {
+                                                match serde_json::from_str::<ClientMessage>(&text) {
                                                     Ok(ClientMessage::Team(
                                                         TeamAction::JoinGame {
                                                             game_code,
