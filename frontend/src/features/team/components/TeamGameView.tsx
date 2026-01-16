@@ -15,7 +15,6 @@ export default function TeamGameView() {
   const navigate = useNavigate();
   const { teamGameState, gameCode, reset } = useTeamStore();
   const [draftAnswer, setDraftAnswer] = useState("");
-  const [timerHasOpened, setTimerHasOpened] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [showScoreLog, setShowScoreLog] = useState(false);
 
@@ -30,17 +29,8 @@ export default function TeamGameView() {
 
   // Reset timerHasOpened and draftAnswer when question changes
   useEffect(() => {
-    setTimerHasOpened(hasAnswer);
     setDraftAnswer("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentQuestionNumber]);
-
-  // Set timerHasOpened to true when timer starts
-  useEffect(() => {
-    if (timerRunning) {
-      setTimerHasOpened(true);
-    }
-  }, [timerRunning]);
 
   // Auto-submit when timer reaches 0 (not when host closes early)
   const timerSecondsRemaining = teamGameState?.timerSecondsRemaining;
@@ -101,7 +91,7 @@ export default function TeamGameView() {
 
   const renderContent = () => {
     // View A: Submissions not yet open
-    if (!timerRunning && !timerHasOpened) {
+    if (!timerRunning && timerSeconds > 0 && !hasAnswer) {
       return (
         <div className="flex-1 flex flex-col items-center justify-center">
           <p className="text-base text-gray-600 text-center">
