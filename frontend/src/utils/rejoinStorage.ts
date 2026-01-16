@@ -53,6 +53,11 @@ export function clearHostRejoin(): void {
 
 export function saveTeamRejoin(data: Omit<TeamRejoinData, "savedAt">): void {
   try {
+    // Don't save if gameCode or teamName are empty
+    if (!data.gameCode || !data.teamName) {
+      console.warn("Attempted to save team rejoin data with empty gameCode or teamName");
+      return;
+    }
     const dataWithTimestamp: TeamRejoinData = { ...data, savedAt: Date.now() };
     localStorage.setItem(TEAM_REJOIN_KEY, JSON.stringify(dataWithTimestamp));
   } catch (e) {
@@ -65,9 +70,12 @@ export function getTeamRejoin(): TeamRejoinData | null {
     const data = localStorage.getItem(TEAM_REJOIN_KEY);
     if (!data) return null;
     const parsed = JSON.parse(data);
+    // Validate that gameCode and teamName are non-empty strings
     if (
       typeof parsed.gameCode === "string" &&
-      typeof parsed.teamName === "string"
+      typeof parsed.teamName === "string" &&
+      parsed.gameCode.length > 0 &&
+      parsed.teamName.length > 0
     ) {
       // Check expiration
       if (parsed.savedAt && Date.now() - parsed.savedAt > EXPIRATION_MS) {
