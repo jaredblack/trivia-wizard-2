@@ -8,6 +8,73 @@ export const questionKindLabels: Record<QuestionKind, string> = {
   multipleChoice: "Multiple Choice",
 };
 
+// === Multiple Choice Configuration ===
+
+export type McOptionType =
+  | "letters"
+  | "numbers"
+  | "yesNo"
+  | "trueFalse"
+  | "other";
+
+export const mcOptionTypeLabels: Record<McOptionType, string> = {
+  letters: "Letters",
+  numbers: "Numbers",
+  yesNo: "Yes / No",
+  trueFalse: "True / False",
+  other: "Other",
+};
+
+export interface McConfig {
+  optionType: McOptionType;
+  numOptions: number;
+  customOptions?: string[];
+}
+
+export const defaultMcConfig: McConfig = {
+  optionType: "letters",
+  numOptions: 4,
+};
+
+// === Question Config (discriminated union by question kind) ===
+
+export interface StandardQuestionConfig {
+  type: "standard";
+}
+
+export interface MultiAnswerQuestionConfig {
+  type: "multiAnswer";
+}
+
+export interface MultipleChoiceQuestionConfig {
+  type: "multipleChoice";
+  config: McConfig;
+}
+
+export type QuestionConfig =
+  | StandardQuestionConfig
+  | MultiAnswerQuestionConfig
+  | MultipleChoiceQuestionConfig;
+
+// Helper function to generate MC options based on config
+export function getMcOptions(config: McConfig): string[] {
+  const { optionType, numOptions } = config;
+
+  switch (optionType) {
+    case "letters":
+    case "other": // "Other" defaults to letters initially
+      return Array.from({ length: numOptions }, (_, i) =>
+        String.fromCharCode(65 + i)
+      );
+    case "numbers":
+      return Array.from({ length: numOptions }, (_, i) => String(i + 1));
+    case "yesNo":
+      return ["Yes", "No"];
+    case "trueFalse":
+      return ["True", "False"];
+  }
+}
+
 // === Score Types ===
 
 export interface ScoreData {
@@ -20,17 +87,18 @@ export function getScore(score: ScoreData): number {
   return score.questionPoints + score.bonusPoints + score.overridePoints;
 }
 
-// === TeamQuestionResult ===
+// === TeamQuestion ===
 // Represents a team's state for a question, including their answer (if any) and score.
-// - On the host side (Question.answers): only contains entries for teams that submitted,
-//   so content is always present in practice.
+// - On the host side (Question.answers): only contains entries for teams that submitted.
 // - On the team side (TeamGameState.questions): includes all historic questions,
 //   so content may be null if the team didn't submit.
 
-export interface TeamQuestionResult {
+export interface TeamQuestion {
   teamName: string;
   score: ScoreData;
   content: AnswerContent | null;
+  questionKind: QuestionKind;
+  questionConfig: QuestionConfig;
 }
 
 // The content of a team's answer, varying by question type.
@@ -72,7 +140,8 @@ export interface Question {
   questionPoints: number;
   bonusIncrement: number;
   questionKind: QuestionKind;
-  answers: TeamQuestionResult[];
+  questionConfig: QuestionConfig;
+  answers: TeamQuestion[];
 }
 
 // === Game Settings ===
@@ -82,6 +151,7 @@ export interface GameSettings {
   defaultQuestionPoints: number;
   defaultBonusIncrement: number;
   defaultQuestionType: QuestionKind;
+  defaultMcConfig: McConfig;
 }
 
 // === Team Types ===
@@ -119,7 +189,7 @@ export interface TeamGameState {
   timerRunning: boolean;
   timerSecondsRemaining: number | null;
   team: TeamData;
-  questions: TeamQuestionResult[];
+  questions: TeamQuestion[];
 }
 
 // === Server Messages (tagged union with "type" discriminator) ===
@@ -202,6 +272,7 @@ export interface UpdateGameSettingsAction {
   defaultQuestionPoints: number;
   defaultBonusIncrement: number;
   defaultQuestionType: QuestionKind;
+  defaultMcConfig: McConfig;
 }
 
 export interface UpdateQuestionSettingsAction {
@@ -211,6 +282,7 @@ export interface UpdateQuestionSettingsAction {
   questionPoints: number;
   bonusIncrement: number;
   questionType: QuestionKind;
+  mcConfig?: McConfig;
 }
 
 export type HostAction =

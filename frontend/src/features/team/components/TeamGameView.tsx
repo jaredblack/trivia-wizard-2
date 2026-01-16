@@ -5,11 +5,12 @@ import { webSocketService } from "../../../services/websocket";
 import { clearTeamRejoin } from "../../../utils/rejoinStorage";
 import TimerDisplay from "../../../components/ui/TimerDisplay";
 import Button from "../../../components/ui/Button";
-import ColorButton from "../../../components/ui/ColorButton";
 import ConfirmationModal from "../../../components/ui/ConfirmationModal";
 import TeamHeader from "./TeamHeader";
 import ScoreLogDrawer from "./ScoreLogDrawer";
-import { getScore } from "../../../types";
+import StandardAnswerInput from "./StandardAnswerInput";
+import MultipleChoiceAnswerInput from "./MultipleChoiceAnswerInput";
+import { getScore, getMcOptions, answerToString } from "../../../types";
 
 export default function TeamGameView() {
   const navigate = useNavigate();
@@ -58,9 +59,12 @@ export default function TeamGameView() {
 
   const { team } = teamGameState;
 
-  // Get the submitted answer text (for Standard type)
-  const submittedAnswerText =
-    content?.type === "standard" ? content.answerText : null;
+  // Get question type and config from current question
+  const questionKind = currentQuestion?.questionKind ?? "standard";
+  const questionConfig = currentQuestion?.questionConfig;
+
+  // Get the submitted answer text (for any content type)
+  const submittedAnswerText = content ? answerToString(content) : null;
 
   const handleSubmitAnswer = () => {
     if (!draftAnswer.trim()) return;
@@ -103,24 +107,31 @@ export default function TeamGameView() {
 
     // View B: Answer input
     if (timerRunning && !hasAnswer) {
-      return (
-        <div className="flex flex-col gap-3">
-          <label className="text-base">Answer</label>
-          <textarea
-            value={draftAnswer}
-            onChange={(e) => setDraftAnswer(e.target.value)}
-            rows={3}
-            className="w-full p-3 border border-gray-300 rounded-lg resize-y focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+      // Multiple choice input
+      if (
+        questionKind === "multipleChoice" &&
+        questionConfig?.type === "multipleChoice"
+      ) {
+        const options = getMcOptions(questionConfig.config);
+        return (
+          <MultipleChoiceAnswerInput
+            options={options}
+            selectedOption={draftAnswer || null}
+            onSelectOption={setDraftAnswer}
+            onSubmit={handleSubmitAnswer}
+            teamColor={team.teamColor.hexCode}
           />
-          <ColorButton
-            onClick={handleSubmitAnswer}
-            disabled={!draftAnswer.trim()}
-            backgroundColor={team.teamColor.hexCode}
-            className="w-full py-3 rounded-lg"
-          >
-            Submit Answer
-          </ColorButton>
-        </div>
+        );
+      }
+
+      // Standard text input (default)
+      return (
+        <StandardAnswerInput
+          draftAnswer={draftAnswer}
+          onDraftChange={setDraftAnswer}
+          onSubmit={handleSubmitAnswer}
+          teamColor={team.teamColor.hexCode}
+        />
       );
     }
 

@@ -9,11 +9,13 @@ import {
 } from "../../utils/rejoinStorage";
 import ReconnectionToast from "../../components/ui/ReconnectionToast";
 import QuestionControls from "./components/QuestionControls";
-import AnswerList from "./components/AnswerList";
+import StandardMainArea from "./components/StandardMainArea";
+import MultipleChoiceMainArea from "./components/MultipleChoiceMainArea";
 import Scoreboard from "./components/Scoreboard";
 import GameSettings from "./components/GameSettings";
 import SettingsModal from "./components/SettingsModal";
-import type { QuestionKind, ClientMessage, HostClientMessage } from "../../types";
+import type { QuestionKind, ClientMessage, HostClientMessage, McConfig } from "../../types";
+import { defaultMcConfig } from "../../types";
 
 export default function HostGame() {
   const navigate = useNavigate();
@@ -189,21 +191,58 @@ export default function HostGame() {
       {/* Main content area */}
       <main className="flex-1 flex overflow-hidden mx-12">
         <div className="flex-1 border-r border-gray-200 overflow-y-auto">
-          <AnswerList
-            question={currentQuestion}
-            questionNumber={currentQuestionNumber}
-            teams={teams}
-            onScoreAnswer={(teamName, score) => {
-              sendMessage({
-                host: {
-                  type: "scoreAnswer",
-                  questionNumber: currentQuestionNumber,
-                  teamName,
-                  score,
-                },
-              });
-            }}
-          />
+          {currentQuestion.questionKind === "multipleChoice" ? (
+            <MultipleChoiceMainArea
+              question={currentQuestion}
+              questionNumber={currentQuestionNumber}
+              teams={teams}
+              mcConfig={
+                currentQuestion.questionConfig.type === "multipleChoice"
+                  ? currentQuestion.questionConfig.config
+                  : defaultMcConfig
+              }
+              settingsDisabled={questionHasAnswers}
+              onScoreAnswer={(teamName, score) => {
+                sendMessage({
+                  host: {
+                    type: "scoreAnswer",
+                    questionNumber: currentQuestionNumber,
+                    teamName,
+                    score,
+                  },
+                });
+              }}
+              onMcConfigChange={(config: McConfig) => {
+                sendMessage({
+                  host: {
+                    type: "updateQuestionSettings",
+                    questionNumber: currentQuestionNumber,
+                    timerDuration: currentQuestion.timerDuration,
+                    questionPoints: currentQuestion.questionPoints,
+                    bonusIncrement: currentQuestion.bonusIncrement,
+                    questionType: currentQuestion.questionKind,
+                    mcConfig: config,
+                  },
+                });
+              }}
+            />
+          ) : (
+            <StandardMainArea
+              question={currentQuestion}
+              questionNumber={currentQuestionNumber}
+              teams={teams}
+              onScoreAnswer={(teamName, score) => {
+                sendMessage({
+                  host: {
+                    type: "scoreAnswer",
+                    questionNumber: currentQuestionNumber,
+                    teamName,
+                    score,
+                  },
+                });
+              }}
+            />
+          )}
         </div>
 
         <div className="w-md shrink-0 overflow-y-auto">
@@ -281,6 +320,7 @@ export default function HostGame() {
                 defaultQuestionPoints: newSettings.defaultQuestionPoints,
                 defaultBonusIncrement: newSettings.defaultBonusIncrement,
                 defaultQuestionType: newSettings.defaultQuestionType,
+                defaultMcConfig: newSettings.defaultMcConfig,
               },
             });
           }}

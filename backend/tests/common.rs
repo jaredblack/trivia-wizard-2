@@ -4,6 +4,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use backend::auth::{self, TEST_CLIENT_ID, TEST_ISSUER};
 use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::ServerMessage;
+use backend::model::types::{McConfig, McOptionType};
 use backend::server::start_ws_server;
 use backend::timer::ShutdownTimer;
 use futures_util::{
@@ -263,4 +264,8 @@ pub async fn assert_answer_submission_flow(
         }
         other => panic!("Expected GameState message, got {other:?}"),
     }
+}
+
+pub fn default_mc_config() -> McConfig {
+    McConfig { option_type: McOptionType::Letters, num_options: 4, custom_options: None }
 }

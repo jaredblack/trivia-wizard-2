@@ -33,11 +33,6 @@ We are building the Trivia Wizard app as described in overview.md. We will only 
 - [I think this is done] game settings updates should update the current question's settings iff there are no answers already for that question (which should be the same condition as being able to update question settings). there should be a warning on the game settings modal if you're trying to update after answers have come in: this won't update the current question (and also it won't retroactively change questions)
 
 ## pre-IA (Jan trivia night)
-- Investigate "Failed to parse message: EOF while parsing a value at line 1 column 0"
-- Game code/team name validation immediately, not at the end of the flow
-   - Make sure we're trimming team names. Also should probably match case-insensitive
-   - I think this could also help as a shortcut for rejoiners
-- The "submissions closed" screen should only show if the timer got to 0, not just if it opened then closed (well, unless they submitted an answer)
 - Multiple choice question type
 - At least one other question type, possibly based on the questions that I write for this trivia night (probably multi-answer)
 
@@ -49,23 +44,6 @@ We are building the Trivia Wizard app as described in overview.md. We will only 
 # future playwright test cases
 - auto-submit
 
-# Current Status:
-- Most tests failing. They need to call ValidateJoin first
-- Auto-rejoin currently broken. They need to be modified to just call ValidateJoin (this is a simplifier as we no longer have to serialize/store color/member info)
-
-## potential refactors
-- [ ] this block seems to be repeated (but this will also need to change with the above changes to HostActionResult):
-```
-let host_msg = ServerMessage::GameState {
-   state: game.to_game_state(),
-};
-let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
-   game.to_team_game_state(&team_name)
-      .map(|state| (tx, ServerMessage::TeamGameState { state }))
-});
-```
-- [ ] at least two places where I'm returning the same deser error "Server error: Failed to parse message" - can probably make that a helper
-
 ## misc
 - update verification email
 - set an alarm on log::error from my app?
@@ -75,6 +53,7 @@ let team_msg = game.teams_tx.get(&team_name).cloned().and_then(|tx| {
 - Also need to validate that user id matches when reclaiming a game
 - Add a PartialJoin (need a better name) API for the frontend to call after you put in a game code/team name to verify that (a) game code is valid and (b) team name is available
 - favicon
+- should probably chill with the console.logs especially in websocket.ts
 
 
 ## beta

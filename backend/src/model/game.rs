@@ -1,7 +1,7 @@
 use crate::model::server_message::{GameState, ServerMessage, TeamGameState, send_msg};
 use crate::model::types::{
-    AnswerContent, GameSettings, Question, QuestionKind, ScoreData, TeamColor, TeamData,
-    TeamQuestionResult,
+    AnswerContent, GameSettings, McConfig, Question, QuestionConfig, QuestionKind, ScoreData,
+    TeamColor, TeamData, TeamQuestion,
 };
 use crate::server::Tx;
 use std::collections::HashMap;
@@ -37,6 +37,7 @@ impl Game {
             default_question_points: DEFAULT_QUESTION_POINTS,
             default_bonus_increment: DEFAULT_BONUS_INCREMENT,
             default_question_type: QuestionKind::Standard,
+            default_mc_config: McConfig::default(),
         };
 
         // Initialize with one empty standard question
@@ -45,6 +46,7 @@ impl Game {
             question_points: DEFAULT_QUESTION_POINTS,
             bonus_increment: DEFAULT_BONUS_INCREMENT,
             question_kind: QuestionKind::Standard,
+            question_config: QuestionConfig::Standard,
             answers: vec![],
         };
 
@@ -170,11 +172,20 @@ impl Game {
 
     /// Create a new question using game settings
     fn create_question_from_settings(&self) -> Question {
+        let question_config = match self.game_settings.default_question_type {
+            QuestionKind::Standard => QuestionConfig::Standard,
+            QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer,
+            QuestionKind::MultipleChoice => QuestionConfig::MultipleChoice {
+                config: self.game_settings.default_mc_config.clone(),
+            },
+        };
+
         Question {
             timer_duration: self.game_settings.default_timer_duration,
             question_points: self.game_settings.default_question_points,
             bonus_increment: self.game_settings.default_bonus_increment,
             question_kind: self.game_settings.default_question_type,
+            question_config,
             answers: vec![],
         }
     }
@@ -263,10 +274,12 @@ impl Game {
             QuestionKind::MultiAnswer => return false, // Not supported yet
         };
 
-        question.answers.push(TeamQuestionResult {
+        question.answers.push(TeamQuestion {
             team_name: team_name.to_string(),
             score: ScoreData::new(),
             content: Some(content),
+            question_kind: question.question_kind,
+            question_config: question.question_config.clone(),
         });
 
         true
@@ -343,12 +356,23 @@ impl Game {
     pub fn update_game_settings(&mut self, settings: GameSettings) {
         self.game_settings = settings.clone();
 
+        // Build the question config for the new default question type
+        let default_question_config = match settings.default_question_type {
+            QuestionKind::Standard => QuestionConfig::Standard,
+            QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer,
+            QuestionKind::MultipleChoice => QuestionConfig::MultipleChoice {
+                config: settings.default_mc_config.clone(),
+            },
+        };
+
         // Update all questions that don't have answers yet
         for question in &mut self.questions {
             if !question.has_answers() {
                 question.timer_duration = settings.default_timer_duration;
                 question.question_points = settings.default_question_points;
                 question.bonus_increment = settings.default_bonus_increment;
+                question.question_kind = settings.default_question_type;
+                question.question_config = default_question_config.clone();
             }
         }
 
@@ -368,6 +392,7 @@ impl Game {
         question_points: u32,
         bonus_increment: u32,
         question_type: QuestionKind,
+        mc_config: Option<McConfig>,
     ) -> Result<(), &'static str> {
         let question_idx = question_number - 1;
         if question_idx >= self.questions.len() {
@@ -383,6 +408,15 @@ impl Game {
         question.question_points = question_points;
         question.bonus_increment = bonus_increment;
         question.question_kind = question_type;
+
+        // Update question_config based on question type
+        question.question_config = match question_type {
+            QuestionKind::Standard => QuestionConfig::Standard,
+            QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer,
+            QuestionKind::MultipleChoice => QuestionConfig::MultipleChoice {
+                config: mc_config.unwrap_or_else(McConfig::default),
+            },
+        };
 
         // Update timer display if this is current question and timer not running
         if question_number == self.current_question_number && !self.timer_running {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import type { ScoreData, TeamQuestionResult } from "../../../types";
+import type { ScoreData, TeamQuestion } from "../../../types";
 import { answerToString } from "../../../types";
 
 interface ScoreLogDrawerProps {
@@ -8,7 +8,7 @@ interface ScoreLogDrawerProps {
   onClose: () => void;
   teamName: string;
   totalScore: ScoreData;
-  questions: TeamQuestionResult[];
+  questions: TeamQuestion[];
 }
 
 export default function ScoreLogDrawer({

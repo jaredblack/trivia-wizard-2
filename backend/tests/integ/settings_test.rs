@@ -1,4 +1,4 @@
-use crate::{TestClient, TestServer};
+use crate::{TestClient, TestServer, default_mc_config};
 use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::ServerMessage;
 use backend::model::types::QuestionKind;
@@ -14,6 +14,7 @@ async fn update_game_settings_changes_defaults() {
         default_question_points: 100,
         default_bonus_increment: 10,
         default_question_type: QuestionKind::MultipleChoice,
+        default_mc_config: default_mc_config(),
     }))
     .await;
 
@@ -48,6 +49,7 @@ async fn update_game_settings_propagates_to_unanswered_questions() {
         default_question_points: 75,
         default_bonus_increment: 15,
         default_question_type: QuestionKind::Standard,
+        default_mc_config: default_mc_config(),
     }))
     .await;
 
@@ -110,6 +112,7 @@ async fn update_game_settings_does_not_change_answered_questions() {
         default_question_points: 200,
         default_bonus_increment: 25,
         default_question_type: QuestionKind::Standard,
+        default_mc_config: default_mc_config(),
     }))
     .await;
 
@@ -146,6 +149,7 @@ async fn update_question_settings_changes_specific_question() {
         question_points: 150,
         bonus_increment: 20,
         question_type: QuestionKind::MultiAnswer,
+        mc_config: None,
     }))
     .await;
 
@@ -202,6 +206,7 @@ async fn update_question_settings_fails_when_question_has_answers() {
         question_points: 100,
         bonus_increment: 10,
         question_type: QuestionKind::Standard,
+        mc_config: None,
     }))
     .await;
 
@@ -229,6 +234,7 @@ async fn update_question_settings_fails_for_nonexistent_question() {
         question_points: 100,
         bonus_increment: 10,
         question_type: QuestionKind::Standard,
+        mc_config: None,
     }))
     .await;
 
@@ -260,6 +266,7 @@ async fn settings_changes_broadcast_to_teams() {
         default_question_points: 75,
         default_bonus_increment: 15,
         default_question_type: QuestionKind::Standard,
+        default_mc_config: default_mc_config(),
     }))
     .await;
 
@@ -285,6 +292,7 @@ async fn new_questions_use_updated_game_settings() {
         default_question_points: 200,
         default_bonus_increment: 25,
         default_question_type: QuestionKind::MultipleChoice,
+        default_mc_config: default_mc_config(),
     }))
     .await;
     let _: ServerMessage = host.recv_json().await;

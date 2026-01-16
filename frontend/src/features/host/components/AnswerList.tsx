@@ -1,5 +1,6 @@
 import AnswerCard from "./AnswerCard";
 import type { TeamData, Question, ScoreData } from "../../../types";
+import { answerToString } from "../../../types";
 
 interface AnswerListProps {
   question: Question;
@@ -13,11 +14,11 @@ export default function AnswerList({
   teams,
   onScoreAnswer,
 }: AnswerListProps) {
-  // For now, only handle Standard question type
-  if (question.questionKind !== "standard") {
+  // Multi-answer not yet implemented
+  if (question.questionKind === "multiAnswer") {
     return (
       <div className="p-4 text-gray-500">
-        Question type "{question.questionKind}" not yet implemented
+        Question type "multiAnswer" not yet implemented
       </div>
     );
   }
@@ -32,10 +33,8 @@ export default function AnswerList({
     <div className="flex flex-col gap-4 p-4 overflow-y-auto">
       {answers.map((answer) => {
         const team = teamMap.get(answer.teamName);
-        // Get answer text from content (only Standard type for now)
-        // On host side, content is always present since we only show submitted answers
-        const answerText =
-          answer.content?.type === "standard" ? answer.content.answerText : "";
+        // Get answer text from content using helper function
+        const answerText = answer.content ? answerToString(answer.content) : "";
 
         return (
           <AnswerCard

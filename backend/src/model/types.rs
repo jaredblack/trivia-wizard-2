@@ -1,9 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 // === Question Kind ===
-// NOTE: When we implement MultipleChoice, this enum will need to carry
-// question-level settings (e.g., `MultipleChoice { choices: Vec<String> }`).
-// For now it's just a discriminant.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -11,6 +8,47 @@ pub enum QuestionKind {
     Standard,
     MultiAnswer,
     MultipleChoice,
+}
+
+// === Multiple Choice Configuration ===
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum McOptionType {
+    Letters,
+    Numbers,
+    YesNo,
+    TrueFalse,
+    Other,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McConfig {
+    pub option_type: McOptionType,
+    pub num_options: u32,
+    pub custom_options: Option<Vec<String>>,
+}
+
+impl Default for McConfig {
+    fn default() -> Self {
+        Self {
+            option_type: McOptionType::Letters,
+            num_options: 4,
+            custom_options: None,
+        }
+    }
+}
+
+// === Question Config (discriminated union by question kind) ===
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum QuestionConfig {
+    Standard,
+    MultiAnswer,
+    #[serde(rename_all = "camelCase")]
+    MultipleChoice { config: McConfig },
 }
 
 // === Score Types ===
@@ -33,19 +71,20 @@ impl ScoreData {
     }
 }
 
-// === TeamQuestionResult ===
+// === TeamQuestion ===
 // Represents a team's state for a question, including their answer (if any) and score.
-// - On the host side (Question.answers): only contains entries for teams that submitted,
-//   so content is always present in practice.
+// - On the host side (Question.answers): only contains entries for teams that submitted.
 // - On the team side (TeamGameState.questions): includes all historic questions,
 //   so content may be None if the team didn't submit.
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TeamQuestionResult {
+pub struct TeamQuestion {
     pub team_name: String,
     pub score: ScoreData,
     pub content: Option<AnswerContent>,
+    pub question_kind: QuestionKind,
+    pub question_config: QuestionConfig,
 }
 
 /// The content of a team's answer, varying by question type.
@@ -69,7 +108,8 @@ pub struct Question {
     pub question_points: u32,
     pub bonus_increment: u32,
     pub question_kind: QuestionKind,
-    pub answers: Vec<TeamQuestionResult>,
+    pub question_config: QuestionConfig,
+    pub answers: Vec<TeamQuestion>,
 }
 
 impl Question {
@@ -79,15 +119,17 @@ impl Question {
     }
 
     /// Filter question to only include a specific team's data
-    pub fn filter_for_team(&self, team_name: &str) -> TeamQuestionResult {
+    pub fn filter_for_team(&self, team_name: &str) -> TeamQuestion {
         self.answers
             .iter()
             .find(|a| a.team_name == team_name)
             .cloned()
-            .unwrap_or_else(|| TeamQuestionResult {
+            .unwrap_or_else(|| TeamQuestion {
                 team_name: team_name.to_string(),
                 score: ScoreData::new(),
                 content: None,
+                question_kind: self.question_kind,
+                question_config: self.question_config.clone(),
             })
     }
 }
@@ -101,6 +143,7 @@ pub struct GameSettings {
     pub default_question_points: u32,
     pub default_bonus_increment: u32,
     pub default_question_type: QuestionKind,
+    pub default_mc_config: McConfig,
 }
 
 // === Team Types ===

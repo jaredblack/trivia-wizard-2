@@ -120,7 +120,7 @@ export default function QuestionControls({
       {/* Exit button */}
       <button
         onClick={onExit}
-        className="text-gray-600 hover:text-gray-900 underline"
+        className="text-gray-600 hover:text-gray-900 underline cursor-pointer"
       >
         Exit Game
       </button>

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::model::types::{QuestionKind, ScoreData};
+use crate::model::types::{McConfig, QuestionKind, ScoreData};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
@@ -37,6 +37,7 @@ pub enum HostAction {
         default_question_points: u32,
         default_bonus_increment: u32,
         default_question_type: QuestionKind,
+        default_mc_config: McConfig,
     },
 
     #[serde(rename_all = "camelCase")]
@@ -46,6 +47,8 @@ pub enum HostAction {
         question_points: u32,
         bonus_increment: u32,
         question_type: QuestionKind,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        mc_config: Option<McConfig>,
     },
 }
 

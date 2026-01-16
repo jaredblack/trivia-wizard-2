@@ -212,12 +212,14 @@ fn process_host_action(
             default_question_points,
             default_bonus_increment,
             default_question_type,
+            default_mc_config,
         } => {
             let settings = GameSettings {
                 default_timer_duration,
                 default_question_points,
                 default_bonus_increment,
                 default_question_type,
+                default_mc_config,
             };
             game.update_game_settings(settings);
             HostActionResult {
@@ -234,12 +236,14 @@ fn process_host_action(
             question_points,
             bonus_increment,
             question_type,
+            mc_config,
         } => match game.update_question_settings(
             question_number,
             timer_duration,
             question_points,
             bonus_increment,
             question_type,
+            mc_config,
         ) {
             Ok(()) => HostActionResult {
                 host_msg: ServerMessage::GameState {

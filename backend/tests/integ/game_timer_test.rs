@@ -1,8 +1,7 @@
 use crate::{TestClient, TestServer};
 
-use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
+use backend::model::client_message::{ClientMessage, HostAction};
 use backend::model::server_message::ServerMessage;
-use backend::model::types::QuestionKind;
 
 #[tokio::test]
 async fn timer_start_opens_submissions_and_broadcasts_state() {
