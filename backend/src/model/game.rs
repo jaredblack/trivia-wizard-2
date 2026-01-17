@@ -8,6 +8,16 @@ use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use tokio::task::AbortHandle;
 
+/// Extract and normalize answer text for comparison (trimmed, lowercase).
+/// Returns None for MultiAnswer or missing content.
+fn normalize_answer_text(content: &Option<AnswerContent>) -> Option<String> {
+    match content {
+        Some(AnswerContent::Standard { answer_text }) => Some(answer_text.trim().to_lowercase()),
+        Some(AnswerContent::MultipleChoice { selected }) => Some(selected.trim().to_lowercase()),
+        _ => None,
+    }
+}
+
 /// Hardcoded game settings for this iteration
 const DEFAULT_TIMER_DURATION: u32 = 30;
 const DEFAULT_QUESTION_POINTS: u32 = 50;
@@ -258,6 +268,8 @@ impl Game {
     // === Answer submission ===
 
     /// Add an answer to the current question. Returns false if team already submitted.
+    /// If the answer matches an existing scored-correct answer (case-insensitive, trimmed),
+    /// the new answer is automatically scored correct as well.
     pub fn add_answer(&mut self, team_name: &str, answer_text: String) -> bool {
         let question = self.current_question_mut();
 
@@ -268,20 +280,47 @@ impl Game {
 
         // Create answer content based on question type
         let content = match question.question_kind {
-            QuestionKind::Standard => AnswerContent::Standard { answer_text },
+            QuestionKind::Standard => AnswerContent::Standard {
+                answer_text: answer_text.clone(),
+            },
             QuestionKind::MultipleChoice => AnswerContent::MultipleChoice {
-                selected: answer_text,
+                selected: answer_text.clone(),
             },
             QuestionKind::MultiAnswer => return false, // Not supported yet
         };
 
+        // Check if this answer matches any already-scored-correct answer
+        let question_base_points = question.question_points as i32;
+        let normalized_new = answer_text.trim().to_lowercase();
+
+        let auto_score_points = question.answers.iter().find_map(|existing| {
+            if existing.score.question_points == question_base_points {
+                if let Some(existing_text) = normalize_answer_text(&existing.content) {
+                    if existing_text == normalized_new {
+                        return Some(question_base_points);
+                    }
+                }
+            }
+            None
+        });
+
+        let mut new_score = ScoreData::new();
+        if let Some(points) = auto_score_points {
+            new_score.question_points = points;
+        }
+
         question.answers.push(TeamQuestion {
             team_name: team_name.to_string(),
-            score: ScoreData::new(),
+            score: new_score,
             content: Some(content),
             question_kind: question.question_kind,
             question_config: question.question_config.clone(),
         });
+
+        // If auto-scored, update the team's total score
+        if auto_score_points.is_some() {
+            self.recalculate_team_score(team_name);
+        }
 
         true
     }
@@ -289,6 +328,9 @@ impl Game {
     // === Scoring operations ===
 
     /// Score a team's answer for a specific question. Returns true if successful.
+    /// When scoring an answer as correct (full question points), automatically scores
+    /// any other matching answers (case-insensitive, trimmed) as correct too.
+    /// When clearing a score (setting to 0), clears all matching answers as well.
     pub fn score_answer(
         &mut self,
         question_number: usize,
@@ -301,19 +343,60 @@ impl Game {
         }
 
         let question = &mut self.questions[question_idx];
+        let question_base_points = question.question_points as i32;
 
-        // Find and update the team's answer score
-        if let Some(answer) = question
-            .answers
-            .iter_mut()
-            .find(|a| a.team_name == team_name)
-        {
-            answer.score = score;
+        // Find the target answer's index
+        let Some(answer_idx) = question.answers.iter().position(|a| a.team_name == team_name) else {
+            return false;
+        };
+
+        // Update the target answer's score
+        question.answers[answer_idx].score = score.clone();
+
+        // Get normalized text for matching
+        let Some(normalized_text) = normalize_answer_text(&question.answers[answer_idx].content)
+        else {
+            // Can't auto-score without text to match (e.g., MultiAnswer)
             self.recalculate_team_score(team_name);
-            true
-        } else {
-            false
+            return true;
+        };
+
+        // Collect teams that need score recalculation
+        let mut teams_to_update: Vec<String> = vec![team_name.to_string()];
+
+        // Auto-score matching answers based on the scoring action
+        if score.question_points == question_base_points {
+            // Scored as correct - auto-score matching unscored answers
+            for (i, other_answer) in question.answers.iter_mut().enumerate() {
+                if i != answer_idx && other_answer.score.question_points == 0 {
+                    if let Some(other_text) = normalize_answer_text(&other_answer.content) {
+                        if other_text == normalized_text {
+                            other_answer.score.question_points = question_base_points;
+                            teams_to_update.push(other_answer.team_name.clone());
+                        }
+                    }
+                }
+            }
+        } else if score.question_points == 0 {
+            // Cleared - clear all matching answers
+            for (i, other_answer) in question.answers.iter_mut().enumerate() {
+                if i != answer_idx {
+                    if let Some(other_text) = normalize_answer_text(&other_answer.content) {
+                        if other_text == normalized_text {
+                            other_answer.score.question_points = 0;
+                            teams_to_update.push(other_answer.team_name.clone());
+                        }
+                    }
+                }
+            }
         }
+
+        // Recalculate scores for all affected teams
+        for team in teams_to_update {
+            self.recalculate_team_score(&team);
+        }
+
+        true
     }
 
     /// Clear a team's answer score for a specific question. Returns true if successful.

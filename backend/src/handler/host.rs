@@ -147,19 +147,13 @@ fn process_host_action(
             score,
         } => {
             if game.score_answer(question_number, &team_name, score) {
-                let host_msg = ServerMessage::GameState {
-                    state: game.to_game_state(),
-                };
-                let team_msg = game
-                    .teams_tx
-                    .get(&team_name.to_lowercase())
-                    .cloned()
-                    .and_then(|tx| {
-                        game.to_team_game_state(&team_name).map(|state| {
-                            TeamMessage::Single(tx, ServerMessage::TeamGameState { state })
-                        })
-                    });
-                HostActionResult { host_msg, team_msg }
+                // Broadcast to all teams since auto-scoring may affect multiple teams
+                HostActionResult {
+                    host_msg: ServerMessage::GameState {
+                        state: game.to_game_state(),
+                    },
+                    team_msg: Some(TeamMessage::Broadcast),
+                }
             } else {
                 HostActionResult {
                     host_msg: ServerMessage::error(format!(
