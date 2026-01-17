@@ -1,5 +1,4 @@
 pub mod auth;
-pub mod fake_data;
 pub mod game_timer;
 pub mod handler;
 pub mod heartbeat;

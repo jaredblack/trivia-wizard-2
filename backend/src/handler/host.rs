@@ -93,8 +93,6 @@ fn process_host_action(
             host_msg: ServerMessage::error("Game already created"),
             team_msg: None,
         },
-
-        // Timer actions
         HostAction::StartTimer => {
             start_timer(game, app_state, game_code);
             HostActionResult {
@@ -104,7 +102,6 @@ fn process_host_action(
                 team_msg: Some(TeamMessage::Broadcast),
             }
         }
-
         HostAction::PauseTimer => {
             pause_timer(game);
             HostActionResult {
@@ -114,7 +111,6 @@ fn process_host_action(
                 team_msg: Some(TeamMessage::Broadcast),
             }
         }
-
         HostAction::ResetTimer => {
             reset_timer(game);
             HostActionResult {
@@ -124,8 +120,6 @@ fn process_host_action(
                 team_msg: Some(TeamMessage::Broadcast),
             }
         }
-
-        // Question navigation actions
         HostAction::NextQuestion => {
             game.next_question();
             HostActionResult {
@@ -135,7 +129,6 @@ fn process_host_action(
                 team_msg: Some(TeamMessage::Broadcast),
             }
         }
-
         HostAction::PrevQuestion => match game.prev_question() {
             Ok(()) => HostActionResult {
                 host_msg: ServerMessage::GameState {
@@ -148,8 +141,6 @@ fn process_host_action(
                 team_msg: None,
             },
         },
-
-        // Scoring actions
         HostAction::ScoreAnswer {
             question_number,
             team_name,
@@ -179,7 +170,6 @@ fn process_host_action(
                 }
             }
         }
-
         HostAction::OverrideTeamScore {
             team_name,
             override_points,
@@ -205,8 +195,6 @@ fn process_host_action(
                 }
             }
         }
-
-        // Settings actions
         HostAction::UpdateGameSettings {
             default_timer_duration,
             default_question_points,
@@ -229,21 +217,18 @@ fn process_host_action(
                 team_msg: Some(TeamMessage::Broadcast),
             }
         }
-
         HostAction::UpdateQuestionSettings {
             question_number,
             timer_duration,
             question_points,
             bonus_increment,
             question_type,
-            mc_config,
         } => match game.update_question_settings(
             question_number,
             timer_duration,
             question_points,
             bonus_increment,
             question_type,
-            mc_config,
         ) {
             Ok(()) => HostActionResult {
                 host_msg: ServerMessage::GameState {
@@ -252,7 +237,22 @@ fn process_host_action(
                 team_msg: Some(TeamMessage::Broadcast),
             },
             Err(msg) => HostActionResult {
-                host_msg: ServerMessage::error(msg),
+                host_msg: ServerMessage::error(msg.to_string()),
+                team_msg: None,
+            },
+        },
+        HostAction::UpdateTypeSpecificSettings {
+            question_number,
+            question_config,
+        } => match game.update_type_specific_settings(question_number, question_config) {
+            Ok(()) => HostActionResult {
+                host_msg: ServerMessage::GameState {
+                    state: game.to_game_state(),
+                },
+                team_msg: Some(TeamMessage::Broadcast),
+            },
+            Err(msg) => HostActionResult {
+                host_msg: ServerMessage::error(msg.to_string()),
                 team_msg: None,
             },
         },

@@ -1,4 +1,5 @@
 import { Settings } from "lucide-react";
+import AutoSubmitNumericInput from "./AutoSubmitNumericInput";
 
 interface GameSettingsProps {
   questionPoints: number;
@@ -27,42 +28,30 @@ export default function GameSettings({
         {/* Question Points */}
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-600">Question Points</label>
-          <input
-            type="number"
+          <AutoSubmitNumericInput
             value={questionPoints}
-            onChange={(e) => onQuestionPointsChange?.(Number(e.target.value))}
+            onSubmit={onQuestionPointsChange}
             disabled={disabled}
-            className={`w-16 px-2 py-1 border border-gray-300 rounded-xl text-center ${
-              disabled ? "bg-gray-100 text-gray-400 cursor-not-allowed" : ""
-            }`}
           />
         </div>
 
         {/* Bonus Increment */}
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-600">Bonus Increment</label>
-          <input
-            type="number"
+          <AutoSubmitNumericInput
             value={bonusIncrement}
-            onChange={(e) => onBonusIncrementChange?.(Number(e.target.value))}
+            onSubmit={onBonusIncrementChange}
             disabled={disabled}
-            className={`w-16 px-2 py-1 border border-gray-300 rounded-xl text-center ${
-              disabled ? "bg-gray-100 text-gray-400 cursor-not-allowed" : ""
-            }`}
           />
         </div>
 
         {/* Timer Length */}
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-600">Timer Length</label>
-          <input
-            type="number"
+          <AutoSubmitNumericInput
             value={timerLength}
-            onChange={(e) => onTimerLengthChange?.(Number(e.target.value))}
+            onSubmit={onTimerLengthChange}
             disabled={disabled}
-            className={`w-16 px-2 py-1 border border-gray-300 rounded-xl text-center ${
-              disabled ? "bg-gray-100 text-gray-400 cursor-not-allowed" : ""
-            }`}
           />
         </div>
       </div>

@@ -3,10 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useHostStore } from "../../stores/useHostStore";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { webSocketService } from "../../services/websocket";
-import {
-  getHostRejoin,
-  clearHostRejoin,
-} from "../../utils/rejoinStorage";
+import { getHostRejoin, clearHostRejoin } from "../../utils/rejoinStorage";
 import ReconnectionToast from "../../components/ui/ReconnectionToast";
 import QuestionControls from "./components/QuestionControls";
 import StandardMainArea from "./components/StandardMainArea";
@@ -14,7 +11,12 @@ import MultipleChoiceMainArea from "./components/MultipleChoiceMainArea";
 import Scoreboard from "./components/Scoreboard";
 import GameSettings from "./components/GameSettings";
 import SettingsModal from "./components/SettingsModal";
-import type { QuestionKind, ClientMessage, HostClientMessage, McConfig } from "../../types";
+import type {
+  QuestionKind,
+  ClientMessage,
+  HostClientMessage,
+  McConfig,
+} from "../../types";
 import { defaultMcConfig } from "../../types";
 
 export default function HostGame() {
@@ -215,13 +217,12 @@ export default function HostGame() {
               onMcConfigChange={(config: McConfig) => {
                 sendMessage({
                   host: {
-                    type: "updateQuestionSettings",
+                    type: "updateTypeSpecificSettings",
                     questionNumber: currentQuestionNumber,
-                    timerDuration: currentQuestion.timerDuration,
-                    questionPoints: currentQuestion.questionPoints,
-                    bonusIncrement: currentQuestion.bonusIncrement,
-                    questionType: currentQuestion.questionKind,
-                    mcConfig: config,
+                    questionConfig: {
+                      type: "multipleChoice",
+                      config: config,
+                    },
                   },
                 });
               }}

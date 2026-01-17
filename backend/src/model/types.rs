@@ -48,7 +48,19 @@ pub enum QuestionConfig {
     Standard,
     MultiAnswer,
     #[serde(rename_all = "camelCase")]
-    MultipleChoice { config: McConfig },
+    MultipleChoice {
+        config: McConfig,
+    },
+}
+
+impl QuestionConfig {
+    pub fn kind(&self) -> QuestionKind {
+        match self {
+            QuestionConfig::Standard => QuestionKind::Standard,
+            QuestionConfig::MultiAnswer => QuestionKind::MultiAnswer,
+            QuestionConfig::MultipleChoice { .. } => QuestionKind::MultipleChoice,
+        }
+    }
 }
 
 // === Score Types ===

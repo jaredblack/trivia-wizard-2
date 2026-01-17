@@ -267,5 +267,9 @@ pub async fn assert_answer_submission_flow(
 }
 
 pub fn default_mc_config() -> McConfig {
-    McConfig { option_type: McOptionType::Letters, num_options: 4, custom_options: None }
+    McConfig {
+        option_type: McOptionType::Letters,
+        num_options: 4,
+        custom_options: None,
+    }
 }

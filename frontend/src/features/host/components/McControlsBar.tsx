@@ -1,5 +1,6 @@
 import type { McConfig, McOptionType } from "../../../types";
 import { mcOptionTypeLabels } from "../../../types";
+import AutoSubmitNumericInput from "./AutoSubmitNumericInput";
 
 interface McControlsBarProps {
   config: McConfig;
@@ -71,14 +72,11 @@ export default function McControlsBar({
         <label className="text-sm text-gray-600 whitespace-nowrap">
           Number of options
         </label>
-        <input
-          type="number"
+        <AutoSubmitNumericInput
           value={config.numOptions}
-          onChange={(e) => handleNumOptionsChange(parseInt(e.target.value) || 4)}
+          onSubmit={handleNumOptionsChange}
           disabled={disabled || isFixedOptions}
           min={2}
-          max={8}
-          className="w-16 px-2 py-1.5 border border-gray-300 rounded-xl text-sm text-center bg-white disabled:bg-gray-200 disabled:cursor-not-allowed"
         />
       </div>
     </div>

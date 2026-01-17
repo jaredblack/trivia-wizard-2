@@ -285,6 +285,13 @@ export interface UpdateQuestionSettingsAction {
   mcConfig?: McConfig;
 }
 
+export interface UpdateTypeSpecificSettingsAction {
+  type: "updateTypeSpecificSettings";
+  questionNumber: number;
+  questionConfig: QuestionConfig;
+}
+
+
 export type HostAction =
   | CreateGameAction
   | StartTimerAction
@@ -295,7 +302,8 @@ export type HostAction =
   | ScoreAnswerAction
   | OverrideTeamScoreAction
   | UpdateGameSettingsAction
-  | UpdateQuestionSettingsAction;
+  | UpdateQuestionSettingsAction
+  | UpdateTypeSpecificSettingsAction;
 
 // Team actions use externally tagged enum format (variant name as key)
 export interface ValidateJoinData {

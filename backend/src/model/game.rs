@@ -4,6 +4,7 @@ use crate::model::types::{
     TeamColor, TeamData, TeamQuestion,
 };
 use crate::server::Tx;
+use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use tokio::task::AbortHandle;
 
@@ -392,16 +393,17 @@ impl Game {
         question_points: u32,
         bonus_increment: u32,
         question_type: QuestionKind,
-        mc_config: Option<McConfig>,
-    ) -> Result<(), &'static str> {
+    ) -> Result<()> {
         let question_idx = question_number - 1;
         if question_idx >= self.questions.len() {
-            return Err("Question does not exist");
+            return Err(anyhow!("Question does not exist"));
         }
 
         let question = &mut self.questions[question_idx];
         if question.has_answers() {
-            return Err("Cannot update settings for a question that has answers");
+            return Err(anyhow!(
+                "Cannot update settings for a question that has answers"
+            ));
         }
 
         question.timer_duration = timer_duration;
@@ -409,20 +411,46 @@ impl Game {
         question.bonus_increment = bonus_increment;
         question.question_kind = question_type;
 
-        // Update question_config based on question type
-        question.question_config = match question_type {
+        // If question config kind doesn't match the question kind, 
+        // we changed question types and we need to set the config to the
+        // new default
+        if question.question_config.kind() != question.question_kind {
+            question.question_config = match question_type {
             QuestionKind::Standard => QuestionConfig::Standard,
             QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer,
             QuestionKind::MultipleChoice => QuestionConfig::MultipleChoice {
-                config: mc_config.unwrap_or_else(McConfig::default),
+                config: McConfig::default(),
             },
         };
+        }
 
         // Update timer display if this is current question and timer not running
         if question_number == self.current_question_number && !self.timer_running {
             self.timer_seconds_remaining = Some(timer_duration);
         }
 
+        Ok(())
+    }
+
+    pub fn update_type_specific_settings(
+        &mut self,
+        question_number: usize,
+        question_config: QuestionConfig,
+    ) -> Result<()> {
+        let question_idx = question_number - 1;
+        let question = &mut self.questions[question_idx];
+
+        if question.has_answers() {
+            return Err(anyhow!(
+                "Cannot update settings for a question that has answers"
+            ));
+        }
+
+        if question_config.kind() != question.question_kind {
+            return Err(anyhow!("Config type does not match question type"));
+        }
+
+        question.question_config = question_config;
         Ok(())
     }
 

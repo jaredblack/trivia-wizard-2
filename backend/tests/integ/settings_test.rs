@@ -149,7 +149,6 @@ async fn update_question_settings_changes_specific_question() {
         question_points: 150,
         bonus_increment: 20,
         question_type: QuestionKind::MultiAnswer,
-        mc_config: None,
     }))
     .await;
 
@@ -206,7 +205,6 @@ async fn update_question_settings_fails_when_question_has_answers() {
         question_points: 100,
         bonus_increment: 10,
         question_type: QuestionKind::Standard,
-        mc_config: None,
     }))
     .await;
 
@@ -234,7 +232,6 @@ async fn update_question_settings_fails_for_nonexistent_question() {
         question_points: 100,
         bonus_increment: 10,
         question_type: QuestionKind::Standard,
-        mc_config: None,
     }))
     .await;
 
