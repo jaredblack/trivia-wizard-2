@@ -106,6 +106,10 @@ impl Game {
         self.host_tx = None;
     }
 
+    pub fn clear_team_tx(&mut self, team_name: &str) {
+        self.teams_tx.remove(&team_name.to_lowercase());
+    }
+
     pub fn add_team(
         &mut self,
         team_name: String,

@@ -246,6 +246,7 @@ async fn handle_team(
         let mut games_map = app_state.games.lock().await;
         if let Some(game) = games_map.get_mut(&game_code) {
             game.set_team_connected(&team_name, false);
+            game.clear_team_tx(&team_name);
             game.host_tx.clone().map(|tx| {
                 (
                     tx,
