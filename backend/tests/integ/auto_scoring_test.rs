@@ -128,14 +128,14 @@ async fn scoring_correct_auto_scores_matching_answers() {
     assert_eq!(team1_answer.score.question_points, 50);
     assert_eq!(team1_answer.score.bonus_points, 10);
 
-    // Verify Team3 was auto-scored (question_points only, no bonus)
+    // Verify Team3 was auto-scored (including bonus points)
     let team3_answer = state.questions[0]
         .answers
         .iter()
         .find(|a| a.team_name == "Team3")
         .unwrap();
     assert_eq!(team3_answer.score.question_points, 50);
-    assert_eq!(team3_answer.score.bonus_points, 0, "Auto-scored answers should not get bonus points");
+    assert_eq!(team3_answer.score.bonus_points, 10, "Auto-scored answers should also get bonus points");
 
     // Verify Team2 was NOT auto-scored (different answer)
     let team2_answer = state.questions[0]
@@ -152,7 +152,7 @@ async fn scoring_correct_auto_scores_matching_answers() {
     assert_eq!(team1.score.question_points, 50);
     assert_eq!(team1.score.bonus_points, 10);
     assert_eq!(team3.score.question_points, 50);
-    assert_eq!(team3.score.bonus_points, 0);
+    assert_eq!(team3.score.bonus_points, 10);
 }
 
 #[tokio::test]
@@ -248,7 +248,7 @@ async fn new_submission_auto_scored_if_matches_existing_correct() {
     // Trigger another state update to verify (score Team1 again with same score)
     let state = score_answer(&mut host, &mut teams, 1, "Team1", 50, 5).await;
 
-    // Team2 should have been auto-scored on submission
+    // Team2 should have been auto-scored on submission (including bonus)
     let team2_answer = state.questions[0]
         .answers
         .iter()
@@ -259,13 +259,13 @@ async fn new_submission_auto_scored_if_matches_existing_correct() {
         "Team2 should have been auto-scored when submitting matching answer"
     );
     assert_eq!(
-        team2_answer.score.bonus_points, 0,
-        "Auto-scored answer should not get bonus"
+        team2_answer.score.bonus_points, 5,
+        "Auto-scored answer should also get bonus"
     );
 }
 
 #[tokio::test]
-async fn partial_points_do_not_trigger_auto_scoring() {
+async fn partial_points_also_sync_to_matching_answers() {
     let server = TestServer::start().await;
     let (mut host, _game_code, mut teams) = setup_game_with_teams(&server, &["Team1", "Team2"]).await;
 
@@ -288,15 +288,15 @@ async fn partial_points_do_not_trigger_auto_scoring() {
         .unwrap();
     assert_eq!(team1_answer.score.question_points, 25);
 
-    // Team2 should NOT be auto-scored (partial points don't trigger auto-scoring)
+    // Team2 should also have 25 points (all scores sync to matching answers)
     let team2_answer = state.questions[0]
         .answers
         .iter()
         .find(|a| a.team_name == "Team2")
         .unwrap();
     assert_eq!(
-        team2_answer.score.question_points, 0,
-        "Partial points should not trigger auto-scoring"
+        team2_answer.score.question_points, 25,
+        "All scores should sync to matching answers"
     );
 }
 
@@ -356,7 +356,7 @@ async fn different_answers_not_affected_by_auto_scoring() {
 }
 
 #[tokio::test]
-async fn already_scored_answers_not_overwritten_by_auto_scoring() {
+async fn already_scored_answers_sync_to_latest_score() {
     let server = TestServer::start().await;
     let (mut host, _game_code, mut teams) = setup_game_with_teams(&server, &["Team1", "Team2"]).await;
 
@@ -371,10 +371,10 @@ async fn already_scored_answers_not_overwritten_by_auto_scoring() {
     // Score Team2 first with bonus points
     let _state = score_answer(&mut host, &mut teams, 1, "Team2", 50, 15).await;
 
-    // Now score Team1 - Team2 should NOT be overwritten because they already have points
+    // Now score Team1 - Team2 should be synced to match
     let state = score_answer(&mut host, &mut teams, 1, "Team1", 50, 5).await;
 
-    // Team2 should still have their original bonus points
+    // Team2 should now have Team1's bonus (scores stay in sync)
     let team2_answer = state.questions[0]
         .answers
         .iter()
@@ -382,7 +382,7 @@ async fn already_scored_answers_not_overwritten_by_auto_scoring() {
         .unwrap();
     assert_eq!(team2_answer.score.question_points, 50);
     assert_eq!(
-        team2_answer.score.bonus_points, 15,
-        "Team2's bonus should not be overwritten"
+        team2_answer.score.bonus_points, 5,
+        "Team2's bonus should sync to Team1's"
     );
 }

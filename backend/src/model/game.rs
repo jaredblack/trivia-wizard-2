@@ -293,11 +293,11 @@ impl Game {
         let question_base_points = question.question_points as i32;
         let normalized_new = answer_text.trim().to_lowercase();
 
-        let auto_score_points = question.answers.iter().find_map(|existing| {
+        let auto_score = question.answers.iter().find_map(|existing| {
             if existing.score.question_points == question_base_points {
                 if let Some(existing_text) = normalize_answer_text(&existing.content) {
                     if existing_text == normalized_new {
-                        return Some(question_base_points);
+                        return Some((question_base_points, existing.score.bonus_points));
                     }
                 }
             }
@@ -305,8 +305,9 @@ impl Game {
         });
 
         let mut new_score = ScoreData::new();
-        if let Some(points) = auto_score_points {
-            new_score.question_points = points;
+        if let Some((question_points, bonus_points)) = auto_score {
+            new_score.question_points = question_points;
+            new_score.bonus_points = bonus_points;
         }
 
         question.answers.push(TeamQuestion {
@@ -318,7 +319,7 @@ impl Game {
         });
 
         // If auto-scored, update the team's total score
-        if auto_score_points.is_some() {
+        if auto_score.is_some() {
             self.recalculate_team_score(team_name);
         }
 
@@ -343,7 +344,6 @@ impl Game {
         }
 
         let question = &mut self.questions[question_idx];
-        let question_base_points = question.question_points as i32;
 
         // Find the target answer's index
         let Some(answer_idx) = question.answers.iter().position(|a| a.team_name == team_name) else {
@@ -364,28 +364,17 @@ impl Game {
         // Collect teams that need score recalculation
         let mut teams_to_update: Vec<String> = vec![team_name.to_string()];
 
-        // Auto-score matching answers based on the scoring action
-        if score.question_points == question_base_points {
-            // Scored as correct - auto-score matching unscored answers
-            for (i, other_answer) in question.answers.iter_mut().enumerate() {
-                if i != answer_idx && other_answer.score.question_points == 0 {
-                    if let Some(other_text) = normalize_answer_text(&other_answer.content) {
-                        if other_text == normalized_text {
-                            other_answer.score.question_points = question_base_points;
-                            teams_to_update.push(other_answer.team_name.clone());
-                        }
-                    }
-                }
-            }
-        } else if score.question_points == 0 {
-            // Cleared - clear all matching answers
-            for (i, other_answer) in question.answers.iter_mut().enumerate() {
-                if i != answer_idx {
-                    if let Some(other_text) = normalize_answer_text(&other_answer.content) {
-                        if other_text == normalized_text {
-                            other_answer.score.question_points = 0;
-                            teams_to_update.push(other_answer.team_name.clone());
-                        }
+        // Sync question_points and bonus_points to all matching answers
+        for (i, other_answer) in question.answers.iter_mut().enumerate() {
+            if i != answer_idx {
+                if let Some(other_text) = normalize_answer_text(&other_answer.content) {
+                    if other_text == normalized_text
+                        && (other_answer.score.question_points != score.question_points
+                            || other_answer.score.bonus_points != score.bonus_points)
+                    {
+                        other_answer.score.question_points = score.question_points;
+                        other_answer.score.bonus_points = score.bonus_points;
+                        teams_to_update.push(other_answer.team_name.clone());
                     }
                 }
             }
