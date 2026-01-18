@@ -1,135 +1,161 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, Browser, BrowserContext, Page } from '@playwright/test';
+import { createGame } from './helpers';
 
-async function joinTeam(page: Page, gameCode: string, teamName: string, color: string) {
+/**
+ * Helper to join a team and return the context and page.
+ */
+async function joinTeamHelper(
+  browser: Browser,
+  gameCode: string,
+  teamName: string,
+  memberName: string,
+  colorName: string
+): Promise<{ context: BrowserContext; page: Page }> {
+  const context = await browser.newContext();
+  const page = await context.newPage();
   await page.goto('/join');
-  await page.getByPlaceholder('Game code').fill(gameCode);
-  await page.getByPlaceholder('Team name').fill(teamName);
+
+  await expect(page.getByPlaceholder('Enter game code')).toBeVisible();
+  await page.getByPlaceholder('Enter game code').fill(gameCode);
+  await page.getByPlaceholder('Enter team name').fill(teamName);
   await page.getByRole('button', { name: 'Next' }).click();
 
-  // Members step - add a member and continue
-  await page.getByPlaceholder('Member 1').fill(`${teamName} Player`);
+  await expect(page.getByText("Who's on your team?")).toBeVisible();
+  await page.getByPlaceholder('Team member name').first().fill(memberName);
   await page.getByRole('button', { name: 'Next' }).click();
 
-  // Color step - select color and join
-  await page.getByRole('button', { name: color }).click();
-  await page.getByRole('button', { name: 'Join' }).click();
+  await expect(page.getByText('Choose your team color:')).toBeVisible();
+  await page.getByRole('button', { name: `Select ${colorName}` }).click();
+  await page.getByRole('button', { name: new RegExp(`Choose ${colorName}`, 'i') }).click();
 
-  // Wait for game view
-  await expect(page.getByText('Submissions are not yet open')).toBeVisible();
+  await expect(page.getByText('Question 1')).toBeVisible();
+  return { context, page };
 }
 
-async function submitAnswer(page: Page, answer: string) {
-  await page.getByLabel('Answer').fill(answer);
-  await page.getByRole('button', { name: 'Submit Answer' }).click();
-  await expect(page.getByText('Submissions closed')).toBeVisible();
-}
+test.describe('Full Game Flow', () => {
+  test('complete game with 2 teams, 3 questions', async ({ browser }) => {
+    // ===== SETUP =====
+    // Create a game as host
+    const hostContext = await browser.newContext();
+    const hostPage = await hostContext.newPage();
+    const gameCode = await createGame(hostPage);
 
-test('full game flow with scoring across multiple questions', async ({ browser }) => {
-  // Create three browser contexts
-  const hostContext = await browser.newContext();
-  const teamAContext = await browser.newContext();
-  const teamBContext = await browser.newContext();
+    // Join two teams with different colors
+    const team1 = await joinTeamHelper(browser, gameCode, 'The Experts', 'Alice', 'Orange');
+    const team2 = await joinTeamHelper(browser, gameCode, 'Quiz Masters', 'Bob', 'Blue');
 
-  const hostPage = await hostContext.newPage();
-  const teamAPage = await teamAContext.newPage();
-  const teamBPage = await teamBContext.newPage();
+    // Verify both teams appear on host scoreboard
+    await expect(hostPage.getByText('The Experts')).toBeVisible();
+    await expect(hostPage.getByText('Quiz Masters')).toBeVisible();
 
-  // 1. Host creates a game
-  await hostPage.goto('/host');
-  await expect(hostPage.getByText('Server running!')).toBeVisible();
-  await hostPage.getByRole('button', { name: /Create Game/i }).filter({ hasText: 'random game code' }).click();
+    // Find the main content area for answer cards
+    const mainContent = hostPage.locator('main');
 
-  await expect(hostPage).toHaveURL('/host/game');
-  const gameCodeElement = hostPage.locator('text=Game Code:').locator('..').locator('.font-bold');
-  const gameCode = await gameCodeElement.textContent();
-  expect(gameCode).toBeTruthy();
+    // ===== QUESTION 1: Standard Question =====
+    // Both teams submit, one correct
+    // Question number is displayed in the header within a flex-col container
+    const questionNumberElement = hostPage.locator('header').locator('.text-4xl.font-bold').filter({ hasText: /^\d+$/ });
+    await expect(questionNumberElement).toHaveText('1');
 
-  // 1a. Host adjusts game settings: 10 question points, 1 bonus increment
-  await hostPage.getByLabel('DefaultQuestion Points').fill('10');
-  await hostPage.getByLabel('Default Bonus Increment').fill('1');
+    // Start timer
+    await hostPage.getByRole('button', { name: 'Start timer' }).click();
 
-  // 2 & 3. Teams A and B join the game
-  await joinTeam(teamAPage, gameCode!, 'Team A', 'Blue');
-  await joinTeam(teamBPage, gameCode!, 'Team B', 'Orange');
+    // Team 1 submits correct answer
+    await team1.page.locator('textarea').fill('Correct Answer Q1');
+    await team1.page.getByRole('button', { name: 'Submit Answer' }).click();
+    await expect(team1.page.getByText('Submissions closed.')).toBeVisible();
 
-  // Verify both teams appear on host scoreboard
-  await expect(hostPage.getByText('Team A')).toBeVisible();
-  await expect(hostPage.getByText('Team B')).toBeVisible();
+    // Team 2 submits wrong answer
+    await team2.page.locator('textarea').fill('Wrong Answer Q1');
+    await team2.page.getByRole('button', { name: 'Submit Answer' }).click();
+    await expect(team2.page.getByText('Submissions closed.')).toBeVisible();
 
-  // 4. Host starts timer (opens answers)
-  await hostPage.getByRole('button', { name: 'Start timer' }).click();
+    // Wait for answers on host
+    await expect(hostPage.getByText('Correct Answer Q1')).toBeVisible();
+    await expect(hostPage.getByText('Wrong Answer Q1')).toBeVisible();
 
-  // 5. Teams A & B both answer, team A first
-  await expect(teamAPage.getByLabel('Answer')).toBeVisible();
-  await expect(teamBPage.getByLabel('Answer')).toBeVisible();
+    // Mark Team 1's answer correct
+    const q1CorrectCard = hostPage.locator('div').filter({ hasText: 'Correct Answer Q1' }).locator('xpath=ancestor-or-self::div[contains(@class, "rounded-4xl")]').first();
+    await q1CorrectCard.getByRole('button', { name: 'Mark correct' }).click();
+    await expect(q1CorrectCard.locator('.text-3xl.font-bold')).toHaveText('50');
 
-  await submitAnswer(teamAPage, 'George Washington');
-  await submitAnswer(teamBPage, 'George Washington');
+    // ===== QUESTION 2: Multiple Choice =====
+    // Navigate to question 2
+    await hostPage.getByRole('button', { name: 'Next question' }).click();
+    await expect(questionNumberElement).toHaveText('2');
 
-  // Wait for answers to appear on host
-  await expect(hostPage.locator('[class*="rounded-4xl"]').filter({ hasText: 'Team A' })).toBeVisible();
-  await expect(hostPage.locator('[class*="rounded-4xl"]').filter({ hasText: 'Team B' })).toBeVisible();
+    // Change to multiple choice
+    const typeDropdown = hostPage.locator('select').filter({ hasText: /Standard/i });
+    await typeDropdown.selectOption('multipleChoice');
 
-  // 6. Host scores both correct, gives Team A one bonus point
-  const teamACard = hostPage.locator('[class*="rounded-4xl"]').filter({ hasText: 'Team A' });
-  const teamBCard = hostPage.locator('[class*="rounded-4xl"]').filter({ hasText: 'Team B' });
+    // Start timer
+    await hostPage.getByRole('button', { name: 'Start timer' }).click();
 
-  await teamACard.getByRole('button', { name: 'Mark correct' }).click();
-  await teamACard.getByRole('button', { name: 'Add bonus points' }).click();
-  await teamBCard.getByRole('button', { name: 'Mark correct' }).click();
+    // Both teams select and submit the same option (C) - testing auto-scoring
+    await team1.page.getByRole('button', { name: 'C', exact: true }).click();
+    await team1.page.getByRole('button', { name: 'Submit Answer' }).click();
+    await expect(team1.page.getByText('Submissions closed.')).toBeVisible();
 
-  // Verify scores on team pages: Team A = 11, Team B = 10
-  await expect(teamAPage.getByText('Score: 11')).toBeVisible();
-  await expect(teamBPage.getByText('Score: 10')).toBeVisible();
+    await team2.page.getByRole('button', { name: 'C', exact: true }).click();
+    await team2.page.getByRole('button', { name: 'Submit Answer' }).click();
+    await expect(team2.page.getByText('Submissions closed.')).toBeVisible();
 
-  // 7. Host moves to question 2
-  await hostPage.getByRole('button', { name: 'Next question' }).click();
-  await expect(hostPage.locator('text=Question').locator('..').getByText('2')).toBeVisible();
+    // Wait for answer cards
+    const q2AnswerCards = mainContent.locator('div[class*="rounded-4xl"]');
+    await expect(q2AnswerCards).toHaveCount(2);
 
-  // 8. Host changes Q2 settings: 20 points, 2 bonus increment
-  await hostPage.getByLabel('Question Points').fill('20');
-  await hostPage.getByLabel('Bonus Increment').fill('2');
+    // Mark one answer correct - the other should auto-score
+    await q2AnswerCards.first().getByRole('button', { name: 'Mark correct' }).click();
 
-  // 9. Host starts timer, teams answer (Team B first this time)
-  await hostPage.getByRole('button', { name: 'Start timer' }).click();
-  await expect(teamAPage.getByLabel('Answer')).toBeVisible();
-  await expect(teamBPage.getByLabel('Answer')).toBeVisible();
+    // Both should now have 50 points
+    await expect(q2AnswerCards.first().locator('.text-3xl.font-bold')).toHaveText('50');
+    await expect(q2AnswerCards.nth(1).locator('.text-3xl.font-bold')).toHaveText('50');
 
-  await submitAnswer(teamBPage, 'Abraham Lincoln');
-  await submitAnswer(teamAPage, 'Abraham Lincoln');
+    // ===== QUESTION 3: Standard with Bonus Points =====
+    // Navigate to question 3
+    await hostPage.getByRole('button', { name: 'Next question' }).click();
+    await expect(questionNumberElement).toHaveText('3');
 
-  // Wait for answers to appear on host
-  await expect(hostPage.locator('[class*="rounded-4xl"]').filter({ hasText: 'Team A' })).toBeVisible();
-  await expect(hostPage.locator('[class*="rounded-4xl"]').filter({ hasText: 'Team B' })).toBeVisible();
+    // Change back to standard
+    await hostPage.locator('select').first().selectOption('standard');
 
-  // 10. Host scores both correct, gives Team B 2 bonus points (one click = 2 points now)
-  const teamACardQ2 = hostPage.locator('[class*="rounded-4xl"]').filter({ hasText: 'Team A' });
-  const teamBCardQ2 = hostPage.locator('[class*="rounded-4xl"]').filter({ hasText: 'Team B' });
+    // Start timer
+    await hostPage.getByRole('button', { name: 'Start timer' }).click();
 
-  await teamBCardQ2.getByRole('button', { name: 'Mark correct' }).click();
-  await teamBCardQ2.getByRole('button', { name: 'Add bonus points' }).click();
-  await teamACardQ2.getByRole('button', { name: 'Mark correct' }).click();
+    // Both teams submit
+    await team1.page.locator('textarea').fill('Answer Q3 Team1');
+    await team1.page.getByRole('button', { name: 'Submit Answer' }).click();
+    await expect(team1.page.getByText('Submissions closed.')).toBeVisible();
 
-  // Verify final scores: Team A = 11 + 20 = 31, Team B = 10 + 20 + 2 = 32
-  await expect(teamAPage.getByText('Score: 31')).toBeVisible();
-  await expect(teamBPage.getByText('Score: 32')).toBeVisible();
+    await team2.page.locator('textarea').fill('Answer Q3 Team2');
+    await team2.page.getByRole('button', { name: 'Submit Answer' }).click();
+    await expect(team2.page.getByText('Submissions closed.')).toBeVisible();
 
-  // 11. Host navigates Q1 -> Q2 -> Q3, scores should not change
-  await hostPage.getByRole('button', { name: 'Previous question' }).click();
-  await expect(hostPage.locator('text=Question').locator('..').getByText('1')).toBeVisible();
+    // Wait for answers
+    await expect(hostPage.getByText('Answer Q3 Team1')).toBeVisible();
 
-  await hostPage.getByRole('button', { name: 'Next question' }).click();
-  await expect(hostPage.locator('text=Question').locator('..').getByText('2')).toBeVisible();
+    // Mark Team 1 correct and add bonus
+    const q3Team1Card = hostPage.locator('div').filter({ hasText: 'Answer Q3 Team1' }).locator('xpath=ancestor-or-self::div[contains(@class, "rounded-4xl")]').first();
+    await q3Team1Card.getByRole('button', { name: 'Mark correct' }).click();
+    await q3Team1Card.getByRole('button', { name: 'Add bonus points' }).click();
+    await expect(q3Team1Card.locator('.text-3xl.font-bold')).toHaveText('55');
 
-  await hostPage.getByRole('button', { name: 'Next question' }).click();
-  await expect(hostPage.locator('text=Question').locator('..').getByText('3')).toBeVisible();
+    // Mark Team 2 correct (no bonus)
+    const q3Team2Card = hostPage.locator('div').filter({ hasText: 'Answer Q3 Team2' }).locator('xpath=ancestor-or-self::div[contains(@class, "rounded-4xl")]').first();
+    await q3Team2Card.getByRole('button', { name: 'Mark correct' }).click();
+    await expect(q3Team2Card.locator('.text-3xl.font-bold')).toHaveText('50');
 
-  // Scores should remain unchanged after navigation
-  await expect(teamAPage.getByText('Score: 31')).toBeVisible();
-  await expect(teamBPage.getByText('Score: 32')).toBeVisible();
+    // ===== VERIFY FINAL SCORES =====
+    // Team 1: Q1(50) + Q2(50) + Q3(55) = 155
+    // Team 2: Q1(0) + Q2(50) + Q3(50) = 100
 
-  // Cleanup
-  await hostContext.close();
-  await teamAContext.close();
-  await teamBContext.close();
+    // Check team scores on their respective pages
+    await expect(team1.page.getByText('Score: 155')).toBeVisible();
+    await expect(team2.page.getByText('Score: 100')).toBeVisible();
+
+    // ===== CLEANUP =====
+    await team1.context.close();
+    await team2.context.close();
+    await hostContext.close();
+  });
 });
