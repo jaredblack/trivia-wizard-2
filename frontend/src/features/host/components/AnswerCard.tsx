@@ -1,4 +1,4 @@
-import { Check, X, Plus, Minus } from "lucide-react";
+import { Check, X, Plus, Minus, Zap } from "lucide-react";
 import type { ScoreData } from "../../../types";
 import { getScore } from "../../../types";
 
@@ -96,7 +96,15 @@ export default function AnswerCard({
 
       {/* Team name and answer */}
       <div className="flex-1 min-w-0">
-        <p className="font-bold">{teamName}</p>
+        <div className="flex items-center gap-2">
+          <p className="font-bold">{teamName}</p>
+          {score.speedBonusPoints > 0 && (
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded-full">
+              <Zap className="w-3 h-3" />
+              +{score.speedBonusPoints}
+            </span>
+          )}
+        </div>
         <p className="text-gray-600">{answerText}</p>
       </div>
     </div>

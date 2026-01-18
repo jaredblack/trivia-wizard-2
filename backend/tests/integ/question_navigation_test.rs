@@ -57,6 +57,7 @@ async fn team_can_answer_earlier_question_after_skipping() {
             question_points: 50,
             bonus_points: 5,
             override_points: 0,
+            speed_bonus_points: 0,
         },
     }))
     .await;
@@ -93,6 +94,7 @@ async fn team_can_answer_earlier_question_after_skipping() {
             question_points: 50,
             bonus_points: 10,
             override_points: 0,
+            speed_bonus_points: 0,
         },
     }))
     .await;
@@ -223,6 +225,7 @@ async fn navigation_preserves_answers_and_scores_across_questions() {
             question_points: 50,
             bonus_points: 10,
             override_points: 0,
+            speed_bonus_points: 0,
         },
     }))
     .await;

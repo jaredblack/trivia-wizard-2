@@ -82,6 +82,7 @@ async fn score_answer(
             question_points,
             bonus_points,
             override_points: 0,
+            speed_bonus_points: 0,
         },
     }))
     .await;

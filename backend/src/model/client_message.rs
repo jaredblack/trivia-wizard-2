@@ -38,6 +38,9 @@ pub enum HostAction {
         default_bonus_increment: u32,
         default_question_type: QuestionKind,
         default_mc_config: McConfig,
+        speed_bonus_enabled: bool,
+        speed_bonus_num_teams: u32,
+        speed_bonus_first_place_points: u32,
     },
 
     #[serde(rename_all = "camelCase")]
@@ -47,6 +50,7 @@ pub enum HostAction {
         question_points: u32,
         bonus_increment: u32,
         question_type: QuestionKind,
+        speed_bonus_enabled: bool,
     },
 
     #[serde(rename_all = "camelCase")]

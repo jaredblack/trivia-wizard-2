@@ -9,7 +9,7 @@ import QuestionControls from "./components/QuestionControls";
 import StandardMainArea from "./components/StandardMainArea";
 import MultipleChoiceMainArea from "./components/MultipleChoiceMainArea";
 import Scoreboard from "./components/Scoreboard";
-import GameSettings from "./components/GameSettings";
+import PerQuestionSettings from "./components/PerQuestionSettings";
 import SettingsModal from "./components/SettingsModal";
 import type {
   QuestionKind,
@@ -184,6 +184,7 @@ export default function HostGame() {
               questionPoints: currentQuestion.questionPoints,
               bonusIncrement: currentQuestion.bonusIncrement,
               questionType: type,
+              speedBonusEnabled: currentQuestion.speedBonusEnabled,
             },
           });
         }}
@@ -264,10 +265,11 @@ export default function HostGame() {
       </main>
 
       {/* Footer with game settings */}
-      <GameSettings
+      <PerQuestionSettings
         questionPoints={currentQuestion.questionPoints}
         bonusIncrement={currentQuestion.bonusIncrement}
         timerLength={currentQuestion.timerDuration}
+        speedBonusEnabled={currentQuestion.speedBonusEnabled}
         disabled={questionHasAnswers}
         onQuestionPointsChange={(value) => {
           sendMessage({
@@ -278,6 +280,7 @@ export default function HostGame() {
               questionPoints: value,
               bonusIncrement: currentQuestion.bonusIncrement,
               questionType: currentQuestion.questionKind,
+              speedBonusEnabled: currentQuestion.speedBonusEnabled,
             },
           });
         }}
@@ -290,6 +293,7 @@ export default function HostGame() {
               questionPoints: currentQuestion.questionPoints,
               bonusIncrement: value,
               questionType: currentQuestion.questionKind,
+              speedBonusEnabled: currentQuestion.speedBonusEnabled,
             },
           });
         }}
@@ -302,6 +306,20 @@ export default function HostGame() {
               questionPoints: currentQuestion.questionPoints,
               bonusIncrement: currentQuestion.bonusIncrement,
               questionType: currentQuestion.questionKind,
+              speedBonusEnabled: currentQuestion.speedBonusEnabled,
+            },
+          });
+        }}
+        onSpeedBonusEnabledChange={(enabled) => {
+          sendMessage({
+            host: {
+              type: "updateQuestionSettings",
+              questionNumber: currentQuestionNumber,
+              timerDuration: currentQuestion.timerDuration,
+              questionPoints: currentQuestion.questionPoints,
+              bonusIncrement: currentQuestion.bonusIncrement,
+              questionType: currentQuestion.questionKind,
+              speedBonusEnabled: enabled,
             },
           });
         }}
@@ -322,6 +340,9 @@ export default function HostGame() {
                 defaultBonusIncrement: newSettings.defaultBonusIncrement,
                 defaultQuestionType: newSettings.defaultQuestionType,
                 defaultMcConfig: newSettings.defaultMcConfig,
+                speedBonusEnabled: newSettings.speedBonusEnabled,
+                speedBonusNumTeams: newSettings.speedBonusNumTeams,
+                speedBonusFirstPlacePoints: newSettings.speedBonusFirstPlacePoints,
               },
             });
           }}

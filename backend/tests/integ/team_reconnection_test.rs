@@ -40,6 +40,7 @@ async fn team_reconnects_and_score_persists() {
         question_points: 50,
         bonus_points: 10,
         override_points: 0,
+        speed_bonus_points: 0,
     };
     host.send_json(&ClientMessage::Host(HostAction::ScoreAnswer {
         question_number: 1,

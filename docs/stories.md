@@ -68,3 +68,90 @@ We are building the Trivia Wizard app as described in overview.md. We will only 
 
 ## edge cases worth considering
 - someone tries to create a game with the same code as another currently-connected host
+
+
+prompt
+
+One clarification: when I say "first place" in this context I mean "first to answer this given question correctly", where "answering the question correctly" is defined as getting *any* question_points for the given question. And same for second place, third place, etc.
+
+One scoring feature I would like to add is to allow speed bonuses to be applied to correct answers that are  
+  submitted first. The way I envision this feature working is that, for a given question, whichever team answers   
+  first with the correct answer gets some number of bonus points. A few aspects of this will be configurable, on a per-game level:    
+   1. How many teams can get speed bonuses (should only 1st to answer correctly get a bonus? first three?)
+   2. The number of bonus points that the first place team should get
+Additionally, whether the bonus should be applied to a given question may also be applied at the per-question level (default OFF for the whole game and per question)
+
+IMPORTANT NOTE: Scores for each question are represented as a ScoreData, which has three fields: question_points, bonus_points, and override_points. Speed bonuses will be applied in the override_points field, NOT the bonus_points field. The bonus points field is used for something else.
+
+In order to add this feature, we will have to make some changes in key places:
+
+Frontend:
+- SettingsModal.tsx - add:
+   - A "Speed Bonus" header
+   - A switch which enables whether speed bonuses should be applied to all subsequent questions
+   - A numeric input which determines how many teams can get speed bonuses (N)
+   - A numeric input which determines the number of bonus points that the first place team should get
+   - Text below these inputs which displays how many points each of the N teams will get on a given question for speed bonuses (see below: Calculating the bonus)
+- PerQuestionSettings.tsx - add a switch that toggles whether speed bonuses should be applied for this question. Number of teams and points for the speed bonus are not configurable here.
+- AnswerCard.tsx - Add a small indication of how many speed bonus points the team got (if any) on the answer card. Practically this will mean displaying how many override_points the team got.
+
+Backend:
+- game.rs: In the method score_answer, we will want to recalculate what the speed bonuses are and how they should be distributed. question.answers will be ordered from earliest answer to latest answer, so if speed bonuses have been enabled, we should apply the speed bonuses to whichever teams have been scored correct in submission order. Example:
+   - Speed bonus: enabled. Number of teams that can get bonus: 2. Bonus distribution: 1st place: 10, 2nd place: 5
+   - The following answers exist:
+      - Team A: Apple
+      - Team B: Apple
+      - Team C: Apple
+      - Team D: Giraffe
+   - Host scores Team B correct. Due to auto-scoring, teams A and C also get points. Now the bonuses are like this:
+      - Team A: Apple - question_points: 50, override_points: 10
+      - Team B: Apple - question_points: 50,  override_points: 5
+      - Team C: Apple - question_points: 50,  override_points: 0
+      - Team C: Giraffe question_points: 0,  - override_points: 0
+   - Now let's say the answers are a bit different:
+      - Team A: Pear
+      - Team B: Apple
+      - Team C: Apple
+      - Team D: Giraffe
+   - And again, the host scores team B correct. Team C gets points automatically, and bonuses are distributed like such:
+      - Team A: Pear - question_points: 0,  override_points: 0
+      - Team B: Apple - question_points: 50, override_points: 10
+      - Team C: Apple -  question_points: 50, override_points: 5
+      - Team C: Giraffe - question_points: 0,  override_points: 0
+   - But wait! Then the host actually realizes that "Pear" should be a valid answer to this question. Now the speed bonuses will reshuffle:
+      - Team A: Pear - question_points: 50,  override_points: 10
+      - Team B: Apple - question_points: 50, override_points: 5
+      - Team C: Apple -  question_points: 50, override_points: 0
+      - Team C: Giraffe - question_points: 0,  override_points: 0
+- Add settings to update_game_settings and update_question_settings in game.rs as well
+   - Note: Follow all existing logic for setting the whole-game settings about which questions it applies to, i.e. settings updates to the game are never retroactively applied on previously-scored questions
+
+Calculating the bonus:
+As I said before, only the number of points that the first place team gets can be set by the host. The number of bonus points given to the 2nd place...Nth place teams will be calculated by evenly dividing (N-1) intervals between the number of points that first place gets and 0, rounding down for each interval. For example:
+If there are 3 teams and first place gets 10 points - 
+   1st: 10
+   2nd: 6 (10*2/3 = 6.67 rounded down)     
+   3rd: 3 (10*1/3 = 3.33 rounded down)
+
+If there are 2 teams and first place gets 5 points - 
+   1st: 5
+   2nd: 2 (5*1/2 = 2.5 rounded down)
+
+If there are 5 teams and first place gets 10 points - 
+   10
+   8 (10*4/5 = 8)
+   6
+   4
+   2
+
+Please read the relevant places in code I mentioned to get a deeper understanding of what needs to be implemented. Then, ask me clarifying questions about the feature or the implementation. Then, make an implementation plan.
+
+
+The override_points mechanism is currently only used for manual host adjustments at the overall score level, not on an individual question level. I think we can   
+  add them into recalculate_team_score safely. Do you think so? The only place I can think of where this could cause issues is with the views that break down the    
+  score to the user, for exmaple in the Scoreboard on hover where you can see Questions: x, Bonus: y, Overrides: z, and a similar view in ScoreLogDrawer. I think    
+  the right way to handle this is to add an extra field here called "Speed Bonus" that calculates the aggregate of all the override_points from all the questions,   
+  while the Overrides display remains the override on the team's total ScoreData. Does that make sense? I could also be convinced to add another field to ScoreData  
+  if that works out cleaner.      
+
+Upon further reflection, I'm realizing that it might be cleaner to simply add a new field to ScoreData: speed_bonus_points. override_points is unused on a per-question level, but we can leave it that way. The reason is, when we're aggregating up the total team ScoreData, we want it to be that each field in that ScoreData is equal to the sum of the per-question values (other than override_points which is only ever set on the total team ScoreData). So now we add a speed_bonus_points field to ScoreData. Then with the views that break down the score to the user, for exmaple in the Scoreboard on hover where you can see Questions: x, Bonus: y, Overrides: z, and a similar view in ScoreLogDrawer, add an extra field here called "Speed Bonus" that calculates the aggregate of all of those speed_bonus_points across all questions. 

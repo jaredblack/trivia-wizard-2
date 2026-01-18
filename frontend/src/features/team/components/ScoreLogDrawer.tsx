@@ -74,7 +74,9 @@ export default function ScoreLogDrawer({
         {/* Total Score Summary */}
         <div className="px-4 py-3 bg-gray-50 border-b">
           <p className="text-sm text-gray-600">
-            Questions: {totalScore.questionPoints}, Bonus: {totalScore.bonusPoints}, Override: {totalScore.overridePoints}
+            Questions: {totalScore.questionPoints}, Bonus:{" "}
+            {totalScore.bonusPoints}, Speed: {totalScore.speedBonusPoints},
+            Override: {totalScore.overridePoints}
           </p>
         </div>
 
@@ -84,15 +86,27 @@ export default function ScoreLogDrawer({
             const questionNumber = questions.length - index;
             return (
               <div key={questionNumber} className="p-4 border-b">
-                <h3 className="font-semibold mb-2">Question {questionNumber}:</h3>
+                <h3 className="font-semibold mb-2">
+                  Question {questionNumber}:
+                </h3>
                 <p className="text-gray-700 mb-1">
                   Your answer:{" "}
-                  {question.content
-                    ? answerToString(question.content)
-                    : <span className="text-gray-400 italic">No answer submitted</span>}
+                  {question.content ? (
+                    answerToString(question.content)
+                  ) : (
+                    <span className="text-gray-400 italic">
+                      No answer submitted
+                    </span>
+                  )}
                 </p>
                 <p className="text-sm text-gray-600">
-                  Score: Question: {question.score.questionPoints}, Bonus: {question.score.bonusPoints}
+                  Overall score:{" "}
+                  {question.score.bonusPoints +
+                    question.score.questionPoints +
+                    question.score.speedBonusPoints}{", "}
+                  Question: {question.score.questionPoints}, Bonus:{" "}
+                  {question.score.bonusPoints}, Speed:{" "}
+                  {question.score.speedBonusPoints}
                 </p>
               </div>
             );

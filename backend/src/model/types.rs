@@ -71,6 +71,7 @@ pub struct ScoreData {
     pub question_points: i32,
     pub bonus_points: i32,
     pub override_points: i32,
+    pub speed_bonus_points: i32,
 }
 
 impl ScoreData {
@@ -79,7 +80,7 @@ impl ScoreData {
     }
 
     pub fn get_score(&self) -> i32 {
-        self.question_points + self.bonus_points + self.override_points
+        self.question_points + self.bonus_points + self.override_points + self.speed_bonus_points
     }
 }
 
@@ -122,6 +123,7 @@ pub struct Question {
     pub question_kind: QuestionKind,
     pub question_config: QuestionConfig,
     pub answers: Vec<TeamQuestion>,
+    pub speed_bonus_enabled: bool,
 }
 
 impl Question {
@@ -156,6 +158,9 @@ pub struct GameSettings {
     pub default_bonus_increment: u32,
     pub default_question_type: QuestionKind,
     pub default_mc_config: McConfig,
+    pub speed_bonus_enabled: bool,
+    pub speed_bonus_num_teams: u32,
+    pub speed_bonus_first_place_points: u32,
 }
 
 // === Team Types ===

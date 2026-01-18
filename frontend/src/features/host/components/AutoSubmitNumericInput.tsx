@@ -3,6 +3,7 @@ interface AutoSubmitNumericInputProps {
   onSubmit?: (value: number) => void;
   disabled?: boolean;
   min?: number;
+  max?: number;
 }
 
 export default function AutoSubmitNumericInput({
@@ -10,6 +11,7 @@ export default function AutoSubmitNumericInput({
   onSubmit,
   disabled,
   min,
+  max,
 }: AutoSubmitNumericInputProps) {
   return (
     <input
@@ -32,6 +34,7 @@ export default function AutoSubmitNumericInput({
       }}
       disabled={disabled}
       min={min}
+      max={max}
       className={`w-16 px-2 py-1 border bg-white border-gray-300 hover:border-gray-400 rounded-xl text-center ${
         disabled ? "bg-gray-100 text-gray-400 cursor-not-allowed" : ""
       }`}

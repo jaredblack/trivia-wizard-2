@@ -22,6 +22,9 @@ fn normalize_answer_text(content: &Option<AnswerContent>) -> Option<String> {
 const DEFAULT_TIMER_DURATION: u32 = 30;
 const DEFAULT_QUESTION_POINTS: u32 = 50;
 const DEFAULT_BONUS_INCREMENT: u32 = 5;
+const DEFAULT_SPEED_BONUS_ENABLED: bool = false;
+const DEFAULT_SPEED_BONUS_NUM_TEAMS: u32 = 2;
+const DEFAULT_SPEED_BONUS_FIRST_PLACE_POINTS: u32 = 10;
 
 pub struct Game {
     // Connection channels
@@ -49,6 +52,9 @@ impl Game {
             default_bonus_increment: DEFAULT_BONUS_INCREMENT,
             default_question_type: QuestionKind::Standard,
             default_mc_config: McConfig::default(),
+            speed_bonus_enabled: DEFAULT_SPEED_BONUS_ENABLED,
+            speed_bonus_num_teams: DEFAULT_SPEED_BONUS_NUM_TEAMS,
+            speed_bonus_first_place_points: DEFAULT_SPEED_BONUS_FIRST_PLACE_POINTS,
         };
 
         // Initialize with one empty standard question
@@ -59,6 +65,7 @@ impl Game {
             question_kind: QuestionKind::Standard,
             question_config: QuestionConfig::Standard,
             answers: vec![],
+            speed_bonus_enabled: DEFAULT_SPEED_BONUS_ENABLED,
         };
 
         Self {
@@ -198,6 +205,7 @@ impl Game {
             question_kind: self.game_settings.default_question_type,
             question_config,
             answers: vec![],
+            speed_bonus_enabled: self.game_settings.speed_bonus_enabled,
         }
     }
 
@@ -318,9 +326,16 @@ impl Game {
             question_config: question.question_config.clone(),
         });
 
-        // If auto-scored, update the team's total score
+        // If auto-scored, recalculate speed bonuses and team scores
         if auto_score.is_some() {
+            let question_idx = self.current_question_number - 1;
+            let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
             self.recalculate_team_score(team_name);
+            for team in speed_bonus_teams {
+                if team != team_name {
+                    self.recalculate_team_score(&team);
+                }
+            }
         }
 
         true
@@ -350,14 +365,28 @@ impl Game {
             return false;
         };
 
-        // Update the target answer's score
-        question.answers[answer_idx].score = score.clone();
+        // Update the target answer's score (preserve speed_bonus_points, will be recalculated)
+        let current_speed_bonus = question.answers[answer_idx].score.speed_bonus_points;
+        question.answers[answer_idx].score = ScoreData {
+            speed_bonus_points: current_speed_bonus,
+            ..score.clone()
+        };
 
         // Get normalized text for matching
         let Some(normalized_text) = normalize_answer_text(&question.answers[answer_idx].content)
         else {
             // Can't auto-score without text to match (e.g., MultiAnswer)
-            self.recalculate_team_score(team_name);
+            // Recalculate speed bonuses and team scores
+            let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
+            let mut teams_to_update = vec![team_name.to_string()];
+            for t in speed_bonus_teams {
+                if !teams_to_update.contains(&t) {
+                    teams_to_update.push(t);
+                }
+            }
+            for team in teams_to_update {
+                self.recalculate_team_score(&team);
+            }
             return true;
         };
 
@@ -365,6 +394,7 @@ impl Game {
         let mut teams_to_update: Vec<String> = vec![team_name.to_string()];
 
         // Sync question_points and bonus_points to all matching answers
+        let question = &mut self.questions[question_idx];
         for (i, other_answer) in question.answers.iter_mut().enumerate() {
             if i != answer_idx {
                 if let Some(other_text) = normalize_answer_text(&other_answer.content) {
@@ -377,6 +407,14 @@ impl Game {
                         teams_to_update.push(other_answer.team_name.clone());
                     }
                 }
+            }
+        }
+
+        // Recalculate speed bonuses
+        let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
+        for t in speed_bonus_teams {
+            if !teams_to_update.contains(&t) {
+                teams_to_update.push(t);
             }
         }
 
@@ -407,19 +445,71 @@ impl Game {
     fn recalculate_team_score(&mut self, team_name: &str) {
         let mut total_question_points = 0i32;
         let mut total_bonus_points = 0i32;
+        let mut total_speed_bonus_points = 0i32;
 
         for question in &self.questions {
             if let Some(answer) = question.answers.iter().find(|a| a.team_name == team_name) {
                 total_question_points += answer.score.question_points;
                 total_bonus_points += answer.score.bonus_points;
+                total_speed_bonus_points += answer.score.speed_bonus_points;
             }
         }
 
         if let Some(team) = self.find_team_mut(team_name) {
             team.score.question_points = total_question_points;
             team.score.bonus_points = total_bonus_points;
+            team.score.speed_bonus_points = total_speed_bonus_points;
             // override_points is preserved (not recalculated)
         }
+    }
+
+    /// Calculate speed bonus points based on placement
+    fn calculate_speed_bonus(place: usize, num_teams: u32, first_place_points: u32) -> i32 {
+        if place >= num_teams as usize {
+            return 0;
+        }
+        let remaining = num_teams as usize - place;
+        (first_place_points as i32 * remaining as i32) / num_teams as i32
+    }
+
+    /// Recalculate speed bonuses for all answers in a question.
+    /// Returns the list of team names whose scores changed.
+    fn recalculate_speed_bonuses(&mut self, question_idx: usize) -> Vec<String> {
+        let num_teams = self.game_settings.speed_bonus_num_teams;
+        let first_place_points = self.game_settings.speed_bonus_first_place_points;
+
+        let question = &mut self.questions[question_idx];
+        let mut teams_changed = Vec::new();
+
+        // If speed bonus is disabled for this question, clear all speed bonuses
+        if !question.speed_bonus_enabled {
+            for answer in &mut question.answers {
+                if answer.score.speed_bonus_points != 0 {
+                    answer.score.speed_bonus_points = 0;
+                    teams_changed.push(answer.team_name.clone());
+                }
+            }
+            return teams_changed;
+        }
+
+        // Count correct answers in submission order (answers are stored in submission order)
+        let mut place = 0usize;
+        for answer in &mut question.answers {
+            let new_speed_bonus = if answer.score.question_points > 0 {
+                let bonus = Self::calculate_speed_bonus(place, num_teams, first_place_points);
+                place += 1;
+                bonus
+            } else {
+                0
+            };
+
+            if answer.score.speed_bonus_points != new_speed_bonus {
+                answer.score.speed_bonus_points = new_speed_bonus;
+                teams_changed.push(answer.team_name.clone());
+            }
+        }
+
+        teams_changed
     }
 
     // === Settings operations ===
@@ -446,6 +536,7 @@ impl Game {
                 question.bonus_increment = settings.default_bonus_increment;
                 question.question_kind = settings.default_question_type;
                 question.question_config = default_question_config.clone();
+                question.speed_bonus_enabled = settings.speed_bonus_enabled;
             }
         }
 
@@ -465,6 +556,7 @@ impl Game {
         question_points: u32,
         bonus_increment: u32,
         question_type: QuestionKind,
+        speed_bonus_enabled: bool,
     ) -> Result<()> {
         let question_idx = question_number - 1;
         if question_idx >= self.questions.len() {
@@ -482,8 +574,9 @@ impl Game {
         question.question_points = question_points;
         question.bonus_increment = bonus_increment;
         question.question_kind = question_type;
+        question.speed_bonus_enabled = speed_bonus_enabled;
 
-        // If question config kind doesn't match the question kind, 
+        // If question config kind doesn't match the question kind,
         // we changed question types and we need to set the config to the
         // new default
         if question.question_config.kind() != question.question_kind {
@@ -536,5 +629,66 @@ impl Game {
         } else {
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_calculate_speed_bonus_3_teams_10_points() {
+        // 3 teams eligible, 10 first place points
+        // 1st: 10 * 3 / 3 = 10
+        // 2nd: 10 * 2 / 3 = 6
+        // 3rd: 10 * 1 / 3 = 3
+        // 4th+: 0
+        assert_eq!(Game::calculate_speed_bonus(0, 3, 10), 10);
+        assert_eq!(Game::calculate_speed_bonus(1, 3, 10), 6);
+        assert_eq!(Game::calculate_speed_bonus(2, 3, 10), 3);
+        assert_eq!(Game::calculate_speed_bonus(3, 3, 10), 0);
+        assert_eq!(Game::calculate_speed_bonus(4, 3, 10), 0);
+    }
+
+    #[test]
+    fn test_calculate_speed_bonus_2_teams_10_points() {
+        // 2 teams eligible, 10 first place points
+        // 1st: 10 * 2 / 2 = 10
+        // 2nd: 10 * 1 / 2 = 5
+        // 3rd+: 0
+        assert_eq!(Game::calculate_speed_bonus(0, 2, 10), 10);
+        assert_eq!(Game::calculate_speed_bonus(1, 2, 10), 5);
+        assert_eq!(Game::calculate_speed_bonus(2, 2, 10), 0);
+    }
+
+    #[test]
+    fn test_calculate_speed_bonus_4_teams_20_points() {
+        // 4 teams eligible, 20 first place points
+        // 1st: 20 * 4 / 4 = 20
+        // 2nd: 20 * 3 / 4 = 15
+        // 3rd: 20 * 2 / 4 = 10
+        // 4th: 20 * 1 / 4 = 5
+        assert_eq!(Game::calculate_speed_bonus(0, 4, 20), 20);
+        assert_eq!(Game::calculate_speed_bonus(1, 4, 20), 15);
+        assert_eq!(Game::calculate_speed_bonus(2, 4, 20), 10);
+        assert_eq!(Game::calculate_speed_bonus(3, 4, 20), 5);
+        assert_eq!(Game::calculate_speed_bonus(4, 4, 20), 0);
+    }
+
+    #[test]
+    fn test_calculate_speed_bonus_1_team() {
+        // Only 1 team eligible, 10 first place points
+        // 1st: 10 * 1 / 1 = 10
+        // 2nd+: 0
+        assert_eq!(Game::calculate_speed_bonus(0, 1, 10), 10);
+        assert_eq!(Game::calculate_speed_bonus(1, 1, 10), 0);
+    }
+
+    #[test]
+    fn test_calculate_speed_bonus_zero_points() {
+        // Even with teams eligible, 0 first place points = 0 for everyone
+        assert_eq!(Game::calculate_speed_bonus(0, 3, 0), 0);
+        assert_eq!(Game::calculate_speed_bonus(1, 3, 0), 0);
+        assert_eq!(Game::calculate_speed_bonus(2, 3, 0), 0);
     }
 }

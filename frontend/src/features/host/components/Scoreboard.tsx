@@ -40,7 +40,7 @@ function parseScoreExpression(input: string): number | null {
 }
 
 function formatScoreBreakdown(score: ScoreData): string {
-  return `Questions: ${score.questionPoints}, Bonus: ${score.bonusPoints}, Override: ${score.overridePoints}`;
+  return `Questions: ${score.questionPoints}, Bonus: ${score.bonusPoints}, Speed: ${score.speedBonusPoints}, Override: ${score.overridePoints}`;
 }
 
 interface EditableScoreProps {

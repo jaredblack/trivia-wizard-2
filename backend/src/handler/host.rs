@@ -195,6 +195,9 @@ fn process_host_action(
             default_bonus_increment,
             default_question_type,
             default_mc_config,
+            speed_bonus_enabled,
+            speed_bonus_num_teams,
+            speed_bonus_first_place_points,
         } => {
             let settings = GameSettings {
                 default_timer_duration,
@@ -202,6 +205,9 @@ fn process_host_action(
                 default_bonus_increment,
                 default_question_type,
                 default_mc_config,
+                speed_bonus_enabled,
+                speed_bonus_num_teams,
+                speed_bonus_first_place_points,
             };
             game.update_game_settings(settings);
             HostActionResult {
@@ -217,12 +223,14 @@ fn process_host_action(
             question_points,
             bonus_increment,
             question_type,
+            speed_bonus_enabled,
         } => match game.update_question_settings(
             question_number,
             timer_duration,
             question_points,
             bonus_increment,
             question_type,
+            speed_bonus_enabled,
         ) {
             Ok(()) => HostActionResult {
                 host_msg: ServerMessage::GameState {

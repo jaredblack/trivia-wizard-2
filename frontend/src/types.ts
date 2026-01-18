@@ -81,10 +81,11 @@ export interface ScoreData {
   questionPoints: number;
   bonusPoints: number;
   overridePoints: number;
+  speedBonusPoints: number;
 }
 
 export function getScore(score: ScoreData): number {
-  return score.questionPoints + score.bonusPoints + score.overridePoints;
+  return score.questionPoints + score.bonusPoints + score.overridePoints + score.speedBonusPoints;
 }
 
 // === TeamQuestion ===
@@ -142,6 +143,7 @@ export interface Question {
   questionKind: QuestionKind;
   questionConfig: QuestionConfig;
   answers: TeamQuestion[];
+  speedBonusEnabled: boolean;
 }
 
 // === Game Settings ===
@@ -152,6 +154,9 @@ export interface GameSettings {
   defaultBonusIncrement: number;
   defaultQuestionType: QuestionKind;
   defaultMcConfig: McConfig;
+  speedBonusEnabled: boolean;
+  speedBonusNumTeams: number;
+  speedBonusFirstPlacePoints: number;
 }
 
 // === Team Types ===
@@ -273,6 +278,9 @@ export interface UpdateGameSettingsAction {
   defaultBonusIncrement: number;
   defaultQuestionType: QuestionKind;
   defaultMcConfig: McConfig;
+  speedBonusEnabled: boolean;
+  speedBonusNumTeams: number;
+  speedBonusFirstPlacePoints: number;
 }
 
 export interface UpdateQuestionSettingsAction {
@@ -283,6 +291,7 @@ export interface UpdateQuestionSettingsAction {
   bonusIncrement: number;
   questionType: QuestionKind;
   mcConfig?: McConfig;
+  speedBonusEnabled: boolean;
 }
 
 export interface UpdateTypeSpecificSettingsAction {
