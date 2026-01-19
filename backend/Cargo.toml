@@ -21,7 +21,7 @@ serde_json = "1.0"
 axum = "0.8.8"
 aws-config = { version = "1.8.12", default-features = false, features = ["rustls", "rt-tokio"] }
 aws-sdk-route53 = { version = "1.105.0", default-features = false, features = ["rustls"] }
-reqwest = { version = "0.13.1", default-features = false, features = ["json", "blocking"] }
+reqwest = { version = "0.13.1", default-features = false, features = ["json", "rustls", "blocking"] }
 aws-sdk-ec2 = {version = "1.200.0", default-features = false, features = ["rustls"] }
 aws-sdk-ecs = {version = "1.110.0", default-features = false, features = ["rustls"] }
 tower-http = { version = "0.6.8", features = ["cors"] }

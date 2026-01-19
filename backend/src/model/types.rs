@@ -136,7 +136,7 @@ impl Question {
     pub fn filter_for_team(&self, team_name: &str) -> TeamQuestion {
         self.answers
             .iter()
-            .find(|a| a.team_name == team_name)
+            .find(|a| a.team_name.eq_ignore_ascii_case(team_name))
             .cloned()
             .unwrap_or_else(|| TeamQuestion {
                 team_name: team_name.to_string(),

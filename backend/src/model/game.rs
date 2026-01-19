@@ -286,7 +286,11 @@ impl Game {
         let question = self.current_question_mut();
 
         // Check if team already submitted
-        if question.answers.iter().any(|a| a.team_name == team_name) {
+        if question
+            .answers
+            .iter()
+            .any(|a| a.team_name.eq_ignore_ascii_case(team_name))
+        {
             return false;
         }
 
@@ -365,7 +369,11 @@ impl Game {
         let question = &mut self.questions[question_idx];
 
         // Find the target answer's index
-        let Some(answer_idx) = question.answers.iter().position(|a| a.team_name == team_name) else {
+        let Some(answer_idx) = question
+            .answers
+            .iter()
+            .position(|a| a.team_name.eq_ignore_ascii_case(team_name))
+        else {
             return false;
         };
 
@@ -452,7 +460,11 @@ impl Game {
         let mut total_speed_bonus_points = 0i32;
 
         for question in &self.questions {
-            if let Some(answer) = question.answers.iter().find(|a| a.team_name == team_name) {
+            if let Some(answer) = question
+                .answers
+                .iter()
+                .find(|a| a.team_name.eq_ignore_ascii_case(team_name))
+            {
                 total_question_points += answer.score.question_points;
                 total_bonus_points += answer.score.bonus_points;
                 total_speed_bonus_points += answer.score.speed_bonus_points;
