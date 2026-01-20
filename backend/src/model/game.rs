@@ -29,6 +29,7 @@ const DEFAULT_SPEED_BONUS_FIRST_PLACE_POINTS: u32 = 10;
 pub struct Game {
     // Connection channels
     pub game_code: String,
+    pub host_user_id: String,
     pub host_tx: Option<Tx>,
     pub teams_tx: HashMap<String, Tx>,
 
@@ -45,7 +46,7 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn new(game_code: String, host_tx: Tx) -> Self {
+    pub fn new(game_code: String, host_tx: Tx, host_user_id: String) -> Self {
         let game_settings = GameSettings {
             default_timer_duration: DEFAULT_TIMER_DURATION,
             default_question_points: DEFAULT_QUESTION_POINTS,
@@ -70,6 +71,7 @@ impl Game {
 
         Self {
             game_code,
+            host_user_id,
             host_tx: Some(host_tx),
             teams_tx: HashMap::new(),
             current_question_number: 1,
@@ -78,6 +80,29 @@ impl Game {
             teams: vec![],
             questions: vec![initial_question],
             game_settings,
+            timer_abort_handle: None,
+        }
+    }
+
+    /// Create a Game from a saved GameState (for S3 restoration).
+    /// Sets up connection state (host_tx, empty teams_tx, no timer handle).
+    pub fn from_saved_state(
+        host_user_id: String,
+        game_code: String,
+        host_tx: Tx,
+        state: GameState,
+    ) -> Self {
+        Self {
+            game_code,
+            host_user_id,
+            host_tx: Some(host_tx),
+            teams_tx: HashMap::new(),
+            current_question_number: state.current_question_number,
+            timer_running: false, // Always start with timer stopped on restore
+            timer_seconds_remaining: state.timer_seconds_remaining,
+            teams: state.teams,
+            questions: state.questions,
+            game_settings: state.game_settings,
             timer_abort_handle: None,
         }
     }
@@ -365,6 +390,7 @@ impl Game {
         if question_idx >= self.questions.len() {
             return false;
         }
+        
 
         let question = &mut self.questions[question_idx];
 

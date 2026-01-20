@@ -19,6 +19,7 @@ pub async fn create_game(
     app_state: Arc<AppState>,
     mut ws_stream: WebSocketStream<TcpStream>,
     game_code: String,
+    user_id: String,
 ) {
     app_state
         .timer
@@ -31,7 +32,7 @@ pub async fn create_game(
     let (tx, rx) = mpsc::unbounded_channel::<Message>();
     let mut games_map = app_state.games.lock().await;
 
-    // Check if game exists
+    // Check if game exists in memory
     if let Some(existing_game) = games_map.get_mut(&game_code) {
         // If game has a host, return error
         if existing_game.host_tx.is_some() {
@@ -44,7 +45,16 @@ pub async fn create_game(
             return;
         }
 
-        // Game exists but host disconnected - reclaim it
+        // Game exists but host disconnected - check ownership before reclaiming
+        if existing_game.host_user_id != user_id {
+            info!("User {user_id} cannot reclaim game {game_code}: owned by {}", existing_game.host_user_id);
+            let error_msg = ServerMessage::error(format!("Game code '{}' already exists", game_code));
+            let msg = serde_json::to_string(&error_msg).unwrap();
+            drop(games_map);
+            let _ = ws_stream.send(Message::text(msg)).await;
+            return;
+        }
+
         info!("Host reclaiming existing game: {game_code}");
         existing_game.set_host_tx(tx.clone());
         let msg = ServerMessage::GameState {
@@ -52,20 +62,44 @@ pub async fn create_game(
         };
         drop(games_map);
         send_msg(&tx, msg);
-        handle_host(ws_stream, app_state, rx, tx, game_code).await;
+        handle_host(ws_stream, app_state, rx, tx, game_code, user_id).await;
         return;
     }
 
-    // Game doesn't exist - create it
-    let game = Game::new(game_code.clone(), tx.clone());
-    let msg = ServerMessage::GameState {
-        state: game.to_game_state(),
-    };
-    games_map.insert(game_code.clone(), game);
-    drop(games_map);
-    info!("Game created: {game_code}");
-    send_msg(&tx, msg);
-    handle_host(ws_stream, app_state, rx, tx, game_code).await;
+    // Game not in memory - try to restore from S3
+    drop(games_map);  // Release lock while doing async S3 call
+
+    match app_state.persistence.load_game_state(&user_id, &game_code).await {
+        Ok(Some(state)) => {
+            // Restore game from S3
+            info!("Restoring game {game_code} from S3 for user {user_id}");
+            let game = Game::from_saved_state(user_id.clone(), game_code.clone(), tx.clone(), state);
+            let msg = ServerMessage::GameState {
+                state: game.to_game_state(),
+            };
+            app_state.games.lock().await.insert(game_code.clone(), game);
+            send_msg(&tx, msg);
+            handle_host(ws_stream, app_state, rx, tx, game_code, user_id).await;
+        }
+        Ok(None) => {
+            // No saved state - create new game
+            info!("Creating new game: {game_code}");
+            let game = Game::new(game_code.clone(), tx.clone(), user_id.clone());
+            let msg = ServerMessage::GameState {
+                state: game.to_game_state(),
+            };
+            app_state.games.lock().await.insert(game_code.clone(), game);
+            send_msg(&tx, msg);
+            handle_host(ws_stream, app_state, rx, tx, game_code, user_id).await;
+        }
+        Err(e) => {
+            // Error loading (e.g., incompatible save format)
+            warn!("Error restoring game {game_code} from S3: {e}");
+            let error_msg = ServerMessage::error(e.to_string());
+            let msg = serde_json::to_string(&error_msg).unwrap();
+            let _ = ws_stream.send(Message::text(msg)).await;
+        }
+    }
 }
 
 /// How to send messages to teams after processing a host action
@@ -78,6 +112,7 @@ enum TeamMessage {
 struct HostActionResult {
     host_msg: ServerMessage,
     team_msg: Option<TeamMessage>,
+    should_persist: bool,
 }
 
 /// Process a host action that mutates game state.
@@ -92,6 +127,7 @@ fn process_host_action(
         HostAction::CreateGame { .. } => HostActionResult {
             host_msg: ServerMessage::error("Game already created"),
             team_msg: None,
+            should_persist: false,
         },
         HostAction::StartTimer => {
             start_timer(game, app_state, game_code);
@@ -100,6 +136,7 @@ fn process_host_action(
                     state: game.to_game_state(),
                 },
                 team_msg: Some(TeamMessage::Broadcast),
+                should_persist: false,
             }
         }
         HostAction::PauseTimer => {
@@ -109,6 +146,7 @@ fn process_host_action(
                     state: game.to_game_state(),
                 },
                 team_msg: Some(TeamMessage::Broadcast),
+                should_persist: false,
             }
         }
         HostAction::ResetTimer => {
@@ -118,6 +156,7 @@ fn process_host_action(
                     state: game.to_game_state(),
                 },
                 team_msg: Some(TeamMessage::Broadcast),
+                should_persist: false,
             }
         }
         HostAction::NextQuestion => {
@@ -127,6 +166,7 @@ fn process_host_action(
                     state: game.to_game_state(),
                 },
                 team_msg: Some(TeamMessage::Broadcast),
+                should_persist: true,
             }
         }
         HostAction::PrevQuestion => match game.prev_question() {
@@ -135,10 +175,12 @@ fn process_host_action(
                     state: game.to_game_state(),
                 },
                 team_msg: Some(TeamMessage::Broadcast),
+                should_persist: true,
             },
             Err(msg) => HostActionResult {
                 host_msg: ServerMessage::error(msg),
                 team_msg: None,
+                should_persist: false,
             },
         },
         HostAction::ScoreAnswer {
@@ -153,6 +195,7 @@ fn process_host_action(
                         state: game.to_game_state(),
                     },
                     team_msg: Some(TeamMessage::Broadcast),
+                    should_persist: false,
                 }
             } else {
                 HostActionResult {
@@ -161,6 +204,7 @@ fn process_host_action(
                         team_name
                     )),
                     team_msg: None,
+                    should_persist: false,
                 }
             }
         }
@@ -181,11 +225,12 @@ fn process_host_action(
                             TeamMessage::Single(tx, ServerMessage::TeamGameState { state })
                         })
                     });
-                HostActionResult { host_msg, team_msg }
+                HostActionResult { host_msg, team_msg, should_persist: false }
             } else {
                 HostActionResult {
                     host_msg: ServerMessage::error(format!("Team '{}' not found", team_name)),
                     team_msg: None,
+                    should_persist: false,
                 }
             }
         }
@@ -215,6 +260,7 @@ fn process_host_action(
                     state: game.to_game_state(),
                 },
                 team_msg: Some(TeamMessage::Broadcast),
+                should_persist: false,
             }
         }
         HostAction::UpdateQuestionSettings {
@@ -237,10 +283,12 @@ fn process_host_action(
                     state: game.to_game_state(),
                 },
                 team_msg: Some(TeamMessage::Broadcast),
+                should_persist: false,
             },
             Err(msg) => HostActionResult {
                 host_msg: ServerMessage::error(msg.to_string()),
                 team_msg: None,
+                should_persist: false,
             },
         },
         HostAction::UpdateTypeSpecificSettings {
@@ -252,10 +300,12 @@ fn process_host_action(
                     state: game.to_game_state(),
                 },
                 team_msg: Some(TeamMessage::Broadcast),
+                should_persist: false,
             },
             Err(msg) => HostActionResult {
                 host_msg: ServerMessage::error(msg.to_string()),
                 team_msg: None,
+                should_persist: false,
             },
         },
     }
@@ -265,6 +315,7 @@ async fn process_host_message(
     text: &str,
     app_state: &Arc<AppState>,
     game_code: &str,
+    user_id: &str,
     host_tx: &Tx,
 ) {
     // Parse message before acquiring lock
@@ -290,13 +341,19 @@ async fn process_host_message(
     };
 
     // Acquire lock, mutate state, collect messages to send, then release lock
-    let result = {
+    let (result, game_state_for_persist) = {
         let mut games_map = app_state.games.lock().await;
         let Some(game) = games_map.get_mut(game_code) else {
             error!("Game {game_code} not found while processing host message");
             return;
         };
-        process_host_action(action, game, app_state, game_code)
+        let result = process_host_action(action, game, app_state, game_code);
+        let state = if result.should_persist {
+            Some(game.to_game_state())
+        } else {
+            None
+        };
+        (result, state)
     };
     // Lock released here
 
@@ -320,6 +377,14 @@ async fn process_host_message(
         }
         None => {}
     }
+
+    // Persist game state to S3 if needed
+    if let Some(state) = game_state_for_persist
+        && let Err(e) = app_state.persistence.save_game_state(user_id, game_code, &state).await
+    {
+        warn!("Failed to save game state to S3: {e}");
+        send_msg(host_tx, ServerMessage::error(format!("Failed to save game state: {e}")));
+    }
 }
 
 async fn handle_host(
@@ -328,6 +393,7 @@ async fn handle_host(
     mut rx: Rx,
     host_tx: Tx,
     game_code: String,
+    user_id: String,
 ) {
     let (mut ws_write, mut ws_read) = ws_stream.split();
     let mut heartbeat = HeartbeatState::new();
@@ -354,7 +420,7 @@ async fn handle_host(
                             continue;
                         }
                         info!("Received message: {text}");
-                        process_host_message(&text, &app_state, &game_code, &host_tx).await;
+                        process_host_message(&text, &app_state, &game_code, &user_id, &host_tx).await;
                     }
                     Some(Ok(Message::Close(_))) | None => {
                         break;
@@ -380,9 +446,29 @@ async fn handle_host(
     }
 
     info!("Host disconnected, clearing host_tx");
-    if let Some(game) = app_state.games.lock().await.get_mut(&game_code) {
-        game.clear_host_tx();
-    } else {
-        error!("Game {game_code} not found in app_state when host disconnected");
+    // Get game state and clear host_tx
+    let game_state = {
+        let mut games_map = app_state.games.lock().await;
+        if let Some(game) = games_map.get_mut(&game_code) {
+            game.clear_host_tx();
+            Some(game.to_game_state())
+        } else {
+            error!("Game {game_code} not found in app_state when host disconnected");
+            None
+        }
+    };
+
+    // Fire-and-forget save to S3 on disconnect
+    if let Some(state) = game_state {
+        let persistence = app_state.persistence.clone();
+        let user_id = user_id.clone();
+        let game_code = game_code.clone();
+        tokio::spawn(async move {
+            if let Err(e) = persistence.save_game_state(&user_id, &game_code, &state).await {
+                warn!("Failed to save game state on disconnect: {e}");
+            } else {
+                info!("Saved game state on host disconnect: {game_code}");
+            }
+        });
     }
 }

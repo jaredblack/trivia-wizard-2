@@ -6,6 +6,7 @@ import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as ecs from "aws-cdk-lib/aws-ecs";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as logs from "aws-cdk-lib/aws-logs";
+import * as s3 from "aws-cdk-lib/aws-s3";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
@@ -42,9 +43,24 @@ export class ServerStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
+    // S3 bucket for game state persistence
+    const gameStatesBucket = new s3.Bucket(this, "GameStatesBucket", {
+      bucketName: "trivia-wizard-game-states",
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      lifecycleRules: [
+        {
+          expiration: cdk.Duration.days(365),
+        },
+      ],
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
     this.taskRole = new iam.Role(this, "TriviaTaskRole", {
       assumedBy: new iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
     });
+
+    // Grant S3 read/write access for game state persistence
+    gameStatesBucket.grantReadWrite(this.taskRole);
 
     this.taskRole.addToPolicy(
       new iam.PolicyStatement({
@@ -90,6 +106,7 @@ export class ServerStack extends cdk.Stack {
         COGNITO_USER_POOL_ID: props.authStack.userPool.userPoolId,
         COGNITO_CLIENT_ID: props.authStack.userPoolClient.userPoolClientId,
         ROUTE53_HOSTED_ZONE_ID: hostedZoneId,
+        S3_BUCKET_NAME: gameStatesBucket.bucketName,
       },
       healthCheck: {
         command: [

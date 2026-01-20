@@ -10,6 +10,7 @@ use crate::{
         game::Game,
         server_message::ServerMessage,
     },
+    persistence::PersistenceClient,
     timer::ShutdownTimer,
 };
 use futures_util::{SinkExt, StreamExt};
@@ -35,6 +36,7 @@ pub struct AppState {
     pub games: Mutex<HashMap<String, Game>>,
     pub timer: Mutex<ShutdownTimer>,
     pub validator: Arc<dyn JwtValidator>,
+    pub persistence: Arc<PersistenceClient>,
 }
 
 fn generate_code() -> String {
@@ -126,7 +128,7 @@ async fn handle_connection(stream: TcpStream, app_state: Arc<AppState>) -> Resul
                                 Some(auth) if auth.is_host => {
                                     if let HostAction::CreateGame { game_code } = action {
                                         let code = game_code.unwrap_or_else(generate_code);
-                                        host::create_game(app_state, ws_stream, code).await;
+                                        host::create_game(app_state, ws_stream, code, auth.user_id.clone()).await;
                                     } else {
                                         warn!(
                                             "Expected CreateGame from new Host connection, instead got: {action:?}"
@@ -272,6 +274,7 @@ pub async fn start_ws_server(
     listener: TcpListener,
     timer: ShutdownTimer,
     validator: Arc<dyn JwtValidator>,
+    persistence: Arc<PersistenceClient>,
 ) {
     let addr = listener.local_addr().expect("Failed to get local address");
     info!("Listening on: {addr}");
@@ -280,6 +283,7 @@ pub async fn start_ws_server(
         games: Mutex::new(HashMap::new()),
         timer: Mutex::new(timer),
         validator,
+        persistence,
     });
 
     while let Ok((stream, _)) = listener.accept().await {

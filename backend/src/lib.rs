@@ -4,5 +4,6 @@ pub mod handler;
 pub mod heartbeat;
 pub mod infra;
 pub mod model;
+pub mod persistence;
 pub mod server;
 pub mod timer;

@@ -9,9 +9,11 @@ use tower_http::cors::{Any, CorsLayer};
 use backend::{
     auth,
     infra::{self, ServiceDiscovery},
+    persistence::PersistenceClient,
     server::start_ws_server,
     timer::ShutdownTimer,
 };
+use std::sync::Arc;
 
 const SHUTDOWN_MINS: u64 = 30;
 
@@ -46,7 +48,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ws_listener = TcpListener::bind("0.0.0.0:9002").await?;
     let timer = ShutdownTimer::new(shutdown_tx.clone(), Duration::from_secs(SHUTDOWN_MINS * 60));
     let validator = auth::create_validator_from_env();
-    let ws_server = start_ws_server(ws_listener, timer, validator);
+    let persistence = Arc::new(PersistenceClient::new().await);
+    let ws_server = start_ws_server(ws_listener, timer, validator, persistence);
 
     let health_app = Router::new()
         .route("/health", get(health_check))
