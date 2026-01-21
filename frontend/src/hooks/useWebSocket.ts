@@ -6,6 +6,7 @@ import {
 import type { ClientMessage, ServerMessage } from "../types";
 import { useHostStore } from "../stores/useHostStore";
 import { useTeamStore } from "../stores/useTeamStore";
+import { useWatcherStore } from "../stores/useWatcherStore";
 
 export function useWebSocket() {
   const [connectionState, setConnectionState] = useState<ConnectionState>(
@@ -27,6 +28,10 @@ export function useWebSocket() {
   const setTeamIsValidating = useTeamStore((state) => state.setIsValidating);
   const setTeamColor = useTeamStore((state) => state.setColor);
   const setTeamMembers = useTeamStore((state) => state.setTeamMembers);
+
+  // Watcher store actions
+  const setScoreboardData = useWatcherStore((state) => state.setScoreboardData);
+  const setWatcherError = useWatcherStore((state) => state.setError);
 
   useEffect(() => {
     // Subscribe to connection state changes
@@ -60,6 +65,11 @@ export function useWebSocket() {
             setTeamIsValidating(false);
             setTeamError(message.message);
             setTeamStep("join");
+            // Handle error for watcher
+            setWatcherError(message.message);
+            break;
+          case "scoreboardData":
+            setScoreboardData(message.data);
             break;
           case "teamGameState": {
             // Check if this is a rejoin response (still on join step, isValidating)
@@ -93,7 +103,7 @@ export function useWebSocket() {
       unsubscribeState();
       unsubscribeMessage();
     };
-  }, [setGameState, setTimerSecondsRemaining, setTeamGameState, setTeamTimerSecondsRemaining, setTeamError, setTeamStep, setTeamIsValidating, setTeamColor, setTeamMembers]);
+  }, [setGameState, setTimerSecondsRemaining, setTeamGameState, setTeamTimerSecondsRemaining, setTeamError, setTeamStep, setTeamIsValidating, setTeamColor, setTeamMembers, setScoreboardData, setWatcherError]);
 
   const send = useCallback((message: ClientMessage) => {
     webSocketService.send(message);

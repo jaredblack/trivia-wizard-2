@@ -181,3 +181,11 @@ pub struct TeamData {
     pub score: ScoreData,
     pub connected: bool,
 }
+
+// === Scoreboard Data (for watchers) ===
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScoreboardData {
+    pub teams: Vec<TeamData>,
+}

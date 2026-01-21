@@ -1,7 +1,7 @@
 use crate::model::server_message::{GameState, ServerMessage, TeamGameState, send_msg};
 use crate::model::types::{
     AnswerContent, GameSettings, McConfig, Question, QuestionConfig, QuestionKind, ScoreData,
-    TeamColor, TeamData, TeamQuestion,
+    ScoreboardData, TeamColor, TeamData, TeamQuestion,
 };
 use crate::server::Tx;
 use anyhow::{Result, anyhow};
@@ -32,6 +32,7 @@ pub struct Game {
     pub host_user_id: String,
     pub host_tx: Option<Tx>,
     pub teams_tx: HashMap<String, Tx>,
+    pub watchers_tx: Vec<Tx>,
 
     // Game state
     pub current_question_number: usize,
@@ -74,6 +75,7 @@ impl Game {
             host_user_id,
             host_tx: Some(host_tx),
             teams_tx: HashMap::new(),
+            watchers_tx: Vec::new(),
             current_question_number: 1,
             timer_running: false,
             timer_seconds_remaining: Some(DEFAULT_TIMER_DURATION),
@@ -86,21 +88,33 @@ impl Game {
 
     /// Create a Game from a saved GameState (for S3 restoration).
     /// Sets up connection state (host_tx, empty teams_tx, no timer handle).
+    /// All teams are marked as disconnected since they need to reconnect.
     pub fn from_saved_state(
         host_user_id: String,
         game_code: String,
         host_tx: Tx,
         state: GameState,
     ) -> Self {
+        // Mark all teams as disconnected - they need to reconnect
+        let teams = state
+            .teams
+            .into_iter()
+            .map(|mut team| {
+                team.connected = false;
+                team
+            })
+            .collect();
+
         Self {
             game_code,
             host_user_id,
             host_tx: Some(host_tx),
             teams_tx: HashMap::new(),
+            watchers_tx: Vec::new(),
             current_question_number: state.current_question_number,
             timer_running: false, // Always start with timer stopped on restore
             timer_seconds_remaining: state.timer_seconds_remaining,
-            teams: state.teams,
+            teams,
             questions: state.questions,
             game_settings: state.game_settings,
             timer_abort_handle: None,
@@ -133,6 +147,14 @@ impl Game {
 
     pub fn clear_team_tx(&mut self, team_name: &str) {
         self.teams_tx.remove(&team_name.to_lowercase());
+    }
+
+    pub fn add_watcher(&mut self, watcher_tx: Tx) {
+        self.watchers_tx.push(watcher_tx);
+    }
+
+    pub fn remove_watcher(&mut self, watcher_tx: &Tx) {
+        self.watchers_tx.retain(|tx| !tx.same_channel(watcher_tx));
     }
 
     pub fn add_team(
@@ -215,6 +237,13 @@ impl Game {
         })
     }
 
+    /// Convert to scoreboard data for watcher clients
+    pub fn to_scoreboard_data(&self) -> ScoreboardData {
+        ScoreboardData {
+            teams: self.teams.clone(),
+        }
+    }
+
     // === Question Navigation ===
 
     /// Create a new question using game settings
@@ -265,10 +294,11 @@ impl Game {
     }
 
     /// Navigate to the previous question. Returns error if already at question 1.
-    pub fn prev_question(&mut self) -> Result<(), &'static str> {
-        if self.current_question_number <= 1 {
-            return Err("Already at first question");
-        }
+    pub fn prev_question(&mut self) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            self.current_question_number > 1,
+            "Already at first question"
+        );
 
         // Stop timer if running
         self.stop_timer();
@@ -299,6 +329,19 @@ impl Game {
             if let Some(team_state) = self.to_team_game_state(team_name) {
                 send_msg(team_tx, ServerMessage::TeamGameState { state: team_state });
             }
+        }
+
+        // Send scoreboard data to all watchers
+        self.broadcast_scoreboard_data();
+    }
+
+    /// Broadcast scoreboard data to all watchers
+    pub fn broadcast_scoreboard_data(&self) {
+        let scoreboard_msg = ServerMessage::ScoreboardData {
+            data: self.to_scoreboard_data(),
+        };
+        for watcher_tx in &self.watchers_tx {
+            send_msg(watcher_tx, scoreboard_msg.clone());
         }
     }
 
@@ -390,7 +433,6 @@ impl Game {
         if question_idx >= self.questions.len() {
             return false;
         }
-        
 
         let question = &mut self.questions[question_idx];
 
@@ -623,12 +665,12 @@ impl Game {
         // new default
         if question.question_config.kind() != question.question_kind {
             question.question_config = match question_type {
-            QuestionKind::Standard => QuestionConfig::Standard,
-            QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer,
-            QuestionKind::MultipleChoice => QuestionConfig::MultipleChoice {
-                config: McConfig::default(),
-            },
-        };
+                QuestionKind::Standard => QuestionConfig::Standard,
+                QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer,
+                QuestionKind::MultipleChoice => QuestionConfig::MultipleChoice {
+                    config: McConfig::default(),
+                },
+            };
         }
 
         // Update timer display if this is current question and timer not running

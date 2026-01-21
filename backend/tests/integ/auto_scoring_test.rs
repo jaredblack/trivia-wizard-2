@@ -104,7 +104,8 @@ async fn score_answer(
 #[tokio::test]
 async fn scoring_correct_auto_scores_matching_answers() {
     let server = TestServer::start().await;
-    let (mut host, _game_code, mut teams) = setup_game_with_teams(&server, &["Team1", "Team2", "Team3"]).await;
+    let (mut host, _game_code, mut teams) =
+        setup_game_with_teams(&server, &["Team1", "Team2", "Team3"]).await;
 
     // Start timer for submissions
     start_timer(&mut host, &mut teams).await;
@@ -136,7 +137,10 @@ async fn scoring_correct_auto_scores_matching_answers() {
         .find(|a| a.team_name == "Team3")
         .unwrap();
     assert_eq!(team3_answer.score.question_points, 50);
-    assert_eq!(team3_answer.score.bonus_points, 10, "Auto-scored answers should also get bonus points");
+    assert_eq!(
+        team3_answer.score.bonus_points, 10,
+        "Auto-scored answers should also get bonus points"
+    );
 
     // Verify Team2 was NOT auto-scored (different answer)
     let team2_answer = state.questions[0]
@@ -159,7 +163,8 @@ async fn scoring_correct_auto_scores_matching_answers() {
 #[tokio::test]
 async fn auto_scoring_is_case_insensitive_and_trims_whitespace() {
     let server = TestServer::start().await;
-    let (mut host, _game_code, mut teams) = setup_game_with_teams(&server, &["Team1", "Team2", "Team3"]).await;
+    let (mut host, _game_code, mut teams) =
+        setup_game_with_teams(&server, &["Team1", "Team2", "Team3"]).await;
 
     start_timer(&mut host, &mut teams).await;
 
@@ -190,7 +195,8 @@ async fn auto_scoring_is_case_insensitive_and_trims_whitespace() {
 #[tokio::test]
 async fn clearing_score_clears_matching_answers() {
     let server = TestServer::start().await;
-    let (mut host, _game_code, mut teams) = setup_game_with_teams(&server, &["Team1", "Team2"]).await;
+    let (mut host, _game_code, mut teams) =
+        setup_game_with_teams(&server, &["Team1", "Team2"]).await;
 
     start_timer(&mut host, &mut teams).await;
 
@@ -226,7 +232,8 @@ async fn clearing_score_clears_matching_answers() {
 #[tokio::test]
 async fn new_submission_auto_scored_if_matches_existing_correct() {
     let server = TestServer::start().await;
-    let (mut host, _game_code, mut teams) = setup_game_with_teams(&server, &["Team1", "Team2"]).await;
+    let (mut host, _game_code, mut teams) =
+        setup_game_with_teams(&server, &["Team1", "Team2"]).await;
 
     start_timer(&mut host, &mut teams).await;
 
@@ -268,7 +275,8 @@ async fn new_submission_auto_scored_if_matches_existing_correct() {
 #[tokio::test]
 async fn partial_points_also_sync_to_matching_answers() {
     let server = TestServer::start().await;
-    let (mut host, _game_code, mut teams) = setup_game_with_teams(&server, &["Team1", "Team2"]).await;
+    let (mut host, _game_code, mut teams) =
+        setup_game_with_teams(&server, &["Team1", "Team2"]).await;
 
     start_timer(&mut host, &mut teams).await;
 
@@ -304,7 +312,8 @@ async fn partial_points_also_sync_to_matching_answers() {
 #[tokio::test]
 async fn different_answers_not_affected_by_auto_scoring() {
     let server = TestServer::start().await;
-    let (mut host, _game_code, mut teams) = setup_game_with_teams(&server, &["Team1", "Team2", "Team3"]).await;
+    let (mut host, _game_code, mut teams) =
+        setup_game_with_teams(&server, &["Team1", "Team2", "Team3"]).await;
 
     start_timer(&mut host, &mut teams).await;
 
@@ -359,7 +368,8 @@ async fn different_answers_not_affected_by_auto_scoring() {
 #[tokio::test]
 async fn already_scored_answers_sync_to_latest_score() {
     let server = TestServer::start().await;
-    let (mut host, _game_code, mut teams) = setup_game_with_teams(&server, &["Team1", "Team2"]).await;
+    let (mut host, _game_code, mut teams) =
+        setup_game_with_teams(&server, &["Team1", "Team2"]).await;
 
     start_timer(&mut host, &mut teams).await;
 

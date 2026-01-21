@@ -115,12 +115,16 @@ impl PersistenceClient {
                 let bytes = body.into_bytes();
                 let state: GameState = serde_json::from_slice(&bytes).map_err(|e| {
                     warn!("Failed to deserialize game state from S3: {e}");
-                    anyhow!("This saved game is no longer compatible with the current server version")
+                    anyhow!(
+                        "This saved game is no longer compatible with the current server version"
+                    )
                 })?;
                 info!("Loaded game state from S3: {key}");
                 Ok(Some(state))
             }
-            Err(SdkError::ServiceError(err)) if matches!(err.err(), GetObjectError::NoSuchKey(_)) => {
+            Err(SdkError::ServiceError(err))
+                if matches!(err.err(), GetObjectError::NoSuchKey(_)) =>
+            {
                 info!("No saved game state found in S3: {key}");
                 Ok(None)
             }

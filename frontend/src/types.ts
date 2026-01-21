@@ -224,12 +224,24 @@ export interface JoinValidatedMessage {
   type: "joinValidated";
 }
 
+// === Scoreboard Data (for watchers) ===
+
+export interface ScoreboardData {
+  teams: TeamData[];
+}
+
+export interface ScoreboardDataMessage {
+  type: "scoreboardData";
+  data: ScoreboardData;
+}
+
 export type ServerMessage =
   | GameStateMessage
   | TeamGameStateMessage
   | TimerTickMessage
   | ErrorMessage
-  | JoinValidatedMessage;
+  | JoinValidatedMessage
+  | ScoreboardDataMessage;
 
 // === Client Messages ===
 
@@ -346,4 +358,15 @@ export interface TeamClientMessage {
   team: TeamAction;
 }
 
-export type ClientMessage = HostClientMessage | TeamClientMessage;
+// Watcher actions use externally tagged enum format
+export interface WatchGameData {
+  gameCode: string;
+}
+
+export type WatcherAction = { watchGame: WatchGameData };
+
+export interface WatcherClientMessage {
+  watcher: WatcherAction;
+}
+
+export type ClientMessage = HostClientMessage | TeamClientMessage | WatcherClientMessage;

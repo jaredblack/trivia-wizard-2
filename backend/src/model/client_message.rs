@@ -84,7 +84,15 @@ pub enum TeamAction {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub enum WatcherAction {
+    #[serde(rename_all = "camelCase")]
+    WatchGame { game_code: String },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ClientMessage {
     Host(HostAction),
     Team(TeamAction),
+    Watcher(WatcherAction),
 }

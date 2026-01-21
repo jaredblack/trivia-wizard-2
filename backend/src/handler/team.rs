@@ -47,6 +47,9 @@ pub async fn join_game(
             send_msg(host_tx, host_msg);
         }
 
+        // Notify watchers of team change
+        game.broadcast_scoreboard_data();
+
         drop(games_map);
         handle_team(ws_stream, app_state, rx, tx, game_code, team_name).await;
     } else {
@@ -81,6 +84,9 @@ pub async fn rejoin_game(
             };
             send_msg(host_tx, host_msg);
         }
+
+        // Notify watchers of team reconnection
+        game.broadcast_scoreboard_data();
 
         drop(games_map);
         handle_team(ws_stream, app_state, rx, tx, game_code, team_name).await;

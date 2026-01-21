@@ -2,7 +2,7 @@ use log::{error, info};
 use serde::{Deserialize, Serialize};
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::model::types::{GameSettings, Question, TeamData, TeamQuestion};
+use crate::model::types::{GameSettings, Question, ScoreboardData, TeamData, TeamQuestion};
 use crate::server::Tx;
 
 // === GameState (Server → Host) ===
@@ -63,6 +63,10 @@ pub enum ServerMessage {
         #[serde(skip_serializing_if = "Option::is_none")]
         state: Option<GameState>,
     },
+
+    /// Scoreboard data for watchers
+    #[serde(rename_all = "camelCase")]
+    ScoreboardData { data: ScoreboardData },
 }
 
 impl ServerMessage {

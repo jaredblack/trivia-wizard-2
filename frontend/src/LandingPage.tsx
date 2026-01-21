@@ -27,7 +27,7 @@ export default function LandingPage() {
       </main>
 
       {/* Footer */}
-      <footer className="p-4 bg-gray-200">
+      <footer className="p-4">
         <a
           href="https://jarbla.com"
           target="_blank"

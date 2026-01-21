@@ -4,6 +4,7 @@ import ProtectedRoute from './ProtectedRoute';
 import HostLanding from './features/host/HostLanding';
 import HostGame from './features/host/HostGame';
 import TeamFlow from './features/team/TeamFlow';
+import PublicScoreboard from './features/watcher/PublicScoreboard';
 
 export default function App() {
   return (
@@ -15,7 +16,7 @@ export default function App() {
 
         {/* Team routes */}
         <Route path="/join" element={<TeamFlow />} />
-        <Route path="/watch" element={<p>Watch Scoreboard (coming soon)</p>} />
+        <Route path="/watch" element={<PublicScoreboard />} />
 
         {/* Host routes (protected) */}
         <Route path="/host" element={<ProtectedRoute />}>

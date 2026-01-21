@@ -23,6 +23,7 @@ We are building the Trivia Wizard app as described in overview.md. We will only 
 - Add a PartialJoin (need a better name) API for the frontend to call after you put in a game code/team name to verify that (a) game code is valid and (b) team name is available
 - favicon
 - should probably chill with the console.logs especially in websocket.ts
+- CI/CD
 
 
 ## beta

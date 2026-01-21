@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use backend::auth::{self, TEST_CLIENT_ID, TEST_ISSUER};
-use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
+use backend::model::client_message::{ClientMessage, HostAction, TeamAction, WatcherAction};
 use backend::model::server_message::ServerMessage;
 use backend::model::types::{McConfig, McOptionType};
 use backend::persistence::PersistenceClient;
@@ -142,6 +142,20 @@ impl TestClient {
         let mut client = Self::connect_with_token(&server.ws_url(), Some(&token)).await;
         let game_code = client.create_game().await;
         (client, game_code)
+    }
+
+    /// Send WatchGame and verify success, returning the initial scoreboard data
+    pub async fn watch_game(&mut self, game_code: &str) {
+        self.send_json(&ClientMessage::Watcher(WatcherAction::WatchGame {
+            game_code: game_code.to_string(),
+        }))
+        .await;
+
+        let response: ServerMessage = self.recv_json().await;
+        match response {
+            ServerMessage::ScoreboardData { .. } => (),
+            other => panic!("Expected ScoreboardData message, got {other:?}"),
+        }
     }
 
     /// Send JoinGame and verify success

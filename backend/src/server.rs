@@ -1,12 +1,9 @@
 use crate::{
     auth::{AuthResult, JwtValidator},
-    handler::{
-        host,
-        team::{self},
-    },
+    handler::{host, team, watcher},
     infra,
     model::{
-        client_message::{ClientMessage, HostAction, TeamAction},
+        client_message::{ClientMessage, HostAction, TeamAction, WatcherAction},
         game::Game,
         server_message::ServerMessage,
     },
@@ -128,7 +125,13 @@ async fn handle_connection(stream: TcpStream, app_state: Arc<AppState>) -> Resul
                                 Some(auth) if auth.is_host => {
                                     if let HostAction::CreateGame { game_code } = action {
                                         let code = game_code.unwrap_or_else(generate_code);
-                                        host::create_game(app_state, ws_stream, code, auth.user_id.clone()).await;
+                                        host::create_game(
+                                            app_state,
+                                            ws_stream,
+                                            code,
+                                            auth.user_id.clone(),
+                                        )
+                                        .await;
                                     } else {
                                         warn!(
                                             "Expected CreateGame from new Host connection, instead got: {action:?}"
@@ -255,6 +258,12 @@ async fn handle_connection(stream: TcpStream, app_state: Arc<AppState>) -> Resul
                                 let msg = serde_json::to_string(&error_message).unwrap();
                                 ws_stream.send(Message::text(msg)).await?;
                             }
+                        }
+                        ClientMessage::Watcher(action) => {
+                            // Watchers don't require authentication (public access)
+                            info!("Watcher message: {action:?}");
+                            let WatcherAction::WatchGame { game_code } = action;
+                            watcher::watch_game(app_state, ws_stream, game_code).await;
                         }
                     }
                 }

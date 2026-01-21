@@ -10,3 +10,4 @@ mod server_lifecycle_test;
 mod settings_test;
 mod team_name_case_test;
 mod team_reconnection_test;
+mod watcher_test;
