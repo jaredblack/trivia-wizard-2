@@ -100,7 +100,7 @@ export default function ScoreLogDrawer({
                   )}
                 </p>
                 <p className="text-sm text-gray-600">
-                  Overall score:{" "}
+                  <strong>Overall score:{" "}</strong>
                   {question.score.bonusPoints +
                     question.score.questionPoints +
                     question.score.speedBonusPoints}{", "}

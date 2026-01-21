@@ -14,7 +14,7 @@ import { saveHostRejoin } from "../../utils/rejoinStorage";
 import type { HostClientMessage } from "../../types";
 
 export default function HostLanding() {
-  const { user, signOut } = useOutletContext<AuthOutletContext>();
+  const { signOut } = useOutletContext<AuthOutletContext>();
   const navigate = useNavigate();
   const gameCode = useHostStore((state) => state.gameCode);
   const { connectionState, connect, send } = useWebSocket();
@@ -129,8 +129,6 @@ export default function HostLanding() {
     }
   };
 
-  // Extract first name or username
-  const displayName = user?.username?.split("@")[0] || user?.username || "Host";
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -170,7 +168,7 @@ export default function HostLanding() {
         {/* Server off state */}
         {!isStartingServer && !serverRunning && !serverStartFailed && (
           <>
-            <h2 className="text-5xl font-bold">Welcome, {displayName}</h2>
+            <h2 className="text-5xl font-bold">Welcome!</h2>
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded-full bg-gray-400" />
               <span className="text-gray-600">Server inactive</span>

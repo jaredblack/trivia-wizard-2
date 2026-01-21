@@ -134,12 +134,12 @@ export default function PublicScoreboard() {
                     }}
                   >
                     <div className="flex items-center gap-3">
-                      <span className="w-8 text-lg font-bold text-gray-500">
+                      <span className="w-8 text-2xl font-bold text-gray-500">
                         {placement}
                       </span>
-                      <span className="font-medium">{team.teamName}</span>
+                      <span className="font-medium text-2xl">{team.teamName}</span>
                     </div>
-                    <span className="text-xl font-bold">{score}</span>
+                    <span className="text-5xl font-bold">{score}</span>
                   </div>
                 );
               })}
