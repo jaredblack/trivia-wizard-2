@@ -66,8 +66,8 @@ function EditableScore({ score, isHovered, onScoreChange }: EditableScoreProps) 
     if (!isEditing) return;
     const parsed = parseScoreExpression(inputValue);
     if (parsed !== null) {
-      // Calculate new override: newOverride = desiredTotal - questionPoints - bonusPoints
-      const newOverride = parsed - score.questionPoints - score.bonusPoints;
+      // Calculate new override: newOverride = desiredTotal - questionPoints - bonusPoints - speedBonusPoints
+      const newOverride = parsed - score.questionPoints - score.bonusPoints - score.speedBonusPoints;
       onScoreChange(newOverride);
     }
     setIsEditing(false);

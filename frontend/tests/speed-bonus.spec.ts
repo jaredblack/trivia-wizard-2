@@ -323,6 +323,135 @@ test.describe('Speed Bonus', () => {
     });
   });
 
+  test.describe('Speed Bonus and Score Override Interaction', () => {
+    test('clicking into and out of editable score without typing preserves score', async ({ browser }) => {
+      // This test covers a bug where speed bonus points were being added to the override
+      // every time the user clicked into the editable score field and then clicked out
+      // without making any changes.
+
+      // Create a game as host
+      const hostContext = await browser.newContext();
+      const hostPage = await hostContext.newPage();
+      const gameCode = await createGame(hostPage);
+
+      // Enable speed bonus for this question
+      const footer = hostPage.locator('footer');
+      await footer.getByRole('button', { name: /Speed/i }).click();
+
+      // Join a team
+      const team = await joinTeamHelper(browser, gameCode, 'Test Team', 'Alice', 'Orange');
+
+      // Start timer and submit answer
+      await hostPage.getByRole('button', { name: 'Start timer' }).click();
+      await submitAnswerHelper(team.page, 'Speed Test Answer');
+
+      // Mark answer correct - team gets question points (50) + speed bonus (10) = 60
+      const mainContent = hostPage.locator('main');
+      const answerCard = mainContent.locator('div[class*="rounded-4xl"]').first();
+      await answerCard.getByRole('button', { name: 'Mark correct' }).click();
+
+      // Verify initial score is 60
+      await expect(answerCard.locator('.text-3xl.font-bold')).toHaveText('60');
+
+      // Find the scoreboard entry for Test Team and hover to make score editable
+      const teamRow = hostPage.locator('div').filter({ hasText: 'Test Team' }).locator('xpath=ancestor::div[contains(@class, "space-y-3")]//div').filter({ hasText: 'Test Team' }).first();
+      await teamRow.hover();
+
+      // Find the editable score input (appears on hover)
+      const scoreInput = teamRow.locator('input[type="text"]');
+      await expect(scoreInput).toBeVisible();
+
+      // Click into the input (starts editing)
+      await scoreInput.click();
+
+      // Wait for input to enter edit mode (blue border indicates editing)
+      await expect(scoreInput).toHaveClass(/border-blue-500/);
+      await expect(scoreInput).toHaveValue('60');
+
+      // Click outside without typing anything (blur)
+      await hostPage.locator('body').click({ position: { x: 10, y: 10 } });
+
+      // The score should still be 60, not 70 (the bug would add speed bonus again)
+      await expect(answerCard.locator('.text-3xl.font-bold')).toHaveText('60');
+
+      // Hover again to verify the scoreboard still shows 60
+      await teamRow.hover();
+      await expect(scoreInput).toHaveValue('60');
+
+      // Cleanup
+      await team.context.close();
+      await hostContext.close();
+    });
+
+    test('score override correctly adjusts total when speed bonus is present', async ({ browser }) => {
+      // Create a game as host
+      const hostContext = await browser.newContext();
+      const hostPage = await hostContext.newPage();
+      const gameCode = await createGame(hostPage);
+
+      // Enable speed bonus for this question
+      const footer = hostPage.locator('footer');
+      await footer.getByRole('button', { name: /Speed/i }).click();
+
+      // Join a team
+      const team = await joinTeamHelper(browser, gameCode, 'Test Team', 'Alice', 'Orange');
+
+      // Start timer and submit answer
+      await hostPage.getByRole('button', { name: 'Start timer' }).click();
+      await submitAnswerHelper(team.page, 'Override Test Answer');
+
+      // Mark answer correct - team gets question points (50) + speed bonus (10) = 60
+      const mainContent = hostPage.locator('main');
+      const answerCard = mainContent.locator('div[class*="rounded-4xl"]').first();
+      await answerCard.getByRole('button', { name: 'Mark correct' }).click();
+      await expect(answerCard.locator('.text-3xl.font-bold')).toHaveText('60');
+
+      // Find the scoreboard entry and hover to edit
+      const teamRow = hostPage.locator('div').filter({ hasText: 'Test Team' }).locator('xpath=ancestor::div[contains(@class, "space-y-3")]//div').filter({ hasText: 'Test Team' }).first();
+      await teamRow.hover();
+
+      // Find and click the editable score input
+      const scoreInput = teamRow.locator('input[type="text"]');
+      await expect(scoreInput).toBeVisible();
+      await scoreInput.click();
+
+      // Wait for input to enter edit mode (blue border indicates editing)
+      await expect(scoreInput).toHaveClass(/border-blue-500/);
+
+      // Change score to 65 (adds 5 points via override)
+      // Use clear + pressSequentially for controlled React input
+      await scoreInput.clear();
+      await scoreInput.pressSequentially('65');
+      await scoreInput.press('Enter');
+
+      // Move away from team row to see non-hovered score display
+      await answerCard.hover();
+      const scoreSpan = teamRow.locator('span.text-4xl.font-bold');
+      await expect(scoreSpan).toHaveText('65');
+
+      // Hover again and verify input also shows 65
+      await teamRow.hover();
+      await expect(scoreInput).toHaveValue('65');
+
+      // Click in and out should keep it at 65 (bug would add speed bonus again making it 75)
+      await scoreInput.click();
+      await expect(scoreInput).toHaveClass(/border-blue-500/);
+      await hostPage.locator('body').click({ position: { x: 10, y: 10 } });
+
+      // Verify non-hovered display still shows 65
+      await answerCard.hover();
+      await expect(scoreSpan).toHaveText('65');
+
+      // Hover again - score should still be 65
+      await teamRow.hover();
+      await expect(scoreInput).toHaveValue('65');
+
+      // Cleanup
+      await team.context.close();
+      await hostContext.close();
+    });
+  });
+
   test.describe('Speed Bonus Display', () => {
     test('scoreboard shows speed bonus in breakdown on hover', async ({ browser }) => {
       // Create a game as host
