@@ -34,6 +34,10 @@ class WebSocketService {
   private maxReconnectAttempts = 5;
   private reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
+  // Generic callback invoked after reconnection but before transitioning to "connected"
+  // Allows clients to perform validation (e.g., team sends validateJoin)
+  private reconnectionCallback: (() => Promise<void>) | null = null;
+
   get connectionState(): ConnectionState {
     return this._connectionState;
   }
@@ -178,6 +182,32 @@ class WebSocketService {
     this.reconnectAttempt = 0;
   }
 
+  /**
+   * Set a callback to be invoked after reconnection but before transitioning to "connected".
+   * The callback should return a promise that resolves when the client is ready.
+   * State remains "reconnecting" until the callback resolves.
+   *
+   * This allows clients to perform validation protocols (e.g., team sends validateJoin
+   * and waits for TeamGameState before allowing other messages).
+   */
+  setReconnectionCallback(callback: (() => Promise<void>) | null): void {
+    this.reconnectionCallback = callback;
+  }
+
+  /**
+   * Manually trigger reconnection (e.g., after visibility change).
+   * Goes through the same flow as automatic reconnection, including
+   * invoking the reconnection callback if set.
+   */
+  async reconnect(): Promise<void> {
+    this.intentionalDisconnect = false;
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    await this.startReconnection();
+  }
+
   private async startReconnection(): Promise<void> {
     this.setConnectionState("reconnecting");
     this.reconnectAttempt = 0;
@@ -208,11 +238,9 @@ class WebSocketService {
             reject(new Error("WebSocket connection timeout"));
           }, 5000);
 
-          this.ws!.onopen = () => {
+          this.ws!.onopen = async () => {
             clearTimeout(timeout);
             console.log("WebSocket reconnected");
-            this.setConnectionState("connected");
-            this.reconnectAttempt = 0;
 
             // Re-attach message handler
             this.ws!.onmessage = (event) => {
@@ -238,6 +266,22 @@ class WebSocketService {
             this.ws!.onerror = (error) => {
               console.error("WebSocket error:", error);
             };
+
+            // If there's a reconnection callback, invoke it before transitioning to "connected"
+            // This allows clients to perform validation (e.g., validateJoin for teams)
+            if (this.reconnectionCallback) {
+              try {
+                console.log("Invoking reconnection callback...");
+                await this.reconnectionCallback();
+                console.log("Reconnection callback completed");
+              } catch (error) {
+                console.error("Reconnection callback failed:", error);
+                // Still transition to connected - the callback can handle errors via message handlers
+              }
+            }
+
+            this.setConnectionState("connected");
+            this.reconnectAttempt = 0;
 
             resolve();
           };

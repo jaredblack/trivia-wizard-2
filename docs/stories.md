@@ -53,4 +53,10 @@ We are building the Trivia Wizard app as described in overview.md. We will only 
 - improve overall reconnection experience. more buttons to just explicitly clear and try again.
 - requiring JoinGame after ValidateJoin doesn't work well for failed reconnections. I would try to reconnect, see that I got to the team member input screen, know I must have put in team name wrong, go back, and then it would yell at me
    - realistically the solution here is terminating the WS connection if you go back. We gotta wait to establish the connection until the team name gets put in
-- score override bug!
+
+log dive:
+```
+[2026-01-22T01:40:21Z ERROR backend::server] Expected ValidateJoin from new Team connection, instead got: SubmitAnswer { team_name: "Nerds of a Feather", answer
+```
+Interesting. I think I heard from these guys a couple of times that they tried to answer and they got kicked out instead. It's worth investigating how
+they managed to get to a connected state with the timer running where they could submit, but they were on a brand new WS connection.

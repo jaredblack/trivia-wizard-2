@@ -10,6 +10,7 @@ import {
 import Toast from "../../components/ui/Toast";
 import ReconnectionToast from "../../components/ui/ReconnectionToast";
 import { webSocketService } from "../../services/websocket";
+import type { ServerMessage } from "../../types";
 import TeamHeader from "./components/TeamHeader";
 import JoinStep from "./components/JoinStep";
 import MembersStep from "./components/MembersStep";
@@ -35,7 +36,6 @@ export default function TeamFlow() {
 
   const [isRejoining, setIsRejoining] = useState(false);
   const hasAttemptedRejoin = useRef(false);
-  const prevConnectionState = useRef(connectionState);
 
   // Connect WebSocket on mount
   useEffect(() => {
@@ -102,15 +102,41 @@ export default function TeamFlow() {
     }
   }, [isRejoining, error]);
 
-  // Handle reconnection success: re-send validateJoin to restore server state
+  // Register reconnection callback when in game step.
+  // This sends validateJoin and waits for TeamGameState before the connection
+  // transitions to "connected", preventing any race conditions where other
+  // messages could be sent before validation completes.
+  // Note: The TeamGameState is still processed by the handler in useWebSocket.ts
+  // since onMessage calls ALL registered handlers via forEach.
   useEffect(() => {
-    if (
-      prevConnectionState.current === "reconnecting" &&
-      connectionState === "connected" &&
-      step === "game"
-    ) {
+    if (step !== "game") {
+      webSocketService.setReconnectionCallback(null);
+      return;
+    }
+
+    const reconnectionCallback = async (): Promise<void> => {
       const rejoinData = getTeamRejoin();
-      if (rejoinData) {
+      if (!rejoinData) {
+        console.warn("No rejoin data available during reconnection");
+        return;
+      }
+
+      console.log("Reconnection callback: sending validateJoin...");
+
+      // Create a promise that resolves when we receive TeamGameState or error
+      return new Promise<void>((resolve) => {
+        const handleMessage = (message: ServerMessage) => {
+          if (message.type === "teamGameState" || message.type === "error") {
+            console.log("Reconnection callback: received response:", message.type);
+            unsubscribe();
+            resolve();
+          }
+        };
+
+        const unsubscribe = webSocketService.onMessage(handleMessage);
+
+        // Send validateJoin - this works because the WebSocket is open,
+        // even though connection state is still "reconnecting"
         send({
           team: {
             validateJoin: {
@@ -119,18 +145,26 @@ export default function TeamFlow() {
             },
           },
         });
-      }
-    }
-    prevConnectionState.current = connectionState;
-  }, [connectionState, step, send]);
+
+        // Timeout fallback in case response never comes
+        setTimeout(() => {
+          console.warn("Reconnection callback: timeout waiting for response");
+          unsubscribe();
+          resolve();
+        }, 5000);
+      });
+    };
+
+    webSocketService.setReconnectionCallback(reconnectionCallback);
+
+    return () => {
+      webSocketService.setReconnectionCallback(null);
+    };
+  }, [step, send]);
 
   // Handle reconnection failure: show error and redirect
   useEffect(() => {
-    if (
-      prevConnectionState.current === "reconnecting" &&
-      connectionState === "error" &&
-      step === "game"
-    ) {
+    if (connectionState === "error" && step === "game") {
       setError("Unable to reconnect. Please rejoin the game.");
       clearTeamRejoin();
       reset();
@@ -147,15 +181,9 @@ export default function TeamFlow() {
         const rejoinData = getTeamRejoin();
         if (rejoinData) {
           try {
-            await connect();
-            send({
-              team: {
-                validateJoin: {
-                  gameCode: rejoinData.gameCode,
-                  teamName: rejoinData.teamName,
-                },
-              },
-            });
+            // Use reconnect() which goes through the reconnection flow
+            // including invoking the reconnection callback
+            await webSocketService.reconnect();
           } catch (error) {
             console.error("Failed to reconnect after visibility change:", error);
           }
@@ -165,7 +193,7 @@ export default function TeamFlow() {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [connect, disconnect, send, step]);
+  }, [disconnect, step]);
 
   const handleCancelReconnection = useCallback(() => {
     webSocketService.cancelReconnection();
