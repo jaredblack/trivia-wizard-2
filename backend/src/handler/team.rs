@@ -185,6 +185,10 @@ async fn process_team_message(
     };
     // Lock released here
 
+    if let ServerMessage::Error { message, state: _ } = &result.team_msg {
+        warn!("Sending error response '{message}' back to team {team_name}");
+    }
+
     // Send messages outside the lock
     send_msg(team_tx, result.team_msg);
     if let Some((host_tx, msg)) = result.host_msg {

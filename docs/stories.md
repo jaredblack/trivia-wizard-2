@@ -46,7 +46,6 @@ We are building the Trivia Wizard app as described in overview.md. We will only 
 - submissions are not yet open showing when timer is closed and they've answered
 
 ## fast follows
-- trim team member names
 - add how many teams have answered count
 - don't fully boot people from the game for error responses unless totally necessary
    - also, look into the error logs from trivia night

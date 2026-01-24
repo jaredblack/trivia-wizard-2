@@ -127,7 +127,10 @@ export default function TeamFlow() {
       return new Promise<void>((resolve) => {
         const handleMessage = (message: ServerMessage) => {
           if (message.type === "teamGameState" || message.type === "error") {
-            console.log("Reconnection callback: received response:", message.type);
+            console.log(
+              "Reconnection callback: received response:",
+              message.type,
+            );
             unsubscribe();
             resolve();
           }
@@ -185,14 +188,18 @@ export default function TeamFlow() {
             // including invoking the reconnection callback
             await webSocketService.reconnect();
           } catch (error) {
-            console.error("Failed to reconnect after visibility change:", error);
+            console.error(
+              "Failed to reconnect after visibility change:",
+              error,
+            );
           }
         }
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [disconnect, step]);
 
   const handleCancelReconnection = useCallback(() => {
@@ -226,7 +233,9 @@ export default function TeamFlow() {
   const handleJoinGame = useCallback(() => {
     if (!selectedColor) return;
 
-    const filledMembers = teamMembers.filter((m) => m.trim() !== "");
+    const filledMembers = teamMembers
+      .map((m) => m.trim())
+      .filter((m) => m !== "");
 
     send({
       team: {

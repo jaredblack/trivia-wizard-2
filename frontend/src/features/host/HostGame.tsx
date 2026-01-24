@@ -193,7 +193,12 @@ export default function HostGame() {
 
       {/* Main content area */}
       <main className="flex-1 flex overflow-hidden mx-12">
-        <div className="flex-1 border-r border-gray-200 overflow-y-auto">
+        <div className="flex-1 justify-end border-r border-gray-200 overflow-y-auto">
+          <div className="flex justify-end px-4 pt-2">
+            <span className="text-sm text-gray-500">
+              Answers received: {currentQuestion.answers.length}/{teams.length}
+            </span>
+          </div>
           {currentQuestion.questionKind === "multipleChoice" ? (
             <MultipleChoiceMainArea
               question={currentQuestion}
@@ -342,7 +347,8 @@ export default function HostGame() {
                 defaultMcConfig: newSettings.defaultMcConfig,
                 speedBonusEnabled: newSettings.speedBonusEnabled,
                 speedBonusNumTeams: newSettings.speedBonusNumTeams,
-                speedBonusFirstPlacePoints: newSettings.speedBonusFirstPlacePoints,
+                speedBonusFirstPlacePoints:
+                  newSettings.speedBonusFirstPlacePoints,
               },
             });
           }}
