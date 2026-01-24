@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWebSocket } from "../../hooks/useWebSocket";
-import { useTeamStore } from "../../stores/useTeamStore";
+import { useTeamStore, subscribeToTeamMessages } from "../../stores/useTeamStore";
 import {
   getTeamRejoin,
   saveTeamRejoin,
@@ -35,6 +35,11 @@ export default function TeamFlow() {
 
   const [isRejoining, setIsRejoining] = useState(false);
   const hasAttemptedRejoin = useRef(false);
+
+  // Subscribe to team messages
+  useEffect(() => {
+    return subscribeToTeamMessages();
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {

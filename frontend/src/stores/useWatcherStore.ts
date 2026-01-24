@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import type { ScoreboardData } from "../types";
+import { webSocketService } from "../services/websocket";
+import type { ScoreboardData, ServerMessage } from "../types";
 
 interface WatcherStore {
   gameCode: string;
@@ -28,3 +29,22 @@ export const useWatcherStore = create<WatcherStore>((set) => ({
 
   reset: () => set(initialState),
 }));
+
+/**
+ * Subscribe to WebSocket messages relevant to the watcher.
+ * Call in useEffect and return the unsubscribe function.
+ */
+export function subscribeToWatcherMessages() {
+  return webSocketService.onMessage((message: ServerMessage) => {
+    const { setScoreboardData, setError } = useWatcherStore.getState();
+
+    switch (message.type) {
+      case "scoreboardData":
+        setScoreboardData(message.data);
+        break;
+      case "error":
+        setError(message.message);
+        break;
+    }
+  });
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useHostStore } from "../../stores/useHostStore";
+import { useHostStore, subscribeToHostMessages } from "../../stores/useHostStore";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { webSocketService } from "../../services/websocket";
 import { getHostRejoin, clearHostRejoin } from "../../utils/rejoinStorage";
@@ -37,6 +37,11 @@ export default function HostGame() {
   const { connectionState, send, connectAndSend, disconnect } = useWebSocket();
   // Get current question from questions array (0-indexed)
   const currentQuestion = questions[currentQuestionNumber - 1] ?? null;
+
+  // Subscribe to host messages
+  useEffect(() => {
+    return subscribeToHostMessages();
+  }, []);
 
   // Auto-rejoin: check for saved game code on mount
   useEffect(() => {

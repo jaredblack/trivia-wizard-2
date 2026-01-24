@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWebSocket } from "../../hooks/useWebSocket";
-import { useWatcherStore } from "../../stores/useWatcherStore";
+import { useWatcherStore, subscribeToWatcherMessages } from "../../stores/useWatcherStore";
 import { webSocketService } from "../../services/websocket";
 import { getScore } from "../../types";
 import type { TeamData } from "../../types";
@@ -13,6 +13,11 @@ export default function PublicScoreboard() {
     useWatcherStore();
   const [inputCode, setInputCode] = useState("");
   const [isWatching, setIsWatching] = useState(false);
+
+  // Subscribe to watcher messages
+  useEffect(() => {
+    return subscribeToWatcherMessages();
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {

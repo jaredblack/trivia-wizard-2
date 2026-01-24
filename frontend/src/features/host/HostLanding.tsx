@@ -8,7 +8,7 @@ import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import ProgressBar from "../../components/ui/ProgressBar";
 import Header from "../../components/layout/Header";
-import { useHostStore } from "../../stores/useHostStore";
+import { useHostStore, subscribeToHostMessages } from "../../stores/useHostStore";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { saveHostRejoin } from "../../utils/rejoinStorage";
 import type { HostClientMessage } from "../../types";
@@ -26,6 +26,11 @@ export default function HostLanding() {
   const [customGameCode, setCustomGameCode] = useState("");
   const [isCreatingGame, setIsCreatingGame] = useState(false);
   const hasNavigated = useRef(false);
+
+  // Subscribe to host messages
+  useEffect(() => {
+    return subscribeToHostMessages();
+  }, []);
 
   useEffect(() => {
     if (isLocalMode) {

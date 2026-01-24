@@ -1,9 +1,11 @@
 import { create } from "zustand";
+import { webSocketService } from "../services/websocket";
 import type {
   GameState,
   GameSettings,
   Question,
   TeamData,
+  ServerMessage,
 } from "../types";
 
 interface HostStore {
@@ -60,3 +62,28 @@ export const useHostStore = create<HostStore>((set) => ({
       teams: [],
     }),
 }));
+
+/**
+ * Subscribe to WebSocket messages relevant to the host.
+ * Call in useEffect and return the unsubscribe function.
+ */
+export function subscribeToHostMessages() {
+  return webSocketService.onMessage((message: ServerMessage) => {
+    const { setGameState, setTimerSecondsRemaining } = useHostStore.getState();
+
+    switch (message.type) {
+      case "gameState":
+        setGameState(message.state);
+        break;
+      case "timerTick":
+        setTimerSecondsRemaining(message.secondsRemaining);
+        break;
+      case "error":
+        // Rollback state if provided
+        if (message.state) {
+          setGameState(message.state);
+        }
+        break;
+    }
+  });
+}
