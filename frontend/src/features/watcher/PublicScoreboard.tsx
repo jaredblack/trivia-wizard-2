@@ -1,44 +1,27 @@
-import { useEffect, useCallback, useState, useRef } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { useWatcherStore } from "../../stores/useWatcherStore";
+import { webSocketService } from "../../services/websocket";
 import { getScore } from "../../types";
 import type { TeamData } from "../../types";
 
 export default function PublicScoreboard() {
   const navigate = useNavigate();
-  const { connectionState, send, connect, disconnect } = useWebSocket();
+  const { connectionState, connectAndSend, disconnect } = useWebSocket();
   const { gameCode, scoreboardData, error, setGameCode, setError, reset } =
     useWatcherStore();
   const [inputCode, setInputCode] = useState("");
   const [isWatching, setIsWatching] = useState(false);
-  const prevConnectionState = useRef(connectionState);
 
-  // Connect WebSocket on mount
+  // Cleanup on unmount
   useEffect(() => {
-    connect();
     return () => {
+      webSocketService.clearInitialMessage();
       disconnect();
       reset();
     };
-  }, [connect, disconnect, reset]);
-
-  // Handle reconnection: re-send watchGame message
-  useEffect(() => {
-    if (
-      prevConnectionState.current === "reconnecting" &&
-      connectionState === "connected" &&
-      isWatching &&
-      gameCode
-    ) {
-      send({
-        watcher: {
-          watchGame: { gameCode },
-        },
-      });
-    }
-    prevConnectionState.current = connectionState;
-  }, [connectionState, isWatching, gameCode, send]);
+  }, [disconnect, reset]);
 
   // When scoreboardData arrives, we're successfully watching
   useEffect(() => {
@@ -47,18 +30,23 @@ export default function PublicScoreboard() {
     }
   }, [scoreboardData]);
 
-  const handleWatch = useCallback(() => {
+  const handleWatch = useCallback(async () => {
     const code = inputCode.trim().toUpperCase();
     if (!code) return;
 
     setError(null);
     setGameCode(code);
-    send({
-      watcher: {
-        watchGame: { gameCode: code },
-      },
-    });
-  }, [inputCode, send, setGameCode, setError]);
+    try {
+      await connectAndSend({
+        watcher: {
+          watchGame: { gameCode: code },
+        },
+      });
+      // Success - message handlers will update store
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to connect");
+    }
+  }, [inputCode, connectAndSend, setGameCode, setError]);
 
   const handleBack = useCallback(() => {
     if (isWatching) {
@@ -171,15 +159,7 @@ export default function PublicScoreboard() {
         </div>
       )}
 
-      {connectionState === "error" && (
-        <div className="flex-1 flex items-center justify-center p-4">
-          <p className="text-red-500 text-center">
-            Failed to connect. Please try again.
-          </p>
-        </div>
-      )}
-
-      {connectionState === "connected" && (
+      {(connectionState === "disconnected" || connectionState === "connected") && (
         <div className="flex-1 flex flex-col items-center justify-center px-6">
           <div className="w-full max-w-sm space-y-4">
             <div>

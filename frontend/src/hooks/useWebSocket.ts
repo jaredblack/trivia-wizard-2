@@ -55,19 +55,34 @@ export function useWebSocket() {
             setTeamIsValidating(false);
             setTeamStep("members");
             break;
-          case "error":
+          case "error": {
             console.error("Server error:", message.message);
             // Handle error for host (rollback state if provided)
             if (message.state) {
               setGameState(message.state);
             }
-            // Handle error for team (show error, stop validating, go back to join step)
+
+            // Handle error for team
             setTeamIsValidating(false);
-            setTeamError(message.message);
-            setTeamStep("join");
+            const currentStep = useTeamStore.getState().step;
+            const currentConnectionState = webSocketService.connectionState;
+
+            if (currentStep === "game" && currentConnectionState !== "reconnecting") {
+              // Team is in game and this isn't from a failed reconnection attempt.
+              // Show error but attempt to rejoin automatically.
+              setTeamError(message.message);
+              webSocketService.reconnect();
+            } else {
+              // Either not in game yet, or this error is from a reconnection attempt.
+              // Go back to join step.
+              setTeamError(message.message);
+              setTeamStep("join");
+            }
+
             // Handle error for watcher
             setWatcherError(message.message);
             break;
+          }
           case "scoreboardData":
             setScoreboardData(message.data);
             break;
@@ -109,8 +124,8 @@ export function useWebSocket() {
     webSocketService.send(message);
   }, []);
 
-  const connect = useCallback(async () => {
-    await webSocketService.connect();
+  const connectAndSend = useCallback(async (message: ClientMessage) => {
+    await webSocketService.connectAndSend(message);
   }, []);
 
   const disconnect = useCallback(() => {
@@ -120,7 +135,7 @@ export function useWebSocket() {
   return {
     connectionState,
     send,
-    connect,
+    connectAndSend,
     disconnect,
   };
 }

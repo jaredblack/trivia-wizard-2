@@ -12,8 +12,9 @@ export default function JoinStep() {
     setGameCode,
     setTeamName,
     setIsValidating,
+    setError,
   } = useTeamStore();
-  const { send, connect } = useWebSocket();
+  const { connectAndSend } = useWebSocket();
   const teamNameRef = useRef<HTMLInputElement>(null);
 
   const canProceed =
@@ -23,15 +24,20 @@ export default function JoinStep() {
     if (!canProceed) return;
 
     setIsValidating(true);
-    await connect();
-    send({
-      team: {
-        validateJoin: {
-          gameCode: gameCode.trim(),
-          teamName: teamName.trim(),
+    try {
+      await connectAndSend({
+        team: {
+          validateJoin: {
+            gameCode: gameCode.trim(),
+            teamName: teamName.trim(),
+          },
         },
-      },
-    });
+      });
+      // Success - message handlers in useWebSocket will update store and advance step
+    } catch (error) {
+      setIsValidating(false);
+      setError(error instanceof Error ? error.message : "Failed to connect");
+    }
   };
 
   const handleGameCodeChange = (value: string) => {

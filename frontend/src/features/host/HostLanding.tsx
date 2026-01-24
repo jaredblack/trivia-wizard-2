@@ -17,7 +17,7 @@ export default function HostLanding() {
   const { signOut } = useOutletContext<AuthOutletContext>();
   const navigate = useNavigate();
   const gameCode = useHostStore((state) => state.gameCode);
-  const { connectionState, connect, send } = useWebSocket();
+  const { connectionState, connectAndSend } = useWebSocket();
 
   const [serverRunning, setServerRunning] = useState(false);
   const [isHost, setIsHost] = useState(false);
@@ -120,9 +120,9 @@ export default function HostLanding() {
   const createGame = async (useCustomCode: boolean) => {
     setIsCreatingGame(true);
     try {
-      await connect();
       const msg: HostClientMessage = { host: { type: "createGame", gameCode: useCustomCode ? customGameCode : undefined } };
-      send(msg);
+      await connectAndSend(msg);
+      // Success - message handlers will update store and effect will navigate
     } catch (error) {
       console.error("Error creating game:", error);
       setIsCreatingGame(false);

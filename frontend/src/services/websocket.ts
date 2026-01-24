@@ -34,9 +34,8 @@ class WebSocketService {
   private maxReconnectAttempts = 5;
   private reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
-  // Generic callback invoked after reconnection but before transitioning to "connected"
-  // Allows clients to perform validation (e.g., team sends validateJoin)
-  private reconnectionCallback: (() => Promise<void>) | null = null;
+  // Stored message for automatic reconnection replay
+  private initialMessage: ClientMessage | null = null;
 
   get connectionState(): ConnectionState {
     return this._connectionState;
@@ -45,100 +44,6 @@ class WebSocketService {
   private setConnectionState(state: ConnectionState) {
     this._connectionState = state;
     this.stateChangeHandlers.forEach((handler) => handler(state));
-  }
-
-  async connect(): Promise<void> {
-    // Reset intentional disconnect flag when explicitly connecting
-    this.intentionalDisconnect = false;
-
-    // Already connected
-    if (this.ws && this._connectionState === "connected") {
-      return;
-    }
-
-    // Connection already in progress - wait for it
-    if (this.ws && this._connectionState === "connecting") {
-      return new Promise<void>((resolve, reject) => {
-        const checkConnection = () => {
-          if (this._connectionState === "connected") {
-            resolve();
-          } else if (
-            this._connectionState === "error" ||
-            this._connectionState === "disconnected"
-          ) {
-            reject(new Error("WebSocket connection failed"));
-          } else {
-            setTimeout(checkConnection, 50);
-          }
-        };
-        checkConnection();
-      });
-    }
-
-    this.setConnectionState("connecting");
-
-    try {
-      const url = await buildWsUrl();
-      this.ws = new WebSocket(url);
-
-      this.ws.onopen = () => {
-        console.log("WebSocket connected");
-        this.setConnectionState("connected");
-      };
-
-      this.ws.onmessage = (event) => {
-        console.log("Message from server:", event.data);
-        try {
-          const message = JSON.parse(event.data) as ServerMessage;
-          this.messageHandlers.forEach((handler) => handler(message));
-        } catch {
-          console.log("Non-JSON message from server:", event.data);
-        }
-      };
-
-      this.ws.onclose = (event) => {
-        console.log("WebSocket disconnected", event.code, event.reason);
-        this.ws = null;
-
-        // If this was not an intentional disconnect, attempt reconnection
-        if (!this.intentionalDisconnect) {
-          this.startReconnection();
-        } else {
-          this.setConnectionState("disconnected");
-        }
-      };
-
-      this.ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        this.setConnectionState("error");
-      };
-
-      // Wait for connection to establish
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("WebSocket connection timeout"));
-        }, 10000);
-
-        const checkConnection = () => {
-          if (this._connectionState === "connected") {
-            clearTimeout(timeout);
-            resolve();
-          } else if (
-            this._connectionState === "error" ||
-            this._connectionState === "disconnected"
-          ) {
-            clearTimeout(timeout);
-            reject(new Error("WebSocket connection failed"));
-          } else {
-            setTimeout(checkConnection, 100);
-          }
-        };
-        checkConnection();
-      });
-    } catch (error) {
-      this.setConnectionState("error");
-      throw error;
-    }
   }
 
   disconnect(): void {
@@ -158,6 +63,133 @@ class WebSocketService {
     }
     console.log("Sending message:", message);
     this.ws.send(JSON.stringify(message));
+  }
+
+  /**
+   * Atomically connect and send an initial message.
+   * - Sets state to "connecting"
+   * - Opens WebSocket, waits for onopen
+   * - Sends message immediately
+   * - Waits for first response:
+   *   - If `error` message → disconnect, throw error
+   *   - If any other message → transition to "connected", resolve
+   *   - If 2s timeout → disconnect, throw timeout error
+   * - Stores the message for automatic reconnection replay
+   */
+  async connectAndSend(message: ClientMessage): Promise<void> {
+    // Store message for reconnection
+    this.initialMessage = message;
+    this.intentionalDisconnect = false;
+
+    // Already connected - just send the message
+    if (this.ws && this._connectionState === "connected") {
+      return this.sendAndAwaitResponse(message);
+    }
+
+    // Close any existing connection
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+
+    this.setConnectionState("connecting");
+
+    try {
+      const url = await buildWsUrl();
+      this.ws = new WebSocket(url);
+
+      // Wait for connection to open
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+          }
+          this.setConnectionState("disconnected");
+          reject(new Error("WebSocket connection timeout"));
+        }, 10000);
+
+        this.ws!.onopen = () => {
+          clearTimeout(timeout);
+          resolve();
+        };
+
+        this.ws!.onerror = () => {
+          clearTimeout(timeout);
+          this.setConnectionState("error");
+          reject(new Error("WebSocket connection failed"));
+        };
+
+        this.ws!.onclose = () => {
+          clearTimeout(timeout);
+          reject(new Error("WebSocket closed during connection"));
+        };
+      });
+
+      // Attach permanent handlers
+      this.ws!.onmessage = (event) => {
+        console.log("Message from server:", event.data);
+        try {
+          const msg = JSON.parse(event.data) as ServerMessage;
+          this.messageHandlers.forEach((handler) => handler(msg));
+        } catch {
+          console.log("Non-JSON message from server:", event.data);
+        }
+      };
+
+      this.ws!.onclose = (event) => {
+        console.log("WebSocket disconnected", event.code, event.reason);
+        this.ws = null;
+        if (!this.intentionalDisconnect) {
+          this.startReconnection();
+        } else {
+          this.setConnectionState("disconnected");
+        }
+      };
+
+      this.ws!.onerror = (error) => {
+        console.error("WebSocket error:", error);
+      };
+
+      // Now send message and await response
+      await this.sendAndAwaitResponse(message);
+
+      console.log("WebSocket connected and initial message succeeded");
+      this.setConnectionState("connected");
+    } catch (error) {
+      this.initialMessage = null;
+      if (this.ws) {
+        this.ws.close();
+        this.ws = null;
+      }
+      this.setConnectionState("disconnected");
+      throw error;
+    }
+  }
+
+  private sendAndAwaitResponse(message: ClientMessage): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        unsubscribe();
+        reject(new Error("Timeout waiting for server response"));
+      }, 2000);
+
+      const handleMessage = (msg: ServerMessage) => {
+        clearTimeout(timeout);
+        unsubscribe();
+        if (msg.type === "error") {
+          reject(new Error(msg.message));
+        } else {
+          resolve();
+        }
+      };
+
+      const unsubscribe = this.onMessage(handleMessage);
+
+      // Send the message
+      console.log("Sending message:", message);
+      this.ws!.send(JSON.stringify(message));
+    });
   }
 
   onMessage(handler: MessageHandler): () => void {
@@ -183,21 +215,15 @@ class WebSocketService {
   }
 
   /**
-   * Set a callback to be invoked after reconnection but before transitioning to "connected".
-   * The callback should return a promise that resolves when the client is ready.
-   * State remains "reconnecting" until the callback resolves.
-   *
-   * This allows clients to perform validation protocols (e.g., team sends validateJoin
-   * and waits for TeamGameState before allowing other messages).
+   * Clear the stored initial message (e.g., when leaving a game).
    */
-  setReconnectionCallback(callback: (() => Promise<void>) | null): void {
-    this.reconnectionCallback = callback;
+  clearInitialMessage(): void {
+    this.initialMessage = null;
   }
 
   /**
    * Manually trigger reconnection (e.g., after visibility change).
-   * Goes through the same flow as automatic reconnection, including
-   * invoking the reconnection callback if set.
+   * Replays the stored initial message if available.
    */
   async reconnect(): Promise<void> {
     this.intentionalDisconnect = false;
@@ -267,16 +293,18 @@ class WebSocketService {
               console.error("WebSocket error:", error);
             };
 
-            // If there's a reconnection callback, invoke it before transitioning to "connected"
-            // This allows clients to perform validation (e.g., validateJoin for teams)
-            if (this.reconnectionCallback) {
+            // Replay the initial message if stored
+            if (this.initialMessage) {
               try {
-                console.log("Invoking reconnection callback...");
-                await this.reconnectionCallback();
-                console.log("Reconnection callback completed");
+                console.log("Replaying initial message for reconnection...");
+                await this.sendAndAwaitResponse(this.initialMessage);
+                console.log("Reconnection message replay succeeded");
               } catch (error) {
-                console.error("Reconnection callback failed:", error);
-                // Still transition to connected - the callback can handle errors via message handlers
+                console.error("Reconnection message replay failed:", error);
+                // Transition to error state and stop reconnection
+                this.setConnectionState("error");
+                this.reconnectAttempt = 0;
+                return;
               }
             }
 

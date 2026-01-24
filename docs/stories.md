@@ -16,19 +16,12 @@ We are building the Trivia Wizard app as described in overview.md. We will only 
 ## misc
 - update verification email
 - set an alarm on log::error from my app?
-- game db lifecycle - I've never actually gone back to look at old trivia games since they're not that interesting. maybe they shouldn't really be persisted for that long? I think no DB at all, while removing a dependency which would be nice, would just be asking for trouble. The way things are going now, we'll start with no persistence and then figure out what the best way to do it is. Writing to a DB with every operation like I did for TW1 feels unnecessary when the server can track the state that realistically only needs to be temporary. One halfway option could be just serializing the whole game state every once in a while and writing it to S3 or a document DB? 
-   - I need to be able to have old games for Amy's usecase
 - submissions should auto-close when all answers have been received
 - Also need to validate that user id matches when reclaiming a game
-- Add a PartialJoin (need a better name) API for the frontend to call after you put in a game code/team name to verify that (a) game code is valid and (b) team name is available
 - favicon
 - should probably chill with the console.logs especially in websocket.ts
 - CI/CD
 
-
-## beta
-- need a ranking question type
-- it's showing nick as disconnected but he can stil submit
 
 ## concerns
 - The big game state Mutex<HashMap> gets touched _a lot_. We're not doing anything expensive while holding the lock (I think), but intuitively it feels like there could be contention which could lead to issues in when messages get processed, timer updates going out on time, etc. I think for now we continue down this path but if things look problematic in testing, we might have to consider a radically different architecture.
@@ -38,6 +31,7 @@ We are building the Trivia Wizard app as described in overview.md. We will only 
 
 ## edge cases worth considering
 - someone tries to create a game with the same code as another currently-connected host
+- would be good to add testing around mashing the submit button, especially if there's a slow connection. not sure when/if it disables rn
 
 ## beta test 2
 - Already validated errors post-submission but then it let people back in
@@ -46,9 +40,7 @@ We are building the Trivia Wizard app as described in overview.md. We will only 
 - submissions are not yet open showing when timer is closed and they've answered
 
 ## fast follows
-- add how many teams have answered count
 - don't fully boot people from the game for error responses unless totally necessary
-   - also, look into the error logs from trivia night
 - improve overall reconnection experience. more buttons to just explicitly clear and try again.
 - requiring JoinGame after ValidateJoin doesn't work well for failed reconnections. I would try to reconnect, see that I got to the team member input screen, know I must have put in team name wrong, go back, and then it would yell at me
    - realistically the solution here is terminating the WS connection if you go back. We gotta wait to establish the connection until the team name gets put in
@@ -57,5 +49,3 @@ log dive:
 ```
 [2026-01-22T01:40:21Z ERROR backend::server] Expected ValidateJoin from new Team connection, instead got: SubmitAnswer { team_name: "Nerds of a Feather", answer
 ```
-Interesting. I think I heard from these guys a couple of times that they tried to answer and they got kicked out instead. It's worth investigating how
-they managed to get to a connected state with the timer running where they could submit, but they were on a brand new WS connection.

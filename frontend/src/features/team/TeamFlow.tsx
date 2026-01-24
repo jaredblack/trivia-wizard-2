@@ -10,7 +10,6 @@ import {
 import Toast from "../../components/ui/Toast";
 import ReconnectionToast from "../../components/ui/ReconnectionToast";
 import { webSocketService } from "../../services/websocket";
-import type { ServerMessage } from "../../types";
 import TeamHeader from "./components/TeamHeader";
 import JoinStep from "./components/JoinStep";
 import MembersStep from "./components/MembersStep";
@@ -19,7 +18,7 @@ import TeamGameView from "./components/TeamGameView";
 
 export default function TeamFlow() {
   const navigate = useNavigate();
-  const { connectionState, send, connect, disconnect } = useWebSocket();
+  const { connectionState, send, connectAndSend, disconnect } = useWebSocket();
   const {
     step,
     gameCode,
@@ -37,14 +36,14 @@ export default function TeamFlow() {
   const [isRejoining, setIsRejoining] = useState(false);
   const hasAttemptedRejoin = useRef(false);
 
-  // Connect WebSocket on mount
+  // Cleanup on unmount
   useEffect(() => {
-    connect();
     return () => {
+      webSocketService.clearInitialMessage();
       disconnect();
       reset();
     };
-  }, [connect, disconnect, reset]);
+  }, [disconnect, reset]);
 
   // Auto-rejoin: check for saved team data on mount
   useEffect(() => {
@@ -60,11 +59,10 @@ export default function TeamFlow() {
     setGameCode(rejoinData.gameCode);
     setTeamName(rejoinData.teamName);
 
-    // Wait for connection then send validateJoin message
+    // Use connectAndSend for atomic connection + validation
     const attemptRejoin = async () => {
       try {
-        await connect();
-        send({
+        await connectAndSend({
           team: {
             validateJoin: {
               gameCode: rejoinData.gameCode,
@@ -72,6 +70,7 @@ export default function TeamFlow() {
             },
           },
         });
+        // Success - message handlers will update store
       } catch (error) {
         console.error("Failed to rejoin game:", error);
         clearTeamRejoin();
@@ -81,7 +80,7 @@ export default function TeamFlow() {
       }
     };
     attemptRejoin();
-  }, [connect, send, setGameCode, setTeamName, reset, navigate]);
+  }, [connectAndSend, setGameCode, setTeamName, reset, navigate]);
 
   // Save team data when successfully joined (step becomes "game")
   useEffect(() => {
@@ -102,69 +101,6 @@ export default function TeamFlow() {
     }
   }, [isRejoining, error]);
 
-  // Register reconnection callback when in game step.
-  // This sends validateJoin and waits for TeamGameState before the connection
-  // transitions to "connected", preventing any race conditions where other
-  // messages could be sent before validation completes.
-  // Note: The TeamGameState is still processed by the handler in useWebSocket.ts
-  // since onMessage calls ALL registered handlers via forEach.
-  useEffect(() => {
-    if (step !== "game") {
-      webSocketService.setReconnectionCallback(null);
-      return;
-    }
-
-    const reconnectionCallback = async (): Promise<void> => {
-      const rejoinData = getTeamRejoin();
-      if (!rejoinData) {
-        console.warn("No rejoin data available during reconnection");
-        return;
-      }
-
-      console.log("Reconnection callback: sending validateJoin...");
-
-      // Create a promise that resolves when we receive TeamGameState or error
-      return new Promise<void>((resolve) => {
-        const handleMessage = (message: ServerMessage) => {
-          if (message.type === "teamGameState" || message.type === "error") {
-            console.log(
-              "Reconnection callback: received response:",
-              message.type,
-            );
-            unsubscribe();
-            resolve();
-          }
-        };
-
-        const unsubscribe = webSocketService.onMessage(handleMessage);
-
-        // Send validateJoin - this works because the WebSocket is open,
-        // even though connection state is still "reconnecting"
-        send({
-          team: {
-            validateJoin: {
-              gameCode: rejoinData.gameCode,
-              teamName: rejoinData.teamName,
-            },
-          },
-        });
-
-        // Timeout fallback in case response never comes
-        setTimeout(() => {
-          console.warn("Reconnection callback: timeout waiting for response");
-          unsubscribe();
-          resolve();
-        }, 5000);
-      });
-    };
-
-    webSocketService.setReconnectionCallback(reconnectionCallback);
-
-    return () => {
-      webSocketService.setReconnectionCallback(null);
-    };
-  }, [step, send]);
-
   // Handle reconnection failure: show error and redirect
   useEffect(() => {
     if (connectionState === "error" && step === "game") {
@@ -181,19 +117,8 @@ export default function TeamFlow() {
       if (document.hidden) {
         disconnect();
       } else if (step === "game") {
-        const rejoinData = getTeamRejoin();
-        if (rejoinData) {
-          try {
-            // Use reconnect() which goes through the reconnection flow
-            // including invoking the reconnection callback
-            await webSocketService.reconnect();
-          } catch (error) {
-            console.error(
-              "Failed to reconnect after visibility change:",
-              error,
-            );
-          }
-        }
+        // reconnect() replays the stored initial message automatically
+        await webSocketService.reconnect();
       }
     };
 
@@ -214,11 +139,15 @@ export default function TeamFlow() {
     switch (step) {
       case "join":
         clearTeamRejoin();
+        webSocketService.clearInitialMessage();
         disconnect();
         reset();
         navigate("/");
         break;
       case "members":
+        // Disconnect so next attempt starts fresh (server expects JoinGame, not ValidateJoin)
+        webSocketService.clearInitialMessage();
+        disconnect();
         setStep("join");
         break;
       case "color":
@@ -279,15 +208,7 @@ export default function TeamFlow() {
         </div>
       )}
 
-      {connectionState === "error" && (
-        <div className="flex-1 flex items-center justify-center p-4">
-          <p className="text-red-500 text-center">
-            Failed to connect. Please try again.
-          </p>
-        </div>
-      )}
-
-      {connectionState === "connected" && (
+      {(connectionState === "disconnected" || connectionState === "connected") && (
         <div className="flex-1 flex flex-col px-6">
           {isRejoining ? (
             <div className="flex-1 flex items-center justify-center">

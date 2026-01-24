@@ -34,9 +34,7 @@ export default function HostGame() {
     teams,
     clearGame,
   } = useHostStore();
-  const { connectionState, send, connect, disconnect } = useWebSocket();
-  const prevConnectionState = useRef(connectionState);
-
+  const { connectionState, send, connectAndSend, disconnect } = useWebSocket();
   // Get current question from questions array (0-indexed)
   const currentQuestion = questions[currentQuestionNumber - 1] ?? null;
 
@@ -52,11 +50,11 @@ export default function HostGame() {
 
     const attemptRejoin = async () => {
       try {
-        await connect();
         const msg: HostClientMessage = {
           host: { type: "createGame", gameCode: rejoinData.gameCode },
         };
-        send(msg);
+        await connectAndSend(msg);
+        // Success - message handlers will update store
       } catch (error) {
         console.error("Failed to rejoin game:", error);
         clearHostRejoin();
@@ -64,7 +62,7 @@ export default function HostGame() {
       }
     };
     attemptRejoin();
-  }, [connect, send]);
+  }, [connectAndSend]);
 
   // Clear rejoin state when game data arrives
   useEffect(() => {
@@ -83,36 +81,14 @@ export default function HostGame() {
     }
   }, [isRejoining, connectionState, clearGame, navigate]);
 
-  // Handle reconnection success: re-send createGame to restore server state
-  useEffect(() => {
-    if (
-      prevConnectionState.current === "reconnecting" &&
-      connectionState === "connected" &&
-      gameCode
-    ) {
-      const rejoinData = getHostRejoin();
-      if (rejoinData) {
-        const msg: HostClientMessage = {
-          host: { type: "createGame", gameCode: rejoinData.gameCode },
-        };
-        send(msg);
-      }
-    }
-    prevConnectionState.current = connectionState;
-  }, [connectionState, gameCode, send]);
-
   // Handle reconnection failure: redirect to host landing
   useEffect(() => {
-    if (
-      prevConnectionState.current === "reconnecting" &&
-      connectionState === "error" &&
-      gameCode
-    ) {
+    if (connectionState === "error" && gameCode && !isRejoining) {
       clearHostRejoin();
       clearGame();
       navigate("/host");
     }
-  }, [connectionState, gameCode, clearGame, navigate]);
+  }, [connectionState, gameCode, isRejoining, clearGame, navigate]);
 
   const handleCancelReconnection = useCallback(() => {
     webSocketService.cancelReconnection();
@@ -140,6 +116,7 @@ export default function HostGame() {
 
   const handleExit = () => {
     clearHostRejoin();
+    webSocketService.clearInitialMessage();
     disconnect();
     clearGame();
     navigate("/host");
