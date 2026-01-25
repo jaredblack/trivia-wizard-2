@@ -77,15 +77,15 @@ export default function TeamFlow() {
         });
         // Success - message handlers will update store
       } catch (error) {
-        console.error("Failed to rejoin game:", error);
+        console.log("Failed to rejoin game:", error);
         clearTeamRejoin();
         setIsRejoining(false);
+        setError(`Failed to rejoin game: ${error}`);
         reset();
-        navigate("/");
       }
     };
     attemptRejoin();
-  }, [connectAndSend, setGameCode, setTeamName, reset, navigate]);
+  }, [connectAndSend, setGameCode, setTeamName, setError, reset]);
 
   // Save team data when successfully joined (step becomes "game")
   useEffect(() => {
@@ -112,7 +112,6 @@ export default function TeamFlow() {
       setError("Unable to reconnect. Please rejoin the game.");
       clearTeamRejoin();
       reset();
-      navigate("/");
     }
   }, [connectionState, step, setError, reset, navigate]);
 
@@ -137,8 +136,7 @@ export default function TeamFlow() {
     clearTeamRejoin();
     disconnect();
     reset();
-    navigate("/");
-  }, [disconnect, reset, navigate]);
+  }, [disconnect, reset]);
 
   const handleBack = useCallback(() => {
     switch (step) {
@@ -162,7 +160,7 @@ export default function TeamFlow() {
         // No back navigation from game view
         break;
     }
-  }, [step, disconnect, reset, navigate, setStep]);
+  }, [step, disconnect, reset, setStep, navigate]);
 
   const handleJoinGame = useCallback(() => {
     if (!selectedColor) return;
@@ -216,8 +214,14 @@ export default function TeamFlow() {
       {(connectionState === "disconnected" || connectionState === "connected") && (
         <div className="flex-1 flex flex-col px-6">
           {isRejoining ? (
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex flex-col items-center justify-center gap-4">
               <p className="text-gray-500">Rejoining game...</p>
+              <button
+                onClick={handleCancelReconnection}
+                className="text-sm text-blue-600 hover:text-blue-800"
+              >
+                Back to join screen
+              </button>
             </div>
           ) : (
             <>

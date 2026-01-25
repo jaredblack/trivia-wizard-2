@@ -88,7 +88,12 @@ export const useTeamStore = create<TeamStore>((set) => ({
 
   setError: (error) => set({ error }),
 
-  reset: () => set(initialState),
+  reset: () =>
+    set((state) => ({
+      ...initialState,
+      gameCode: state.gameCode,
+      teamName: state.teamName,
+    })),
 }));
 
 /**

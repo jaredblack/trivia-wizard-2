@@ -42,6 +42,7 @@ We are building the Trivia Wizard app as described in overview.md. We will only 
 ## fast follows
 - don't fully boot people from the game for error responses unless totally necessary
 - improve overall reconnection experience. more buttons to just explicitly clear and try again.
+   - "Rejoining game..." should have a button to exit and try again
 - requiring JoinGame after ValidateJoin doesn't work well for failed reconnections. I would try to reconnect, see that I got to the team member input screen, know I must have put in team name wrong, go back, and then it would yell at me
    - realistically the solution here is terminating the WS connection if you go back. We gotta wait to establish the connection until the team name gets put in
 - "Connecting..." -> timeout currently leads to nowhere, just a blank screen with an error toast

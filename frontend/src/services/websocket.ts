@@ -117,7 +117,7 @@ class WebSocketService {
         this.ws!.onerror = () => {
           clearTimeout(timeout);
           this.setConnectionState("error");
-          reject(new Error("WebSocket connection failed"));
+          reject(new Error("Failed to connect to server"));
         };
 
         this.ws!.onclose = () => {
@@ -316,7 +316,7 @@ class WebSocketService {
 
           this.ws!.onerror = () => {
             clearTimeout(timeout);
-            reject(new Error("WebSocket connection failed"));
+            reject(new Error("Failed to connect to server"));
           };
 
           this.ws!.onclose = () => {
