@@ -1,7 +1,7 @@
 use crate::model::server_message::{GameState, ServerMessage, TeamGameState, send_msg};
 use crate::model::types::{
-    AnswerContent, GameSettings, McConfig, Question, QuestionConfig, QuestionKind, ScoreData,
-    ScoreboardData, TeamColor, TeamData, TeamQuestion,
+    AnswerContent, GameSettings, McConfig, MultiAnswerConfig, Question, QuestionConfig,
+    QuestionKind, ScoreData, ScoreboardData, TeamColor, TeamData, TeamQuestion,
 };
 use crate::server::Tx;
 use anyhow::{Result, anyhow};
@@ -16,6 +16,43 @@ fn normalize_answer_text(content: &Option<AnswerContent>) -> Option<String> {
         Some(AnswerContent::MultipleChoice { selected }) => Some(selected.trim().to_lowercase()),
         _ => None,
     }
+}
+
+/// Normalize a string for multi-answer comparison (trimmed, lowercase).
+fn normalize_multi_answer(s: &str) -> String {
+    s.trim().to_lowercase()
+}
+
+/// Grade a team's multi-answer submission against the correct set.
+/// Uses cardinality-aware greedy matching: each correct answer text can only match once.
+/// Empty strings are always marked incorrect.
+fn grade_multi_answer(answers: &[String], correct_set: &[String]) -> Vec<bool> {
+    let mut remaining: Vec<String> = correct_set.to_vec();
+    let mut result = Vec::with_capacity(answers.len());
+
+    for answer in answers {
+        let normalized = normalize_multi_answer(answer);
+        if normalized.is_empty() {
+            result.push(false);
+            continue;
+        }
+        if let Some(pos) = remaining.iter().position(|c| *c == normalized) {
+            remaining.remove(pos);
+            result.push(true);
+        } else {
+            result.push(false);
+        }
+    }
+
+    result
+}
+
+/// Calculate question points for a multi-answer submission.
+/// floor(base_points / num_answers) * num_correct
+fn calculate_multi_answer_question_points(correct: &[bool], base_points: u32, num_answers: u32) -> i32 {
+    let per_answer = base_points as i32 / num_answers as i32;
+    let num_correct = correct.iter().filter(|&&c| c).count() as i32;
+    per_answer * num_correct
 }
 
 /// Hardcoded game settings for this iteration
@@ -54,6 +91,7 @@ impl Game {
             default_bonus_increment: DEFAULT_BONUS_INCREMENT,
             default_question_type: QuestionKind::Standard,
             default_mc_config: McConfig::default(),
+            default_multi_answer_config: MultiAnswerConfig::default(),
             speed_bonus_enabled: DEFAULT_SPEED_BONUS_ENABLED,
             speed_bonus_num_teams: DEFAULT_SPEED_BONUS_NUM_TEAMS,
             speed_bonus_first_place_points: DEFAULT_SPEED_BONUS_FIRST_PLACE_POINTS,
@@ -68,6 +106,7 @@ impl Game {
             question_config: QuestionConfig::Standard,
             answers: vec![],
             speed_bonus_enabled: DEFAULT_SPEED_BONUS_ENABLED,
+            multi_answer_correct_set: vec![],
         };
 
         Self {
@@ -250,7 +289,9 @@ impl Game {
     fn create_question_from_settings(&self) -> Question {
         let question_config = match self.game_settings.default_question_type {
             QuestionKind::Standard => QuestionConfig::Standard,
-            QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer,
+            QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer {
+                config: self.game_settings.default_multi_answer_config.clone(),
+            },
             QuestionKind::MultipleChoice => QuestionConfig::MultipleChoice {
                 config: self.game_settings.default_mc_config.clone(),
             },
@@ -264,6 +305,7 @@ impl Game {
             question_config,
             answers: vec![],
             speed_bonus_enabled: self.game_settings.speed_bonus_enabled,
+            multi_answer_correct_set: vec![],
         }
     }
 
@@ -347,9 +389,10 @@ impl Game {
 
     // === Answer submission ===
 
-    /// Add an answer to the current question. Returns false if team already submitted.
+    /// Add a single-text answer to the current question. Returns false if team already submitted.
     /// If the answer matches an existing scored-correct answer (case-insensitive, trimmed),
     /// the new answer is automatically scored correct as well.
+    /// Only valid for Standard and MultipleChoice questions.
     pub fn add_answer(&mut self, team_name: &str, answer_text: String) -> bool {
         let question = self.current_question_mut();
 
@@ -362,7 +405,7 @@ impl Game {
             return false;
         }
 
-        // Create answer content based on question type
+        // Create answer content based on question type (reject MultiAnswer here)
         let content = match question.question_kind {
             QuestionKind::Standard => AnswerContent::Standard {
                 answer_text: answer_text.clone(),
@@ -370,7 +413,7 @@ impl Game {
             QuestionKind::MultipleChoice => AnswerContent::MultipleChoice {
                 selected: answer_text.clone(),
             },
-            QuestionKind::MultiAnswer => return false, // Not supported yet
+            QuestionKind::MultiAnswer => return false, // Use add_multi_answer instead
         };
 
         // Check if this answer matches any already-scored-correct answer
@@ -417,6 +460,155 @@ impl Game {
         true
     }
 
+    /// Add a multi-answer submission to the current question.
+    /// Returns false if team already submitted or question isn't MultiAnswer.
+    pub fn add_multi_answer(&mut self, team_name: &str, answers: Vec<String>) -> bool {
+        let question = self.current_question_mut();
+
+        // Only valid for MultiAnswer questions
+        if question.question_kind != QuestionKind::MultiAnswer {
+            return false;
+        }
+
+        // Check if team already submitted
+        if question
+            .answers
+            .iter()
+            .any(|a| a.team_name.eq_ignore_ascii_case(team_name))
+        {
+            return false;
+        }
+
+        // Grade against current correct set
+        let correct = grade_multi_answer(&answers, &question.multi_answer_correct_set);
+
+        // Get num_answers from config
+        let num_answers = match &question.question_config {
+            QuestionConfig::MultiAnswer { config } => config.num_answers,
+            _ => answers.len() as u32,
+        };
+
+        let question_points =
+            calculate_multi_answer_question_points(&correct, question.question_points, num_answers);
+
+        let score = ScoreData {
+            question_points,
+            ..ScoreData::new()
+        };
+
+        question.answers.push(TeamQuestion {
+            team_name: team_name.to_string(),
+            score,
+            content: Some(AnswerContent::MultiAnswer { answers, correct }),
+            question_kind: question.question_kind,
+            question_config: question.question_config.clone(),
+        });
+
+        // Recalculate speed bonuses and team scores if auto-scored
+        if question_points > 0 {
+            let question_idx = self.current_question_number - 1;
+            let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
+            self.recalculate_team_score(team_name);
+            for team in speed_bonus_teams {
+                if team != team_name {
+                    self.recalculate_team_score(&team);
+                }
+            }
+        }
+
+        true
+    }
+
+    /// Toggle a sub-answer's correctness for a multi-answer question.
+    /// This adds/removes the text from the global correct set and re-grades ALL teams.
+    pub fn toggle_multi_answer_correctness(
+        &mut self,
+        question_number: usize,
+        team_name: &str,
+        sub_answer_index: usize,
+    ) -> bool {
+        let question_idx = question_number - 1;
+        if question_idx >= self.questions.len() {
+            return false;
+        }
+
+        // Get the text at the sub-answer index for this team
+        let question = &self.questions[question_idx];
+        let answer = question
+            .answers
+            .iter()
+            .find(|a| a.team_name.eq_ignore_ascii_case(team_name));
+        let Some(answer) = answer else {
+            return false;
+        };
+        let Some(AnswerContent::MultiAnswer { answers, correct, .. }) = &answer.content else {
+            return false;
+        };
+        if sub_answer_index >= answers.len() {
+            return false;
+        }
+        let text = normalize_multi_answer(&answers[sub_answer_index]);
+        if text.is_empty() {
+            return false; // Can't toggle empty answers
+        }
+        let is_currently_correct = correct.get(sub_answer_index).copied().unwrap_or(false);
+
+        // Toggle in the correct set based on the clicked pill's current state
+        let question = &mut self.questions[question_idx];
+        if is_currently_correct {
+            // Pill is correct -> remove one copy of this text from correct set
+            if let Some(pos) = question
+                .multi_answer_correct_set
+                .iter()
+                .position(|c| *c == text)
+            {
+                question.multi_answer_correct_set.remove(pos);
+            }
+        } else {
+            // Pill is incorrect -> add this text to correct set
+            question.multi_answer_correct_set.push(text);
+        }
+
+        // Re-grade ALL teams against updated correct set
+        let correct_set = question.multi_answer_correct_set.clone();
+        let base_points = question.question_points;
+        let num_answers = match &question.question_config {
+            QuestionConfig::MultiAnswer { config } => config.num_answers,
+            _ => 3, // fallback
+        };
+
+        let mut teams_to_update: Vec<String> = Vec::new();
+
+        for answer in &mut question.answers {
+            if let Some(AnswerContent::MultiAnswer {
+                answers, correct, ..
+            }) = &mut answer.content
+            {
+                let new_correct = grade_multi_answer(answers, &correct_set);
+                let new_question_points =
+                    calculate_multi_answer_question_points(&new_correct, base_points, num_answers);
+                *correct = new_correct;
+                answer.score.question_points = new_question_points;
+                teams_to_update.push(answer.team_name.clone());
+            }
+        }
+
+        // Recalculate speed bonuses
+        let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
+        for t in speed_bonus_teams {
+            if !teams_to_update.contains(&t) {
+                teams_to_update.push(t);
+            }
+        }
+
+        // Recalculate cumulative scores for all affected teams
+        for team in &teams_to_update {
+            self.recalculate_team_score(team);
+        }
+
+        true
+    }
+
     // === Scoring operations ===
 
     /// Score a team's answer for a specific question. Returns true if successful.
@@ -445,6 +637,25 @@ impl Game {
             return false;
         };
 
+        // For multi-answer questions, only update bonus_points and override_points.
+        // question_points is derived from the correct set, speed_bonus_points is recalculated.
+        if question.answers[answer_idx].question_kind == QuestionKind::MultiAnswer {
+            question.answers[answer_idx].score.bonus_points = score.bonus_points;
+            question.answers[answer_idx].score.override_points = score.override_points;
+
+            let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
+            let mut teams_to_update = vec![team_name.to_string()];
+            for t in speed_bonus_teams {
+                if !teams_to_update.contains(&t) {
+                    teams_to_update.push(t);
+                }
+            }
+            for team in teams_to_update {
+                self.recalculate_team_score(&team);
+            }
+            return true;
+        }
+
         // Update the target answer's score (preserve speed_bonus_points, will be recalculated)
         let current_speed_bonus = question.answers[answer_idx].score.speed_bonus_points;
         question.answers[answer_idx].score = ScoreData {
@@ -455,7 +666,7 @@ impl Game {
         // Get normalized text for matching
         let Some(normalized_text) = normalize_answer_text(&question.answers[answer_idx].content)
         else {
-            // Can't auto-score without text to match (e.g., MultiAnswer)
+            // Can't auto-score without text to match
             // Recalculate speed bonuses and team scores
             let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
             let mut teams_to_update = vec![team_name.to_string()];
@@ -579,7 +790,7 @@ impl Game {
         // Count correct answers in submission order (answers are stored in submission order)
         let mut place = 0usize;
         for answer in &mut question.answers {
-            let new_speed_bonus = if answer.score.question_points > 0 {
+            let new_speed_bonus = if answer.is_speed_bonus_eligible() {
                 let bonus = Self::calculate_speed_bonus(place, num_teams, first_place_points);
                 place += 1;
                 bonus
@@ -606,7 +817,9 @@ impl Game {
         // Build the question config for the new default question type
         let default_question_config = match settings.default_question_type {
             QuestionKind::Standard => QuestionConfig::Standard,
-            QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer,
+            QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer {
+                config: settings.default_multi_answer_config.clone(),
+            },
             QuestionKind::MultipleChoice => QuestionConfig::MultipleChoice {
                 config: settings.default_mc_config.clone(),
             },
@@ -621,6 +834,7 @@ impl Game {
                 question.question_kind = settings.default_question_type;
                 question.question_config = default_question_config.clone();
                 question.speed_bonus_enabled = settings.speed_bonus_enabled;
+                question.multi_answer_correct_set.clear();
             }
         }
 
@@ -666,11 +880,15 @@ impl Game {
         if question.question_config.kind() != question.question_kind {
             question.question_config = match question_type {
                 QuestionKind::Standard => QuestionConfig::Standard,
-                QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer,
+                QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer {
+                    config: self.game_settings.default_multi_answer_config.clone(),
+                },
                 QuestionKind::MultipleChoice => QuestionConfig::MultipleChoice {
                     config: McConfig::default(),
                 },
             };
+            // Clear correct set when switching to/from multi-answer
+            question.multi_answer_correct_set.clear();
         }
 
         // Update timer display if this is current question and timer not running
@@ -774,5 +992,200 @@ mod tests {
         assert_eq!(Game::calculate_speed_bonus(0, 3, 0), 0);
         assert_eq!(Game::calculate_speed_bonus(1, 3, 0), 0);
         assert_eq!(Game::calculate_speed_bonus(2, 3, 0), 0);
+    }
+
+    // === Multi-Answer Tests ===
+
+    #[test]
+    fn test_grade_multi_answer_all_correct() {
+        let correct_set = vec!["blue".to_string(), "red".to_string(), "green".to_string()];
+        let answers = vec!["Blue".to_string(), "RED".to_string(), "green".to_string()];
+        let result = grade_multi_answer(&answers, &correct_set);
+        assert_eq!(result, vec![true, true, true]);
+    }
+
+    #[test]
+    fn test_grade_multi_answer_partial() {
+        let correct_set = vec!["blue".to_string(), "red".to_string(), "green".to_string()];
+        let answers = vec!["blue".to_string(), "yellow".to_string(), "green".to_string()];
+        let result = grade_multi_answer(&answers, &correct_set);
+        assert_eq!(result, vec![true, false, true]);
+    }
+
+    #[test]
+    fn test_grade_multi_answer_cardinality_duplicates() {
+        // Key test: "blue" appears twice in answers but only once in correct set
+        let correct_set = vec!["blue".to_string(), "red".to_string(), "green".to_string()];
+        let answers = vec!["blue".to_string(), "blue".to_string(), "red".to_string()];
+        let result = grade_multi_answer(&answers, &correct_set);
+        assert_eq!(result, vec![true, false, true]);
+    }
+
+    #[test]
+    fn test_grade_multi_answer_empty_answers() {
+        let correct_set = vec!["blue".to_string(), "red".to_string()];
+        let answers = vec!["blue".to_string(), "".to_string(), "red".to_string()];
+        let result = grade_multi_answer(&answers, &correct_set);
+        assert_eq!(result, vec![true, false, true]);
+    }
+
+    #[test]
+    fn test_calculate_multi_answer_question_points_floor() {
+        // base=50, N=3, all correct -> 16*3=48 (not 50)
+        let correct = vec![true, true, true];
+        assert_eq!(calculate_multi_answer_question_points(&correct, 50, 3), 48);
+    }
+
+    #[test]
+    fn test_calculate_multi_answer_question_points_partial() {
+        // base=90, N=3, 2 correct -> 30*2=60
+        let correct = vec![true, false, true];
+        assert_eq!(calculate_multi_answer_question_points(&correct, 90, 3), 60);
+    }
+
+    #[test]
+    fn test_calculate_multi_answer_question_points_none_correct() {
+        let correct = vec![false, false, false];
+        assert_eq!(calculate_multi_answer_question_points(&correct, 90, 3), 0);
+    }
+
+    #[test]
+    fn test_is_speed_bonus_eligible_multi_answer_all_correct() {
+        let tq = TeamQuestion {
+            team_name: "Team A".to_string(),
+            score: ScoreData { question_points: 48, ..ScoreData::new() },
+            content: Some(AnswerContent::MultiAnswer {
+                answers: vec!["a".into(), "b".into(), "c".into()],
+                correct: vec![true, true, true],
+            }),
+            question_kind: QuestionKind::MultiAnswer,
+            question_config: QuestionConfig::MultiAnswer {
+                config: MultiAnswerConfig { num_answers: 3 },
+            },
+        };
+        assert!(tq.is_speed_bonus_eligible());
+    }
+
+    #[test]
+    fn test_is_speed_bonus_eligible_multi_answer_partial() {
+        let tq = TeamQuestion {
+            team_name: "Team A".to_string(),
+            score: ScoreData { question_points: 32, ..ScoreData::new() },
+            content: Some(AnswerContent::MultiAnswer {
+                answers: vec!["a".into(), "b".into(), "c".into()],
+                correct: vec![true, false, true],
+            }),
+            question_kind: QuestionKind::MultiAnswer,
+            question_config: QuestionConfig::MultiAnswer {
+                config: MultiAnswerConfig { num_answers: 3 },
+            },
+        };
+        assert!(!tq.is_speed_bonus_eligible());
+    }
+
+    /// Helper: create a Game with a multi-answer question (3 sub-answers, 50 pts)
+    /// and two registered teams.
+    fn setup_multi_answer_game() -> Game {
+        use tokio::sync::mpsc;
+
+        let (host_tx, _host_rx) = mpsc::unbounded_channel();
+        let mut game = Game::new("TEST".to_string(), host_tx, "host1".to_string());
+
+        // Change the first question to multi-answer
+        game.update_question_settings(1, 30, 50, 5, QuestionKind::MultiAnswer, false)
+            .unwrap();
+
+        // Add two teams
+        let (tx_a, _) = mpsc::unbounded_channel();
+        let (tx_b, _) = mpsc::unbounded_channel();
+        game.add_team(
+            "Team A".to_string(),
+            tx_a,
+            TeamColor { hex_code: "#ff0000".into(), name: "Red".into() },
+            vec![],
+        );
+        game.add_team(
+            "Team B".to_string(),
+            tx_b,
+            TeamColor { hex_code: "#0000ff".into(), name: "Blue".into() },
+            vec![],
+        );
+
+        game
+    }
+
+    /// Helper: extract the `correct` vec for a team from question index 0
+    fn get_correct(game: &Game, team_name: &str) -> Vec<bool> {
+        let q = &game.questions[0];
+        let answer = q.answers.iter().find(|a| a.team_name == team_name).unwrap();
+        match &answer.content {
+            Some(AnswerContent::MultiAnswer { correct, .. }) => correct.clone(),
+            _ => panic!("Expected MultiAnswer content for {team_name}"),
+        }
+    }
+
+    /// Helper: get question_points for a team from question index 0
+    fn get_question_points(game: &Game, team_name: &str) -> i32 {
+        let q = &game.questions[0];
+        q.answers.iter().find(|a| a.team_name == team_name).unwrap().score.question_points
+    }
+
+    #[test]
+    fn test_toggle_cardinality_duplicate_text() {
+        // Scenario: two teams submit overlapping "stop" answers.
+        // Toggling pills with the same text should add copies to the
+        // correct set, respecting cardinality-aware grading.
+        let mut game = setup_multi_answer_game();
+
+        // 1. Team A submits ["stop", "stop", "stop"]
+        assert!(game.add_multi_answer("Team A", vec!["stop".into(), "stop".into(), "stop".into()]));
+        // 2. Team B submits ["stop", "go", "fish"]
+        assert!(game.add_multi_answer("Team B", vec!["stop".into(), "go".into(), "fish".into()]));
+
+        // 3. Host clicks Team B's "stop" pill (index 0) -> adds "stop" to correct_set
+        assert!(game.toggle_multi_answer_correctness(1, "Team B", 0));
+
+        // 4. Both teams should have exactly one "stop" correct
+        //    correct_set = ["stop"]
+        //    Team A: ["stop","stop","stop"] graded -> [T, F, F]
+        //    Team B: ["stop","go","fish"]   graded -> [T, F, F]
+        assert_eq!(get_correct(&game, "Team A"), vec![true, false, false]);
+        assert_eq!(get_correct(&game, "Team B"), vec![true, false, false]);
+        assert_eq!(get_question_points(&game, "Team A"), 16); // floor(50/3)*1
+        assert_eq!(get_question_points(&game, "Team B"), 16);
+
+        // 5. Host clicks Team A's second "stop" pill (index 1, currently incorrect)
+        //    -> adds another "stop" to correct_set
+        assert!(game.toggle_multi_answer_correctness(1, "Team A", 1));
+
+        // 6. correct_set = ["stop", "stop"]
+        //    Team A: ["stop","stop","stop"] graded -> [T, T, F]  (2 correct)
+        //    Team B: ["stop","go","fish"]   graded -> [T, F, F]  (1 correct, only one "stop" to match)
+        //    Team A has twice as many points as Team B.
+        assert_eq!(get_correct(&game, "Team A"), vec![true, true, false]);
+        assert_eq!(get_correct(&game, "Team B"), vec![true, false, false]);
+        assert_eq!(get_question_points(&game, "Team A"), 32); // floor(50/3)*2
+        assert_eq!(get_question_points(&game, "Team B"), 16); // floor(50/3)*1
+    }
+
+    #[test]
+    fn test_is_speed_bonus_eligible_standard() {
+        let tq = TeamQuestion {
+            team_name: "Team A".to_string(),
+            score: ScoreData { question_points: 50, ..ScoreData::new() },
+            content: Some(AnswerContent::Standard { answer_text: "Paris".into() }),
+            question_kind: QuestionKind::Standard,
+            question_config: QuestionConfig::Standard,
+        };
+        assert!(tq.is_speed_bonus_eligible());
+
+        let tq_zero = TeamQuestion {
+            team_name: "Team B".to_string(),
+            score: ScoreData::new(),
+            content: Some(AnswerContent::Standard { answer_text: "London".into() }),
+            question_kind: QuestionKind::Standard,
+            question_config: QuestionConfig::Standard,
+        };
+        assert!(!tq_zero.is_speed_bonus_eligible());
     }
 }

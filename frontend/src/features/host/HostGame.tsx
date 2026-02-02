@@ -8,6 +8,7 @@ import ReconnectionToast from "../../components/ui/ReconnectionToast";
 import QuestionControls from "./components/QuestionControls";
 import StandardMainArea from "./components/StandardMainArea";
 import MultipleChoiceMainArea from "./components/MultipleChoiceMainArea";
+import MultiAnswerMainArea from "./components/MultiAnswerMainArea";
 import Scoreboard from "./components/Scoreboard";
 import PerQuestionSettings from "./components/PerQuestionSettings";
 import SettingsModal from "./components/SettingsModal";
@@ -16,8 +17,9 @@ import type {
   ClientMessage,
   HostClientMessage,
   McConfig,
+  MultiAnswerConfig,
 } from "../../types";
-import { defaultMcConfig } from "../../types";
+import { defaultMcConfig, defaultMultiAnswerConfig } from "../../types";
 
 export default function HostGame() {
   const navigate = useNavigate();
@@ -215,6 +217,50 @@ export default function HostGame() {
                 });
               }}
             />
+          ) : currentQuestion.questionKind === "multiAnswer" ? (
+            <MultiAnswerMainArea
+              question={currentQuestion}
+              questionNumber={currentQuestionNumber}
+              teams={teams}
+              multiAnswerConfig={
+                currentQuestion.questionConfig.type === "multiAnswer"
+                  ? currentQuestion.questionConfig.config
+                  : defaultMultiAnswerConfig
+              }
+              settingsDisabled={questionHasAnswers}
+              onToggleCorrectness={(teamName, subAnswerIndex) => {
+                sendMessage({
+                  host: {
+                    type: "toggleMultiAnswerCorrectness",
+                    questionNumber: currentQuestionNumber,
+                    teamName,
+                    subAnswerIndex,
+                  },
+                });
+              }}
+              onScoreAnswer={(teamName, score) => {
+                sendMessage({
+                  host: {
+                    type: "scoreAnswer",
+                    questionNumber: currentQuestionNumber,
+                    teamName,
+                    score,
+                  },
+                });
+              }}
+              onMultiAnswerConfigChange={(config: MultiAnswerConfig) => {
+                sendMessage({
+                  host: {
+                    type: "updateTypeSpecificSettings",
+                    questionNumber: currentQuestionNumber,
+                    questionConfig: {
+                      type: "multiAnswer",
+                      config: config,
+                    },
+                  },
+                });
+              }}
+            />
           ) : (
             <StandardMainArea
               question={currentQuestion}
@@ -327,6 +373,7 @@ export default function HostGame() {
                 defaultBonusIncrement: newSettings.defaultBonusIncrement,
                 defaultQuestionType: newSettings.defaultQuestionType,
                 defaultMcConfig: newSettings.defaultMcConfig,
+                defaultMultiAnswerConfig: newSettings.defaultMultiAnswerConfig,
                 speedBonusEnabled: newSettings.speedBonusEnabled,
                 speedBonusNumTeams: newSettings.speedBonusNumTeams,
                 speedBonusFirstPlacePoints:

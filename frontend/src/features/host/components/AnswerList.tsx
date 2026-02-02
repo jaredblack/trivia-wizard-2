@@ -1,4 +1,5 @@
 import AnswerCard from "./AnswerCard";
+import MultiAnswerAnswerCard from "./MultiAnswerAnswerCard";
 import type { TeamData, Question, ScoreData } from "../../../types";
 import { answerToString } from "../../../types";
 
@@ -7,41 +8,55 @@ interface AnswerListProps {
   questionNumber: number;
   teams: TeamData[];
   onScoreAnswer: (teamName: string, score: ScoreData) => void;
+  onToggleCorrectness?: (teamName: string, subAnswerIndex: number) => void;
 }
 
 export default function AnswerList({
   question,
   teams,
   onScoreAnswer,
+  onToggleCorrectness,
 }: AnswerListProps) {
-  // Multi-answer not yet implemented
-  if (question.questionKind === "multiAnswer") {
-    return (
-      <div className="p-4 text-gray-500">
-        Question type "multiAnswer" not yet implemented
-      </div>
-    );
-  }
-
   // Answers are already ordered by submission time
   const answers = question.answers;
 
   // Create a map of team name to team data for quick lookup
   const teamMap = new Map(teams.map((t) => [t.teamName, t]));
 
+  const isMultiAnswer = question.questionKind === "multiAnswer";
+
   return (
     <div className="flex flex-col gap-4 p-4 overflow-y-auto">
       {answers.map((answer) => {
         const team = teamMap.get(answer.teamName);
-        // Get answer text from content using helper function
-        const answerText = answer.content ? answerToString(answer.content) : "";
+        const teamColor = team?.teamColor.hexCode ?? "#666666";
 
+        if (isMultiAnswer && answer.content?.type === "multiAnswer") {
+          return (
+            <MultiAnswerAnswerCard
+              key={answer.teamName}
+              teamName={answer.teamName}
+              answers={answer.content.answers}
+              correct={answer.content.correct}
+              teamColor={teamColor}
+              score={answer.score}
+              bonusIncrement={question.bonusIncrement}
+              onToggleCorrectness={(subAnswerIndex) =>
+                onToggleCorrectness?.(answer.teamName, subAnswerIndex)
+              }
+              onScoreChange={(score) => onScoreAnswer(answer.teamName, score)}
+            />
+          );
+        }
+
+        // Standard / Multiple Choice answer card
+        const answerText = answer.content ? answerToString(answer.content) : "";
         return (
           <AnswerCard
             key={answer.teamName}
             teamName={answer.teamName}
             answerText={answerText}
-            teamColor={team?.teamColor.hexCode ? team.teamColor.hexCode : "#666666"}
+            teamColor={teamColor}
             score={answer.score}
             questionPoints={question.questionPoints}
             bonusIncrement={question.bonusIncrement}

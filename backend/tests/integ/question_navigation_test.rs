@@ -1,5 +1,5 @@
 use crate::{TestClient, TestServer};
-use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
+use backend::model::client_message::{AnswerSubmission, ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::ServerMessage;
 use backend::model::types::{AnswerContent, ScoreData};
 
@@ -43,7 +43,7 @@ async fn team_can_answer_earlier_question_after_skipping() {
     team_a
         .send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
             team_name: "Team A".to_string(),
-            answer: "Answer for Q2".to_string(),
+            answer: AnswerSubmission::Single("Answer for Q2".to_string()),
         }))
         .await;
     let _: ServerMessage = team_a.recv_json().await;
@@ -80,7 +80,7 @@ async fn team_can_answer_earlier_question_after_skipping() {
     team_a
         .send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
             team_name: "Team A".to_string(),
-            answer: "Late answer for Q1".to_string(),
+            answer: AnswerSubmission::Single("Late answer for Q1".to_string()),
         }))
         .await;
     let _: ServerMessage = team_a.recv_json().await;
@@ -202,7 +202,7 @@ async fn navigation_preserves_answers_and_scores_across_questions() {
     team1
         .send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
             team_name: "Team Alpha".to_string(),
-            answer: "Answer from Alpha on Q1".to_string(),
+            answer: AnswerSubmission::Single("Answer from Alpha on Q1".to_string()),
         }))
         .await;
     let _: ServerMessage = team1.recv_json().await;
@@ -211,7 +211,7 @@ async fn navigation_preserves_answers_and_scores_across_questions() {
     team2
         .send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
             team_name: "Team Beta".to_string(),
-            answer: "Answer from Beta on Q1".to_string(),
+            answer: AnswerSubmission::Single("Answer from Beta on Q1".to_string()),
         }))
         .await;
     let _: ServerMessage = team2.recv_json().await;
@@ -250,7 +250,7 @@ async fn navigation_preserves_answers_and_scores_across_questions() {
     team1
         .send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
             team_name: "Team Alpha".to_string(),
-            answer: "Answer from Alpha on Q2".to_string(),
+            answer: AnswerSubmission::Single("Answer from Alpha on Q2".to_string()),
         }))
         .await;
     let _: ServerMessage = team1.recv_json().await;

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::model::types::{McConfig, QuestionConfig, QuestionKind, ScoreData};
+use crate::model::types::{McConfig, MultiAnswerConfig, QuestionConfig, QuestionKind, ScoreData};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
@@ -38,9 +38,18 @@ pub enum HostAction {
         default_bonus_increment: u32,
         default_question_type: QuestionKind,
         default_mc_config: McConfig,
+        #[serde(default)]
+        default_multi_answer_config: MultiAnswerConfig,
         speed_bonus_enabled: bool,
         speed_bonus_num_teams: u32,
         speed_bonus_first_place_points: u32,
+    },
+
+    #[serde(rename_all = "camelCase")]
+    ToggleMultiAnswerCorrectness {
+        question_number: usize,
+        team_name: String,
+        sub_answer_index: usize,
     },
 
     #[serde(rename_all = "camelCase")]
@@ -58,6 +67,14 @@ pub enum HostAction {
         question_number: usize,
         question_config: QuestionConfig,
     },
+}
+
+/// Flexible answer payload: a single string or an array of strings.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AnswerSubmission {
+    Single(String),
+    Multiple(Vec<String>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -79,7 +96,10 @@ pub enum TeamAction {
     },
 
     #[serde(rename_all = "camelCase")]
-    SubmitAnswer { team_name: String, answer: String },
+    SubmitAnswer {
+        team_name: String,
+        answer: AnswerSubmission,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]

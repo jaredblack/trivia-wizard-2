@@ -1,6 +1,6 @@
 use crate::{TestClient, TestServer};
 
-use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
+use backend::model::client_message::{AnswerSubmission, ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::ServerMessage;
 use backend::model::types::ScoreData;
 
@@ -26,7 +26,7 @@ async fn team_reconnects_and_score_persists() {
         .send_json(&ClientMessage::Team(
             backend::model::client_message::TeamAction::SubmitAnswer {
                 team_name: "Test Team A".to_string(),
-                answer: "Answer 42".to_string(),
+                answer: AnswerSubmission::Single("Answer 42".to_string()),
             },
         ))
         .await;

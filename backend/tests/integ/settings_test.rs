@@ -1,7 +1,7 @@
 use crate::{TestClient, TestServer, default_mc_config};
-use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
+use backend::model::client_message::{AnswerSubmission, ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::ServerMessage;
-use backend::model::types::QuestionKind;
+use backend::model::types::{MultiAnswerConfig, QuestionKind};
 
 #[tokio::test]
 async fn update_game_settings_changes_defaults() {
@@ -18,6 +18,7 @@ async fn update_game_settings_changes_defaults() {
         speed_bonus_enabled: false,
         speed_bonus_num_teams: 2,
         speed_bonus_first_place_points: 10,
+        default_multi_answer_config: MultiAnswerConfig::default(),
     }))
     .await;
 
@@ -56,6 +57,7 @@ async fn update_game_settings_propagates_to_unanswered_questions() {
         speed_bonus_enabled: false,
         speed_bonus_num_teams: 2,
         speed_bonus_first_place_points: 10,
+        default_multi_answer_config: MultiAnswerConfig::default(),
     }))
     .await;
 
@@ -97,7 +99,7 @@ async fn update_game_settings_does_not_change_answered_questions() {
     // Team submits an answer on Q1
     team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
         team_name: "Test Team".to_string(),
-        answer: "My answer".to_string(),
+        answer: AnswerSubmission::Single("My answer".to_string()),
     }))
     .await;
     let _: ServerMessage = team.recv_json().await;
@@ -122,6 +124,7 @@ async fn update_game_settings_does_not_change_answered_questions() {
         speed_bonus_enabled: false,
         speed_bonus_num_teams: 2,
         speed_bonus_first_place_points: 10,
+        default_multi_answer_config: MultiAnswerConfig::default(),
     }))
     .await;
 
@@ -202,7 +205,7 @@ async fn update_question_settings_fails_when_question_has_answers() {
     // Team submits an answer
     team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
         team_name: "Test Team".to_string(),
-        answer: "My answer".to_string(),
+        answer: AnswerSubmission::Single("My answer".to_string()),
     }))
     .await;
     let _: ServerMessage = team.recv_json().await;
@@ -279,6 +282,7 @@ async fn settings_changes_broadcast_to_teams() {
         speed_bonus_enabled: false,
         speed_bonus_num_teams: 2,
         speed_bonus_first_place_points: 10,
+        default_multi_answer_config: MultiAnswerConfig::default(),
     }))
     .await;
 
@@ -308,6 +312,7 @@ async fn new_questions_use_updated_game_settings() {
         speed_bonus_enabled: false,
         speed_bonus_num_teams: 2,
         speed_bonus_first_place_points: 10,
+        default_multi_answer_config: MultiAnswerConfig::default(),
     }))
     .await;
     let _: ServerMessage = host.recv_json().await;

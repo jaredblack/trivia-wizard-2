@@ -169,6 +169,7 @@ fn process_host_action(
             default_bonus_increment,
             default_question_type,
             default_mc_config,
+            default_multi_answer_config,
             speed_bonus_enabled,
             speed_bonus_num_teams,
             speed_bonus_first_place_points,
@@ -179,11 +180,23 @@ fn process_host_action(
                 default_bonus_increment,
                 default_question_type,
                 default_mc_config,
+                default_multi_answer_config,
                 speed_bonus_enabled,
                 speed_bonus_num_teams,
                 speed_bonus_first_place_points,
             };
             game.update_game_settings(settings);
+            Ok(false)
+        }
+        HostAction::ToggleMultiAnswerCorrectness {
+            question_number,
+            team_name,
+            sub_answer_index,
+        } => {
+            anyhow::ensure!(
+                game.toggle_multi_answer_correctness(question_number, &team_name, sub_answer_index),
+                "Failed to toggle multi-answer correctness for team '{team_name}'"
+            );
             Ok(false)
         }
         HostAction::UpdateQuestionSettings {

@@ -1,6 +1,8 @@
 use crate::{TestClient, TestServer};
 
-use backend::model::client_message::{ClientMessage, HostAction, TeamAction, WatcherAction};
+use backend::model::client_message::{
+    AnswerSubmission, ClientMessage, HostAction, TeamAction, WatcherAction,
+};
 use backend::model::server_message::ServerMessage;
 use backend::model::types::ScoreData;
 
@@ -92,7 +94,7 @@ async fn watcher_receives_update_when_score_changes() {
     // Team submits answer
     team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
         team_name: "Test Team".to_string(),
-        answer: "42".to_string(),
+        answer: AnswerSubmission::Single("42".to_string()),
     }))
     .await;
     let _: ServerMessage = team.recv_json().await; // consume TeamGameState

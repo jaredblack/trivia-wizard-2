@@ -2,7 +2,9 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use backend::auth::{self, TEST_CLIENT_ID, TEST_ISSUER};
-use backend::model::client_message::{ClientMessage, HostAction, TeamAction, WatcherAction};
+use backend::model::client_message::{
+    AnswerSubmission, ClientMessage, HostAction, TeamAction, WatcherAction,
+};
 use backend::model::server_message::ServerMessage;
 use backend::model::types::{McConfig, McOptionType};
 use backend::persistence::PersistenceClient;
@@ -248,7 +250,7 @@ pub async fn assert_answer_submission_flow(
     // Team submits an answer
     team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
         team_name: team_name.to_string(),
-        answer: answer.to_string(),
+        answer: AnswerSubmission::Single(answer.to_string()),
     }))
     .await;
 

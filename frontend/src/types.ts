@@ -36,6 +36,16 @@ export const defaultMcConfig: McConfig = {
   numOptions: 4,
 };
 
+// === Multi-Answer Configuration ===
+
+export interface MultiAnswerConfig {
+  numAnswers: number;
+}
+
+export const defaultMultiAnswerConfig: MultiAnswerConfig = {
+  numAnswers: 3,
+};
+
 // === Question Config (discriminated union by question kind) ===
 
 export interface StandardQuestionConfig {
@@ -44,6 +54,7 @@ export interface StandardQuestionConfig {
 
 export interface MultiAnswerQuestionConfig {
   type: "multiAnswer";
+  config: MultiAnswerConfig;
 }
 
 export interface MultipleChoiceQuestionConfig {
@@ -111,6 +122,7 @@ export interface StandardAnswerContent {
 export interface MultiAnswerAnswerContent {
   type: "multiAnswer";
   answers: string[];
+  correct: boolean[];
 }
 
 export interface MultipleChoiceAnswerContent {
@@ -144,6 +156,7 @@ export interface Question {
   questionConfig: QuestionConfig;
   answers: TeamQuestion[];
   speedBonusEnabled: boolean;
+  multiAnswerCorrectSet?: string[];
 }
 
 // === Game Settings ===
@@ -154,6 +167,7 @@ export interface GameSettings {
   defaultBonusIncrement: number;
   defaultQuestionType: QuestionKind;
   defaultMcConfig: McConfig;
+  defaultMultiAnswerConfig: MultiAnswerConfig;
   speedBonusEnabled: boolean;
   speedBonusNumTeams: number;
   speedBonusFirstPlacePoints: number;
@@ -290,6 +304,7 @@ export interface UpdateGameSettingsAction {
   defaultBonusIncrement: number;
   defaultQuestionType: QuestionKind;
   defaultMcConfig: McConfig;
+  defaultMultiAnswerConfig: MultiAnswerConfig;
   speedBonusEnabled: boolean;
   speedBonusNumTeams: number;
   speedBonusFirstPlacePoints: number;
@@ -312,6 +327,12 @@ export interface UpdateTypeSpecificSettingsAction {
   questionConfig: QuestionConfig;
 }
 
+export interface ToggleMultiAnswerCorrectnessAction {
+  type: "toggleMultiAnswerCorrectness";
+  questionNumber: number;
+  teamName: string;
+  subAnswerIndex: number;
+}
 
 export type HostAction =
   | CreateGameAction
@@ -324,7 +345,8 @@ export type HostAction =
   | OverrideTeamScoreAction
   | UpdateGameSettingsAction
   | UpdateQuestionSettingsAction
-  | UpdateTypeSpecificSettingsAction;
+  | UpdateTypeSpecificSettingsAction
+  | ToggleMultiAnswerCorrectnessAction;
 
 // Team actions use externally tagged enum format (variant name as key)
 export interface ValidateJoinData {
@@ -342,7 +364,7 @@ export interface JoinGameData {
 
 export interface SubmitAnswerData {
   teamName: string;
-  answer: string;
+  answer: string | string[];
 }
 
 export type TeamAction =

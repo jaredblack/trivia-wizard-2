@@ -10,12 +10,14 @@ import TeamHeader from "./TeamHeader";
 import ScoreLogDrawer from "./ScoreLogDrawer";
 import StandardAnswerInput from "./StandardAnswerInput";
 import MultipleChoiceAnswerInput from "./MultipleChoiceAnswerInput";
+import MultiAnswerInput from "./MultiAnswerInput";
 import { getScore, getMcOptions, answerToString } from "../../../types";
 
 export default function TeamGameView() {
   const navigate = useNavigate();
   const { teamGameState, gameCode, reset } = useTeamStore();
   const [draftAnswer, setDraftAnswer] = useState("");
+  const [draftMultiAnswers, setDraftMultiAnswers] = useState<string[]>([]);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [showScoreLog, setShowScoreLog] = useState(false);
 
@@ -27,17 +29,33 @@ export default function TeamGameView() {
       : undefined;
   const content = currentQuestion?.content;
   const hasAnswer = content != null;
+  const questionKind = currentQuestion?.questionKind ?? "standard";
 
-  // Reset timerHasOpened and draftAnswer when question changes
+  // Reset drafts when question changes
   useEffect(() => {
     setDraftAnswer("");
+    setDraftMultiAnswers([]);
   }, [currentQuestionNumber]);
 
   // Auto-submit when timer reaches 0 (not when host closes early)
   const timerSecondsRemaining = teamGameState?.timerSecondsRemaining;
   const teamName = teamGameState?.team.teamName;
   useEffect(() => {
-    if (timerSecondsRemaining === 0 && !hasAnswer && draftAnswer.trim() && teamName) {
+    if (timerSecondsRemaining !== 0 || hasAnswer || !teamName) return;
+
+    if (questionKind === "multiAnswer") {
+      // Auto-submit multi-answer if any box has text
+      if (draftMultiAnswers.some((a) => a.trim())) {
+        webSocketService.send({
+          team: {
+            submitAnswer: {
+              teamName,
+              answer: draftMultiAnswers,
+            },
+          },
+        });
+      }
+    } else if (draftAnswer.trim()) {
       webSocketService.send({
         team: {
           submitAnswer: {
@@ -47,7 +65,7 @@ export default function TeamGameView() {
         },
       });
     }
-  }, [timerSecondsRemaining, hasAnswer, draftAnswer, teamName]);
+  }, [timerSecondsRemaining, hasAnswer, draftAnswer, draftMultiAnswers, teamName, questionKind]);
 
   if (!teamGameState) {
     return (
@@ -59,24 +77,35 @@ export default function TeamGameView() {
 
   const { team } = teamGameState;
 
-  // Get question type and config from current question
-  const questionKind = currentQuestion?.questionKind ?? "standard";
+  // Get question config from current question
   const questionConfig = currentQuestion?.questionConfig;
 
   // Get the submitted answer text (for any content type)
   const submittedAnswerText = content ? answerToString(content) : null;
 
   const handleSubmitAnswer = () => {
-    if (!draftAnswer.trim()) return;
-
-    webSocketService.send({
-      team: {
-        submitAnswer: {
-          teamName: team.teamName,
-          answer: draftAnswer.trim(),
+    if (questionKind === "multiAnswer") {
+      // Multi-answer: send array, allow submission if at least one box has text
+      if (draftMultiAnswers.every((a) => !a.trim())) return;
+      webSocketService.send({
+        team: {
+          submitAnswer: {
+            teamName: team.teamName,
+            answer: draftMultiAnswers,
+          },
         },
-      },
-    });
+      });
+    } else {
+      if (!draftAnswer.trim()) return;
+      webSocketService.send({
+        team: {
+          submitAnswer: {
+            teamName: team.teamName,
+            answer: draftAnswer.trim(),
+          },
+        },
+      });
+    }
   };
 
   const handleStubButton = (feature: string) => {
@@ -118,6 +147,23 @@ export default function TeamGameView() {
             options={options}
             selectedOption={draftAnswer || null}
             onSelectOption={setDraftAnswer}
+            onSubmit={handleSubmitAnswer}
+            teamColor={team.teamColor.hexCode}
+          />
+        );
+      }
+
+      // Multi-answer input
+      if (
+        questionKind === "multiAnswer" &&
+        questionConfig?.type === "multiAnswer"
+      ) {
+        const numAnswers = questionConfig.config.numAnswers;
+        return (
+          <MultiAnswerInput
+            numAnswers={numAnswers}
+            draftAnswers={draftMultiAnswers}
+            onDraftChange={setDraftMultiAnswers}
             onSubmit={handleSubmitAnswer}
             teamColor={team.teamColor.hexCode}
           />

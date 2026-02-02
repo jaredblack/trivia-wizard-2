@@ -1,6 +1,6 @@
 use crate::{TestClient, TestServer};
 
-use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
+use backend::model::client_message::{AnswerSubmission, ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::ServerMessage;
 use backend::model::types::ScoreData;
 
@@ -55,7 +55,7 @@ async fn submit_answer(
     teams[team_index]
         .send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
             team_name: team_name.to_string(),
-            answer: answer.to_string(),
+            answer: AnswerSubmission::Single(answer.to_string()),
         }))
         .await;
 

@@ -40,13 +40,30 @@ impl Default for McConfig {
     }
 }
 
+// === Multi-Answer Configuration ===
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MultiAnswerConfig {
+    pub num_answers: u32,
+}
+
+impl Default for MultiAnswerConfig {
+    fn default() -> Self {
+        Self { num_answers: 3 }
+    }
+}
+
 // === Question Config (discriminated union by question kind) ===
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum QuestionConfig {
     Standard,
-    MultiAnswer,
+    #[serde(rename_all = "camelCase")]
+    MultiAnswer {
+        config: MultiAnswerConfig,
+    },
     #[serde(rename_all = "camelCase")]
     MultipleChoice {
         config: McConfig,
@@ -57,7 +74,7 @@ impl QuestionConfig {
     pub fn kind(&self) -> QuestionKind {
         match self {
             QuestionConfig::Standard => QuestionKind::Standard,
-            QuestionConfig::MultiAnswer => QuestionKind::MultiAnswer,
+            QuestionConfig::MultiAnswer { .. } => QuestionKind::MultiAnswer,
             QuestionConfig::MultipleChoice { .. } => QuestionKind::MultipleChoice,
         }
     }
@@ -100,6 +117,20 @@ pub struct TeamQuestion {
     pub question_config: QuestionConfig,
 }
 
+impl TeamQuestion {
+    /// Check if this team's answer qualifies for speed bonus.
+    /// For multi-answer: all sub-answers must be correct.
+    /// For other types: question_points > 0 (i.e., marked correct).
+    pub fn is_speed_bonus_eligible(&self) -> bool {
+        match &self.content {
+            Some(AnswerContent::MultiAnswer { correct, .. }) => {
+                !correct.is_empty() && correct.iter().all(|&c| c)
+            }
+            _ => self.score.question_points > 0,
+        }
+    }
+}
+
 /// The content of a team's answer, varying by question type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
@@ -107,7 +138,11 @@ pub enum AnswerContent {
     #[serde(rename_all = "camelCase")]
     Standard { answer_text: String },
     #[serde(rename_all = "camelCase")]
-    MultiAnswer { answers: Vec<String> },
+    MultiAnswer {
+        answers: Vec<String>,
+        #[serde(default)]
+        correct: Vec<bool>,
+    },
     #[serde(rename_all = "camelCase")]
     MultipleChoice { selected: String },
 }
@@ -124,6 +159,8 @@ pub struct Question {
     pub question_config: QuestionConfig,
     pub answers: Vec<TeamQuestion>,
     pub speed_bonus_enabled: bool,
+    #[serde(default)]
+    pub multi_answer_correct_set: Vec<String>,
 }
 
 impl Question {
@@ -158,6 +195,8 @@ pub struct GameSettings {
     pub default_bonus_increment: u32,
     pub default_question_type: QuestionKind,
     pub default_mc_config: McConfig,
+    #[serde(default)]
+    pub default_multi_answer_config: MultiAnswerConfig,
     pub speed_bonus_enabled: bool,
     pub speed_bonus_num_teams: u32,
     pub speed_bonus_first_place_points: u32,

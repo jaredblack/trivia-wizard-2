@@ -1,6 +1,6 @@
 use crate::{TestClient, TestServer};
 
-use backend::model::client_message::{ClientMessage, HostAction, TeamAction};
+use backend::model::client_message::{AnswerSubmission, ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::ServerMessage;
 use backend::model::types::ScoreData;
 
@@ -27,7 +27,7 @@ async fn team_with_capital_letters_scores_correctly() {
     // Team submits an answer
     team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
         team_name: "MyTeam".to_string(),
-        answer: "Test Answer".to_string(),
+        answer: AnswerSubmission::Single("Test Answer".to_string()),
     }))
     .await;
 
@@ -116,7 +116,7 @@ async fn duplicate_submission_blocked_regardless_of_case() {
     // First submission
     team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
         team_name: "MyTeam".to_string(),
-        answer: "First Answer".to_string(),
+        answer: AnswerSubmission::Single("First Answer".to_string()),
     }))
     .await;
 
@@ -133,7 +133,7 @@ async fn duplicate_submission_blocked_regardless_of_case() {
     // Try to submit again (should be blocked)
     team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
         team_name: "MyTeam".to_string(),
-        answer: "Second Answer".to_string(),
+        answer: AnswerSubmission::Single("Second Answer".to_string()),
     }))
     .await;
 
@@ -169,7 +169,7 @@ async fn team_total_score_accumulates_across_questions_with_capitals() {
 
     team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
         team_name: "CamelCaseTeam".to_string(),
-        answer: "Answer 1".to_string(),
+        answer: AnswerSubmission::Single("Answer 1".to_string()),
     }))
     .await;
     let _: ServerMessage = team.recv_json().await;
@@ -208,7 +208,7 @@ async fn team_total_score_accumulates_across_questions_with_capitals() {
 
     team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
         team_name: "CamelCaseTeam".to_string(),
-        answer: "Answer 2".to_string(),
+        answer: AnswerSubmission::Single("Answer 2".to_string()),
     }))
     .await;
     let _: ServerMessage = team.recv_json().await;
