@@ -23,7 +23,7 @@ export default function AnswerList({
   // Create a map of team name to team data for quick lookup
   const teamMap = new Map(teams.map((t) => [t.teamName, t]));
 
-  const isMultiAnswer = question.questionKind === "multiAnswer";
+  const isMultiAnswer = question.questionConfig.type === "multiAnswer";
 
   return (
     <div className="flex flex-col gap-4 p-4 overflow-y-auto">
@@ -31,7 +31,7 @@ export default function AnswerList({
         const team = teamMap.get(answer.teamName);
         const teamColor = team?.teamColor.hexCode ?? "#666666";
 
-        if (isMultiAnswer && answer.content?.type === "multiAnswer") {
+        if (isMultiAnswer && answer.content?.type === "multi") {
           return (
             <MultiAnswerAnswerCard
               key={answer.teamName}

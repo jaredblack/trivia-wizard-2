@@ -109,40 +109,31 @@ export interface TeamQuestion {
   teamName: string;
   score: ScoreData;
   content: AnswerContent | null;
-  questionKind: QuestionKind;
   questionConfig: QuestionConfig;
 }
 
-// The content of a team's answer, varying by question type.
-export interface StandardAnswerContent {
-  type: "standard";
+// The content of a team's answer, varying by answer shape (not question type).
+// Single covers Standard and MultipleChoice questions (both hold one string).
+// Multi covers MultiAnswer questions (array of strings with correctness flags).
+export interface SingleAnswerContent {
+  type: "single";
   answerText: string;
 }
 
-export interface MultiAnswerAnswerContent {
-  type: "multiAnswer";
+export interface MultiAnswerContent {
+  type: "multi";
   answers: string[];
   correct: boolean[];
 }
 
-export interface MultipleChoiceAnswerContent {
-  type: "multipleChoice";
-  selected: string;
-}
-
-export type AnswerContent =
-  | StandardAnswerContent
-  | MultiAnswerAnswerContent
-  | MultipleChoiceAnswerContent;
+export type AnswerContent = SingleAnswerContent | MultiAnswerContent;
 
 export function answerToString(content: AnswerContent): string {
   switch (content.type) {
-    case "standard":
+    case "single":
       return content.answerText;
-    case "multiAnswer":
+    case "multi":
       return content.answers.join(", ");
-    case "multipleChoice":
-      return content.selected;
   }
 }
 
@@ -152,7 +143,6 @@ export interface Question {
   timerDuration: number;
   questionPoints: number;
   bonusIncrement: number;
-  questionKind: QuestionKind;
   questionConfig: QuestionConfig;
   answers: TeamQuestion[];
   speedBonusEnabled: boolean;

@@ -29,7 +29,8 @@ Question Type is a new concept with Trivia Wizard 2. The Question Type that the 
 5. Numeric - basically an automation of how I score numeric ones today. 
     - Host can put in the correct answer and how much margin of error teams can have for full points or half points. Or could also have it calculate points more granularly based on how close you are but that would take some math.
 6. Map - kind of like geoguessr where you have to place on a map where something is and you get more points if you're closer. Stephen has some interesting question ideas that would use this mechanic too 
-7. Ranking - Users can easily rank answers on their devices
+7. Ranking - Users can easily rank answers on their devices by dragging them around
+8. Matching - Select which answer corresponds to which other answer
 
 # Beyond the MVP
 ## In-app questions

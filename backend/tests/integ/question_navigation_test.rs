@@ -111,10 +111,10 @@ async fn team_can_answer_earlier_question_after_skipping() {
             let q1_answer = &q1_answers[0];
             assert_eq!(q1_answer.team_name, "Team A");
             match &q1_answer.content {
-                Some(AnswerContent::Standard { answer_text }) => {
+                Some(AnswerContent::Single { answer_text }) => {
                     assert_eq!(answer_text, "Late answer for Q1");
                 }
-                other => panic!("Expected Standard answer for Q1, got {other:?}"),
+                other => panic!("Expected Single answer for Q1, got {other:?}"),
             }
             assert_eq!(q1_answer.score.question_points, 50);
             assert_eq!(q1_answer.score.bonus_points, 10);
@@ -125,10 +125,10 @@ async fn team_can_answer_earlier_question_after_skipping() {
             let q2_answer = &q2_answers[0];
             assert_eq!(q2_answer.team_name, "Team A");
             match &q2_answer.content {
-                Some(AnswerContent::Standard { answer_text }) => {
+                Some(AnswerContent::Single { answer_text }) => {
                     assert_eq!(answer_text, "Answer for Q2");
                 }
-                other => panic!("Expected Standard answer for Q2, got {other:?}"),
+                other => panic!("Expected Single answer for Q2, got {other:?}"),
             }
             assert_eq!(q2_answer.score.question_points, 50);
             assert_eq!(q2_answer.score.bonus_points, 5);
@@ -278,10 +278,10 @@ async fn navigation_preserves_answers_and_scores_across_questions() {
                 .find(|a| a.team_name == "Team Alpha")
                 .expect("Team Alpha's answer should exist");
             match &alpha_answer.content {
-                Some(AnswerContent::Standard { answer_text }) => {
+                Some(AnswerContent::Single { answer_text }) => {
                     assert_eq!(answer_text, "Answer from Alpha on Q1");
                 }
-                other => panic!("Expected Standard answer, got {other:?}"),
+                other => panic!("Expected Single answer, got {other:?}"),
             }
             assert_eq!(alpha_answer.score.question_points, 50);
             assert_eq!(alpha_answer.score.bonus_points, 10);
@@ -291,10 +291,10 @@ async fn navigation_preserves_answers_and_scores_across_questions() {
                 .find(|a| a.team_name == "Team Beta")
                 .expect("Team Beta's answer should exist");
             match &beta_answer.content {
-                Some(AnswerContent::Standard { answer_text }) => {
+                Some(AnswerContent::Single { answer_text }) => {
                     assert_eq!(answer_text, "Answer from Beta on Q1");
                 }
-                other => panic!("Expected Standard answer, got {other:?}"),
+                other => panic!("Expected Single answer, got {other:?}"),
             }
         }
         other => panic!("Expected GameState, got {other:?}"),
@@ -316,10 +316,10 @@ async fn navigation_preserves_answers_and_scores_across_questions() {
             assert_eq!(q2_answers.len(), 1, "Q2 should have 1 answer");
             assert_eq!(q2_answers[0].team_name, "Team Alpha");
             match &q2_answers[0].content {
-                Some(AnswerContent::Standard { answer_text }) => {
+                Some(AnswerContent::Single { answer_text }) => {
                     assert_eq!(answer_text, "Answer from Alpha on Q2");
                 }
-                other => panic!("Expected Standard answer, got {other:?}"),
+                other => panic!("Expected Single answer, got {other:?}"),
             }
         }
         other => panic!("Expected GameState, got {other:?}"),

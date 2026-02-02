@@ -113,7 +113,6 @@ pub struct TeamQuestion {
     pub team_name: String,
     pub score: ScoreData,
     pub content: Option<AnswerContent>,
-    pub question_kind: QuestionKind,
     pub question_config: QuestionConfig,
 }
 
@@ -123,7 +122,7 @@ impl TeamQuestion {
     /// For other types: question_points > 0 (i.e., marked correct).
     pub fn is_speed_bonus_eligible(&self) -> bool {
         match &self.content {
-            Some(AnswerContent::MultiAnswer { correct, .. }) => {
+            Some(AnswerContent::Multi { correct, .. }) => {
                 !correct.is_empty() && correct.iter().all(|&c| c)
             }
             _ => self.score.question_points > 0,
@@ -131,20 +130,28 @@ impl TeamQuestion {
     }
 }
 
-/// The content of a team's answer, varying by question type.
+/// The content of a team's answer, varying by answer shape (not question type).
+/// Single covers Standard and MultipleChoice questions (both hold one string).
+/// Multi covers MultiAnswer questions (array of strings with correctness flags).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum AnswerContent {
     #[serde(rename_all = "camelCase")]
-    Standard { answer_text: String },
+    Single { answer_text: String },
     #[serde(rename_all = "camelCase")]
-    MultiAnswer {
+    Multi {
         answers: Vec<String>,
         #[serde(default)]
         correct: Vec<bool>,
     },
-    #[serde(rename_all = "camelCase")]
-    MultipleChoice { selected: String },
+}
+
+/// Flexible answer payload: a single string or an array of strings.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AnswerSubmission {
+    Single(String),
+    Multi(Vec<String>),
 }
 
 // === Question ===
@@ -155,7 +162,6 @@ pub struct Question {
     pub timer_duration: u32,
     pub question_points: u32,
     pub bonus_increment: u32,
-    pub question_kind: QuestionKind,
     pub question_config: QuestionConfig,
     pub answers: Vec<TeamQuestion>,
     pub speed_bonus_enabled: bool,
@@ -179,7 +185,6 @@ impl Question {
                 team_name: team_name.to_string(),
                 score: ScoreData::new(),
                 content: None,
-                question_kind: self.question_kind,
                 question_config: self.question_config.clone(),
             })
     }
@@ -200,6 +205,21 @@ pub struct GameSettings {
     pub speed_bonus_enabled: bool,
     pub speed_bonus_num_teams: u32,
     pub speed_bonus_first_place_points: u32,
+}
+
+impl GameSettings {
+    /// Build the QuestionConfig corresponding to the current default question type.
+    pub fn default_question_config(&self) -> QuestionConfig {
+        match self.default_question_type {
+            QuestionKind::Standard => QuestionConfig::Standard,
+            QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer {
+                config: self.default_multi_answer_config.clone(),
+            },
+            QuestionKind::MultipleChoice => QuestionConfig::MultipleChoice {
+                config: self.default_mc_config.clone(),
+            },
+        }
+    }
 }
 
 // === Team Types ===

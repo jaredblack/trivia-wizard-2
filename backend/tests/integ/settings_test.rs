@@ -174,7 +174,7 @@ async fn update_question_settings_changes_specific_question() {
 
             // Question type should change
             assert_eq!(
-                state.questions[0].question_kind,
+                state.questions[0].question_config.kind(),
                 QuestionKind::MultiAnswer,
                 "Question kind should be MultiAnswer"
             );
@@ -330,7 +330,7 @@ async fn new_questions_use_updated_game_settings() {
             assert_eq!(state.questions[1].bonus_increment, 25);
 
             assert_eq!(
-                state.questions[1].question_kind,
+                state.questions[1].question_config.kind(),
                 QuestionKind::MultipleChoice,
                 "Question kind should be MultipleChoice"
             );

@@ -69,13 +69,8 @@ pub enum HostAction {
     },
 }
 
-/// Flexible answer payload: a single string or an array of strings.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum AnswerSubmission {
-    Single(String),
-    Multiple(Vec<String>),
-}
+// Re-export AnswerSubmission for backward compatibility with existing imports.
+pub use crate::model::types::AnswerSubmission;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

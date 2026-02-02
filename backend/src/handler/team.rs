@@ -1,7 +1,7 @@
 use crate::{
     heartbeat::{HeartbeatState, PING_INTERVAL},
     model::{
-        client_message::{AnswerSubmission, ClientMessage, TeamAction},
+        client_message::{ClientMessage, TeamAction},
         game::Game,
         server_message::{ServerMessage, send_msg},
         types::TeamColor,
@@ -118,11 +118,7 @@ fn process_team_action(action: TeamAction, game: &mut Game, team_name: &str) -> 
         },
 
         TeamAction::SubmitAnswer { answer, .. } => {
-            // Dispatch based on answer type
-            let success = match answer {
-                AnswerSubmission::Single(text) => game.add_answer(team_name, text),
-                AnswerSubmission::Multiple(texts) => game.add_multi_answer(team_name, texts),
-            };
+            let success = game.submit_answer(team_name, answer);
             if !success {
                 return TeamActionResult {
                     team_msg: ServerMessage::error("Answer already submitted"),

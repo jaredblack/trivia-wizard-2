@@ -29,7 +29,7 @@ export default function TeamGameView() {
       : undefined;
   const content = currentQuestion?.content;
   const hasAnswer = content != null;
-  const questionKind = currentQuestion?.questionKind ?? "standard";
+  const questionKind = currentQuestion?.questionConfig?.type ?? "standard";
 
   // Reset drafts when question changes
   useEffect(() => {

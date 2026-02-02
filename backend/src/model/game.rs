@@ -1,7 +1,7 @@
 use crate::model::server_message::{GameState, ServerMessage, TeamGameState, send_msg};
 use crate::model::types::{
-    AnswerContent, GameSettings, McConfig, MultiAnswerConfig, Question, QuestionConfig,
-    QuestionKind, ScoreData, ScoreboardData, TeamColor, TeamData, TeamQuestion,
+    AnswerContent, AnswerSubmission, GameSettings, McConfig, MultiAnswerConfig, Question,
+    QuestionConfig, QuestionKind, ScoreData, ScoreboardData, TeamColor, TeamData, TeamQuestion,
 };
 use crate::server::Tx;
 use anyhow::{Result, anyhow};
@@ -12,8 +12,7 @@ use tokio::task::AbortHandle;
 /// Returns None for MultiAnswer or missing content.
 fn normalize_answer_text(content: &Option<AnswerContent>) -> Option<String> {
     match content {
-        Some(AnswerContent::Standard { answer_text }) => Some(answer_text.trim().to_lowercase()),
-        Some(AnswerContent::MultipleChoice { selected }) => Some(selected.trim().to_lowercase()),
+        Some(AnswerContent::Single { answer_text }) => Some(answer_text.trim().to_lowercase()),
         _ => None,
     }
 }
@@ -102,7 +101,6 @@ impl Game {
             timer_duration: DEFAULT_TIMER_DURATION,
             question_points: DEFAULT_QUESTION_POINTS,
             bonus_increment: DEFAULT_BONUS_INCREMENT,
-            question_kind: QuestionKind::Standard,
             question_config: QuestionConfig::Standard,
             answers: vec![],
             speed_bonus_enabled: DEFAULT_SPEED_BONUS_ENABLED,
@@ -287,22 +285,11 @@ impl Game {
 
     /// Create a new question using game settings
     fn create_question_from_settings(&self) -> Question {
-        let question_config = match self.game_settings.default_question_type {
-            QuestionKind::Standard => QuestionConfig::Standard,
-            QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer {
-                config: self.game_settings.default_multi_answer_config.clone(),
-            },
-            QuestionKind::MultipleChoice => QuestionConfig::MultipleChoice {
-                config: self.game_settings.default_mc_config.clone(),
-            },
-        };
-
         Question {
             timer_duration: self.game_settings.default_timer_duration,
             question_points: self.game_settings.default_question_points,
             bonus_increment: self.game_settings.default_bonus_increment,
-            question_kind: self.game_settings.default_question_type,
-            question_config,
+            question_config: self.game_settings.default_question_config(),
             answers: vec![],
             speed_bonus_enabled: self.game_settings.speed_bonus_enabled,
             multi_answer_correct_set: vec![],
@@ -389,11 +376,16 @@ impl Game {
 
     // === Answer submission ===
 
-    /// Add a single-text answer to the current question. Returns false if team already submitted.
-    /// If the answer matches an existing scored-correct answer (case-insensitive, trimmed),
-    /// the new answer is automatically scored correct as well.
-    /// Only valid for Standard and MultipleChoice questions.
-    pub fn add_answer(&mut self, team_name: &str, answer_text: String) -> bool {
+    /// Submit an answer to the current question. Returns false if team already submitted
+    /// or the submission type doesn't match the question type.
+    ///
+    /// For single-answer questions (Standard, MultipleChoice): expects `AnswerSubmission::Single`.
+    ///   If the answer matches an existing scored-correct answer (case-insensitive, trimmed),
+    ///   the new answer is automatically scored correct as well.
+    ///
+    /// For multi-answer questions: expects `AnswerSubmission::Multi`.
+    ///   Grades against the current correct set and auto-scores.
+    pub fn submit_answer(&mut self, team_name: &str, submission: AnswerSubmission) -> bool {
         let question = self.current_question_mut();
 
         // Check if team already submitted
@@ -405,118 +397,106 @@ impl Game {
             return false;
         }
 
-        // Create answer content based on question type (reject MultiAnswer here)
-        let content = match question.question_kind {
-            QuestionKind::Standard => AnswerContent::Standard {
-                answer_text: answer_text.clone(),
-            },
-            QuestionKind::MultipleChoice => AnswerContent::MultipleChoice {
-                selected: answer_text.clone(),
-            },
-            QuestionKind::MultiAnswer => return false, // Use add_multi_answer instead
-        };
+        let is_multi_answer = question.question_config.kind() == QuestionKind::MultiAnswer;
 
-        // Check if this answer matches any already-scored-correct answer
-        let question_base_points = question.question_points as i32;
-        let normalized_new = answer_text.trim().to_lowercase();
+        match (submission, is_multi_answer) {
+            // Single-answer submission for Standard/MultipleChoice question
+            (AnswerSubmission::Single(answer_text), false) => {
+                let content = AnswerContent::Single {
+                    answer_text: answer_text.clone(),
+                };
 
-        let auto_score = question.answers.iter().find_map(|existing| {
-            if existing.score.question_points == question_base_points {
-                if let Some(existing_text) = normalize_answer_text(&existing.content) {
-                    if existing_text == normalized_new {
-                        return Some((question_base_points, existing.score.bonus_points));
+                // Check if this answer matches any already-scored-correct answer
+                let question_base_points = question.question_points as i32;
+                let normalized_new = answer_text.trim().to_lowercase();
+
+                let auto_score = question.answers.iter().find_map(|existing| {
+                    if existing.score.question_points == question_base_points {
+                        if let Some(existing_text) = normalize_answer_text(&existing.content) {
+                            if existing_text == normalized_new {
+                                return Some((question_base_points, existing.score.bonus_points));
+                            }
+                        }
+                    }
+                    None
+                });
+
+                let mut new_score = ScoreData::new();
+                if let Some((question_points, bonus_points)) = auto_score {
+                    new_score.question_points = question_points;
+                    new_score.bonus_points = bonus_points;
+                }
+
+                question.answers.push(TeamQuestion {
+                    team_name: team_name.to_string(),
+                    score: new_score,
+                    content: Some(content),
+                    question_config: question.question_config.clone(),
+                });
+
+                // If auto-scored, recalculate speed bonuses and team scores
+                if auto_score.is_some() {
+                    let question_idx = self.current_question_number - 1;
+                    let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
+                    self.recalculate_team_score(team_name);
+                    for team in speed_bonus_teams {
+                        if team != team_name {
+                            self.recalculate_team_score(&team);
+                        }
                     }
                 }
+
+                true
             }
-            None
-        });
 
-        let mut new_score = ScoreData::new();
-        if let Some((question_points, bonus_points)) = auto_score {
-            new_score.question_points = question_points;
-            new_score.bonus_points = bonus_points;
-        }
+            // Multi-answer submission for MultiAnswer question
+            (AnswerSubmission::Multi(answers), true) => {
+                // Grade against current correct set
+                let correct =
+                    grade_multi_answer(&answers, &question.multi_answer_correct_set);
 
-        question.answers.push(TeamQuestion {
-            team_name: team_name.to_string(),
-            score: new_score,
-            content: Some(content),
-            question_kind: question.question_kind,
-            question_config: question.question_config.clone(),
-        });
+                // Get num_answers from config
+                let num_answers = match &question.question_config {
+                    QuestionConfig::MultiAnswer { config } => config.num_answers,
+                    _ => answers.len() as u32,
+                };
 
-        // If auto-scored, recalculate speed bonuses and team scores
-        if auto_score.is_some() {
-            let question_idx = self.current_question_number - 1;
-            let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
-            self.recalculate_team_score(team_name);
-            for team in speed_bonus_teams {
-                if team != team_name {
-                    self.recalculate_team_score(&team);
+                let question_points = calculate_multi_answer_question_points(
+                    &correct,
+                    question.question_points,
+                    num_answers,
+                );
+
+                let score = ScoreData {
+                    question_points,
+                    ..ScoreData::new()
+                };
+
+                question.answers.push(TeamQuestion {
+                    team_name: team_name.to_string(),
+                    score,
+                    content: Some(AnswerContent::Multi { answers, correct }),
+                    question_config: question.question_config.clone(),
+                });
+
+                // Recalculate speed bonuses and team scores if auto-scored
+                if question_points > 0 {
+                    let question_idx = self.current_question_number - 1;
+                    let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
+                    self.recalculate_team_score(team_name);
+                    for team in speed_bonus_teams {
+                        if team != team_name {
+                            self.recalculate_team_score(&team);
+                        }
+                    }
                 }
+
+                true
             }
+
+            // Submission type doesn't match question type
+            _ => false,
         }
-
-        true
-    }
-
-    /// Add a multi-answer submission to the current question.
-    /// Returns false if team already submitted or question isn't MultiAnswer.
-    pub fn add_multi_answer(&mut self, team_name: &str, answers: Vec<String>) -> bool {
-        let question = self.current_question_mut();
-
-        // Only valid for MultiAnswer questions
-        if question.question_kind != QuestionKind::MultiAnswer {
-            return false;
-        }
-
-        // Check if team already submitted
-        if question
-            .answers
-            .iter()
-            .any(|a| a.team_name.eq_ignore_ascii_case(team_name))
-        {
-            return false;
-        }
-
-        // Grade against current correct set
-        let correct = grade_multi_answer(&answers, &question.multi_answer_correct_set);
-
-        // Get num_answers from config
-        let num_answers = match &question.question_config {
-            QuestionConfig::MultiAnswer { config } => config.num_answers,
-            _ => answers.len() as u32,
-        };
-
-        let question_points =
-            calculate_multi_answer_question_points(&correct, question.question_points, num_answers);
-
-        let score = ScoreData {
-            question_points,
-            ..ScoreData::new()
-        };
-
-        question.answers.push(TeamQuestion {
-            team_name: team_name.to_string(),
-            score,
-            content: Some(AnswerContent::MultiAnswer { answers, correct }),
-            question_kind: question.question_kind,
-            question_config: question.question_config.clone(),
-        });
-
-        // Recalculate speed bonuses and team scores if auto-scored
-        if question_points > 0 {
-            let question_idx = self.current_question_number - 1;
-            let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
-            self.recalculate_team_score(team_name);
-            for team in speed_bonus_teams {
-                if team != team_name {
-                    self.recalculate_team_score(&team);
-                }
-            }
-        }
-
-        true
     }
 
     /// Toggle a sub-answer's correctness for a multi-answer question.
@@ -541,7 +521,7 @@ impl Game {
         let Some(answer) = answer else {
             return false;
         };
-        let Some(AnswerContent::MultiAnswer { answers, correct, .. }) = &answer.content else {
+        let Some(AnswerContent::Multi { answers, correct, .. }) = &answer.content else {
             return false;
         };
         if sub_answer_index >= answers.len() {
@@ -580,7 +560,7 @@ impl Game {
         let mut teams_to_update: Vec<String> = Vec::new();
 
         for answer in &mut question.answers {
-            if let Some(AnswerContent::MultiAnswer {
+            if let Some(AnswerContent::Multi {
                 answers, correct, ..
             }) = &mut answer.content
             {
@@ -639,7 +619,7 @@ impl Game {
 
         // For multi-answer questions, only update bonus_points and override_points.
         // question_points is derived from the correct set, speed_bonus_points is recalculated.
-        if question.answers[answer_idx].question_kind == QuestionKind::MultiAnswer {
+        if question.answers[answer_idx].question_config.kind() == QuestionKind::MultiAnswer {
             question.answers[answer_idx].score.bonus_points = score.bonus_points;
             question.answers[answer_idx].score.override_points = score.override_points;
 
@@ -814,16 +794,7 @@ impl Game {
     pub fn update_game_settings(&mut self, settings: GameSettings) {
         self.game_settings = settings.clone();
 
-        // Build the question config for the new default question type
-        let default_question_config = match settings.default_question_type {
-            QuestionKind::Standard => QuestionConfig::Standard,
-            QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer {
-                config: settings.default_multi_answer_config.clone(),
-            },
-            QuestionKind::MultipleChoice => QuestionConfig::MultipleChoice {
-                config: settings.default_mc_config.clone(),
-            },
-        };
+        let default_question_config = self.game_settings.default_question_config();
 
         // Update all questions that don't have answers yet
         for question in &mut self.questions {
@@ -831,7 +802,6 @@ impl Game {
                 question.timer_duration = settings.default_timer_duration;
                 question.question_points = settings.default_question_points;
                 question.bonus_increment = settings.default_bonus_increment;
-                question.question_kind = settings.default_question_type;
                 question.question_config = default_question_config.clone();
                 question.speed_bonus_enabled = settings.speed_bonus_enabled;
                 question.multi_answer_correct_set.clear();
@@ -871,13 +841,15 @@ impl Game {
         question.timer_duration = timer_duration;
         question.question_points = question_points;
         question.bonus_increment = bonus_increment;
-        question.question_kind = question_type;
         question.speed_bonus_enabled = speed_bonus_enabled;
 
-        // If question config kind doesn't match the question kind,
+        // If question config kind doesn't match the requested type,
         // we changed question types and we need to set the config to the
         // new default
-        if question.question_config.kind() != question.question_kind {
+        if question.question_config.kind() != question_type {
+            // Build a temporary GameSettings-like config for the new type.
+            // For MultipleChoice, use default McConfig (not the game-level one)
+            // to match original behavior.
             question.question_config = match question_type {
                 QuestionKind::Standard => QuestionConfig::Standard,
                 QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer {
@@ -913,7 +885,7 @@ impl Game {
             ));
         }
 
-        if question_config.kind() != question.question_kind {
+        if question_config.kind() != question.question_config.kind() {
             return Err(anyhow!("Config type does not match question type"));
         }
 
@@ -1054,11 +1026,10 @@ mod tests {
         let tq = TeamQuestion {
             team_name: "Team A".to_string(),
             score: ScoreData { question_points: 48, ..ScoreData::new() },
-            content: Some(AnswerContent::MultiAnswer {
+            content: Some(AnswerContent::Multi {
                 answers: vec!["a".into(), "b".into(), "c".into()],
                 correct: vec![true, true, true],
             }),
-            question_kind: QuestionKind::MultiAnswer,
             question_config: QuestionConfig::MultiAnswer {
                 config: MultiAnswerConfig { num_answers: 3 },
             },
@@ -1071,11 +1042,10 @@ mod tests {
         let tq = TeamQuestion {
             team_name: "Team A".to_string(),
             score: ScoreData { question_points: 32, ..ScoreData::new() },
-            content: Some(AnswerContent::MultiAnswer {
+            content: Some(AnswerContent::Multi {
                 answers: vec!["a".into(), "b".into(), "c".into()],
                 correct: vec![true, false, true],
             }),
-            question_kind: QuestionKind::MultiAnswer,
             question_config: QuestionConfig::MultiAnswer {
                 config: MultiAnswerConfig { num_answers: 3 },
             },
@@ -1119,8 +1089,8 @@ mod tests {
         let q = &game.questions[0];
         let answer = q.answers.iter().find(|a| a.team_name == team_name).unwrap();
         match &answer.content {
-            Some(AnswerContent::MultiAnswer { correct, .. }) => correct.clone(),
-            _ => panic!("Expected MultiAnswer content for {team_name}"),
+            Some(AnswerContent::Multi { correct, .. }) => correct.clone(),
+            _ => panic!("Expected Multi content for {team_name}"),
         }
     }
 
@@ -1138,9 +1108,9 @@ mod tests {
         let mut game = setup_multi_answer_game();
 
         // 1. Team A submits ["stop", "stop", "stop"]
-        assert!(game.add_multi_answer("Team A", vec!["stop".into(), "stop".into(), "stop".into()]));
+        assert!(game.submit_answer("Team A", AnswerSubmission::Multi(vec!["stop".into(), "stop".into(), "stop".into()])));
         // 2. Team B submits ["stop", "go", "fish"]
-        assert!(game.add_multi_answer("Team B", vec!["stop".into(), "go".into(), "fish".into()]));
+        assert!(game.submit_answer("Team B", AnswerSubmission::Multi(vec!["stop".into(), "go".into(), "fish".into()])));
 
         // 3. Host clicks Team B's "stop" pill (index 0) -> adds "stop" to correct_set
         assert!(game.toggle_multi_answer_correctness(1, "Team B", 0));
@@ -1173,8 +1143,7 @@ mod tests {
         let tq = TeamQuestion {
             team_name: "Team A".to_string(),
             score: ScoreData { question_points: 50, ..ScoreData::new() },
-            content: Some(AnswerContent::Standard { answer_text: "Paris".into() }),
-            question_kind: QuestionKind::Standard,
+            content: Some(AnswerContent::Single { answer_text: "Paris".into() }),
             question_config: QuestionConfig::Standard,
         };
         assert!(tq.is_speed_bonus_eligible());
@@ -1182,8 +1151,7 @@ mod tests {
         let tq_zero = TeamQuestion {
             team_name: "Team B".to_string(),
             score: ScoreData::new(),
-            content: Some(AnswerContent::Standard { answer_text: "London".into() }),
-            question_kind: QuestionKind::Standard,
+            content: Some(AnswerContent::Single { answer_text: "London".into() }),
             question_config: QuestionConfig::Standard,
         };
         assert!(!tq_zero.is_speed_bonus_eligible());

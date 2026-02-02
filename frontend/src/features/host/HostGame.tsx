@@ -133,8 +133,8 @@ export default function HostGame() {
     send(msg);
   };
 
-  // Derive question type from questionKind
-  const questionType: QuestionKind = currentQuestion.questionKind;
+  // Derive question type from questionConfig
+  const questionType: QuestionKind = currentQuestion.questionConfig.type;
 
   // Timer display uses server state, falling back to question default
   const displaySeconds = timerSecondsRemaining ?? currentQuestion.timerDuration;
@@ -183,7 +183,7 @@ export default function HostGame() {
               Answers received: {currentQuestion.answers.length}/{teams.length}
             </span>
           </div>
-          {currentQuestion.questionKind === "multipleChoice" ? (
+          {currentQuestion.questionConfig.type === "multipleChoice" ? (
             <MultipleChoiceMainArea
               question={currentQuestion}
               questionNumber={currentQuestionNumber}
@@ -217,7 +217,7 @@ export default function HostGame() {
                 });
               }}
             />
-          ) : currentQuestion.questionKind === "multiAnswer" ? (
+          ) : currentQuestion.questionConfig.type === "multiAnswer" ? (
             <MultiAnswerMainArea
               question={currentQuestion}
               questionNumber={currentQuestionNumber}
@@ -312,7 +312,7 @@ export default function HostGame() {
               timerDuration: currentQuestion.timerDuration,
               questionPoints: value,
               bonusIncrement: currentQuestion.bonusIncrement,
-              questionType: currentQuestion.questionKind,
+              questionType: currentQuestion.questionConfig.type,
               speedBonusEnabled: currentQuestion.speedBonusEnabled,
             },
           });
@@ -325,7 +325,7 @@ export default function HostGame() {
               timerDuration: currentQuestion.timerDuration,
               questionPoints: currentQuestion.questionPoints,
               bonusIncrement: value,
-              questionType: currentQuestion.questionKind,
+              questionType: currentQuestion.questionConfig.type,
               speedBonusEnabled: currentQuestion.speedBonusEnabled,
             },
           });
@@ -338,7 +338,7 @@ export default function HostGame() {
               timerDuration: value,
               questionPoints: currentQuestion.questionPoints,
               bonusIncrement: currentQuestion.bonusIncrement,
-              questionType: currentQuestion.questionKind,
+              questionType: currentQuestion.questionConfig.type,
               speedBonusEnabled: currentQuestion.speedBonusEnabled,
             },
           });
@@ -351,7 +351,7 @@ export default function HostGame() {
               timerDuration: currentQuestion.timerDuration,
               questionPoints: currentQuestion.questionPoints,
               bonusIncrement: currentQuestion.bonusIncrement,
-              questionType: currentQuestion.questionKind,
+              questionType: currentQuestion.questionConfig.type,
               speedBonusEnabled: enabled,
             },
           });
