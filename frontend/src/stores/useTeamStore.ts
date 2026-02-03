@@ -101,6 +101,8 @@ export const useTeamStore = create<TeamStore>((set) => ({
  * Call in useEffect and return the unsubscribe function.
  */
 export function subscribeToTeamMessages() {
+  let hasReconnectedDueToError = false;
+
   return webSocketService.onMessage((message: ServerMessage) => {
     const state = useTeamStore.getState();
     const {
@@ -122,6 +124,7 @@ export function subscribeToTeamMessages() {
         break;
 
       case "timerTick":
+        hasReconnectedDueToError = false;
         setTimerSecondsRemaining(message.secondsRemaining);
         break;
 
@@ -130,14 +133,16 @@ export function subscribeToTeamMessages() {
         setIsValidating(false);
         const connectionState = webSocketService.connectionState;
 
-        if (step === "game" && connectionState !== "reconnecting") {
-          // Team is in game and this isn't from a failed reconnection attempt.
-          // Show error but attempt to rejoin automatically.
+        if (step === "game" && connectionState !== "reconnecting" && !hasReconnectedDueToError) {
+          // Team is in game, not already reconnecting, and hasn't already
+          // retried due to an error. Attempt to rejoin automatically.
+          hasReconnectedDueToError = true;
           setError(message.message);
           webSocketService.reconnect();
         } else {
-          // Either not in game yet, or this error is from a reconnection attempt.
-          // Show error and go back to join step.
+          // Either not in game, already reconnecting, or we already tried
+          // reconnecting and got another error. Give up.
+          webSocketService.disconnect();
           setError(message.message);
           setStep("join");
         }
@@ -156,6 +161,7 @@ export function subscribeToTeamMessages() {
           setTeamMembers(teamData.teamMembers);
         }
 
+        hasReconnectedDueToError = false;
         setIsValidating(false);
         setTeamGameState(message.state);
         break;

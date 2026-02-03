@@ -19,7 +19,7 @@ export default function MultiAnswerInput({
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const handleChange = (index: number, value: string) => {
-    const newAnswers = [...draftAnswers];
+    const newAnswers = Array.from({ length: numAnswers }, (_, i) => draftAnswers[i] ?? "");
     newAnswers[index] = value;
     onDraftChange(newAnswers);
   };

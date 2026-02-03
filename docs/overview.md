@@ -20,7 +20,7 @@ The home page is very simple. It is a menu with three buttons:
 ## Question Types
 Question Type is a new concept with Trivia Wizard 2. The Question Type that the host selects for a given question will update both the host's scoring view and the team's input view. Some useful question types:
 1. Standard (single answer, free-form) [Done]
-2. Multi-answer (equivalent to current multi-scoring feature)
+2. Multi-answer (equivalent to current multi-scoring feature) [Done]
     - team view transforms into multiple text inputs (# is configurable per-question by host)
 3. Multiple choice [Done]
     - team view shows buttons for A-{B..Z} (# is configurable per-question by host)

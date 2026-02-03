@@ -181,3 +181,15 @@ export async function subtractBonus(hostPage: Page, teamName: string, clicks: nu
     await answerCard.getByRole('button', { name: /Remove bonus points/i }).click();
   }
 }
+
+/**
+ * Submits a multi-answer response as a team.
+ * Fills N input fields (by placeholder "Answer 1", "Answer 2", etc.) and clicks "Submit Answers".
+ */
+export async function submitMultiAnswer(page: Page, answers: string[]): Promise<void> {
+  for (let i = 0; i < answers.length; i++) {
+    await page.getByPlaceholder(`Answer ${i + 1}`).fill(answers[i]);
+  }
+  await page.getByRole('button', { name: 'Submit Answers' }).click();
+  await expect(page.getByText('Submissions closed.')).toBeVisible();
+}

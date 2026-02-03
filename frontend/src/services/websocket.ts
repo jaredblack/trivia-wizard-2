@@ -226,11 +226,12 @@ class WebSocketService {
    * Replays the stored initial message if available.
    */
   async reconnect(): Promise<void> {
-    this.intentionalDisconnect = false;
     if (this.ws) {
+      this.ws.onclose = null;
       this.ws.close();
       this.ws = null;
     }
+    this.intentionalDisconnect = false;
     await this.startReconnection();
   }
 

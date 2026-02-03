@@ -50,7 +50,7 @@ export default function TeamGameView() {
           team: {
             submitAnswer: {
               teamName,
-              answer: draftMultiAnswers,
+              answer: draftMultiAnswers.map((a) => a ?? ""),
             },
           },
         });
@@ -91,7 +91,7 @@ export default function TeamGameView() {
         team: {
           submitAnswer: {
             teamName: team.teamName,
-            answer: draftMultiAnswers,
+            answer: draftMultiAnswers.map((a) => a ?? ""),
           },
         },
       });
