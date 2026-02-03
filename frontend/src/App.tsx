@@ -1,14 +1,17 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import LandingPage from './LandingPage';
-import ProtectedRoute from './ProtectedRoute';
-import HostLanding from './features/host/HostLanding';
-import HostGame from './features/host/HostGame';
-import TeamFlow from './features/team/TeamFlow';
-import PublicScoreboard from './features/watcher/PublicScoreboard';
+
+const ProtectedRoute = lazy(() => import('./ProtectedRoute'));
+const HostLanding = lazy(() => import('./features/host/HostLanding'));
+const HostGame = lazy(() => import('./features/host/HostGame'));
+const TeamFlow = lazy(() => import('./features/team/TeamFlow'));
+const PublicScoreboard = lazy(() => import('./features/watcher/PublicScoreboard'));
 
 export default function App() {
   return (
     <Router>
+      <Suspense>
       <div className="max-w-screen-xl mx-auto">
         <Routes>
         <Route path="/" element={<LandingPage />} />
@@ -26,6 +29,7 @@ export default function App() {
         <Route path="*" element={<p>There's nothing here: 404!</p>} />
         </Routes>
       </div>
+      </Suspense>
     </Router>
   );
 }
