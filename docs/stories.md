@@ -1,8 +1,6 @@
 # Backlog
 
 ## Definitely doing
-- add timer back to the scoreboard
-- submissions should auto-close when all answers have been received
 - "Connecting..." -> timeout currently leads to nowhere, just a blank screen with an error toast
    - we really need to use the health check endpoint here to enable/disable the button instead of blindly trying to connect to WS
 

@@ -1,3 +1,4 @@
+use crate::game_timer::pause_timer;
 use crate::model::server_message::{GameState, ServerMessage, TeamGameState, send_msg};
 use crate::model::types::{
     AnswerContent, AnswerSubmission, GameSettings, McConfig, MultiAnswerConfig, Question,
@@ -401,7 +402,7 @@ impl Game {
 
         let is_multi_answer = question.question_config.kind() == QuestionKind::MultiAnswer;
 
-        match (submission, is_multi_answer) {
+        let submitted = match (submission, is_multi_answer) {
             // Single-answer submission for Standard/MultipleChoice question
             (AnswerSubmission::Single(answer_text), false) => {
                 let content = AnswerContent::Single {
@@ -498,7 +499,17 @@ impl Game {
 
             // Submission type doesn't match question type
             _ => false,
+        };
+
+        // Auto-pause timer once all teams have submitted
+        if submitted {
+            let answers_count = self.questions[self.current_question_number - 1].answers.len();
+            if answers_count >= self.teams.len() {
+                pause_timer(self);
+            }
         }
+
+        submitted
     }
 
     /// Toggle a sub-answer's correctness for a multi-answer question.
