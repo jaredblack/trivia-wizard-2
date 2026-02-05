@@ -232,6 +232,8 @@ export interface JoinValidatedMessage {
 
 export interface ScoreboardData {
   teams: TeamData[];
+  timerRunning: boolean;
+  timerSecondsRemaining: number | null;
 }
 
 export interface ScoreboardDataMessage {

@@ -278,6 +278,8 @@ impl Game {
     pub fn to_scoreboard_data(&self) -> ScoreboardData {
         ScoreboardData {
             teams: self.teams.clone(),
+            timer_running: self.timer_running,
+            timer_seconds_remaining: self.timer_seconds_remaining,
         }
     }
 

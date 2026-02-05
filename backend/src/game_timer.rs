@@ -4,7 +4,7 @@ use crate::server::AppState;
 use log::error;
 use std::sync::Arc;
 
-/// Broadcast a TimerTick to all connected clients (host + all teams)
+/// Broadcast a TimerTick to all connected clients (host + all teams + watchers)
 fn broadcast_timer_tick(game: &Game, seconds_remaining: u32) {
     let msg = ServerMessage::TimerTick { seconds_remaining };
     if let Some(host_tx) = &game.host_tx {
@@ -12,6 +12,9 @@ fn broadcast_timer_tick(game: &Game, seconds_remaining: u32) {
     }
     for team_tx in game.teams_tx.values() {
         send_msg(team_tx, msg.clone());
+    }
+    for watcher_tx in &game.watchers_tx {
+        send_msg(watcher_tx, msg.clone());
     }
 }
 

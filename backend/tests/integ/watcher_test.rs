@@ -121,18 +121,23 @@ async fn watcher_receives_update_when_score_changes() {
     // Team receives update
     let _: ServerMessage = team.recv_json().await;
 
-    // Watcher should receive scoreboard update with the new score
-    let watcher_response: ServerMessage = watcher.recv_json().await;
-    match watcher_response {
-        ServerMessage::ScoreboardData { data } => {
-            assert_eq!(data.teams.len(), 1, "Should have one team");
-            assert_eq!(data.teams[0].team_name, "Test Team");
-            assert_eq!(
-                data.teams[0].score.question_points, 50,
-                "Score should be updated"
-            );
+    // Watcher may receive TimerTick messages between timer start and score update.
+    // Drain any TimerTick messages to find the ScoreboardData.
+    loop {
+        let watcher_response: ServerMessage = watcher.recv_json().await;
+        match watcher_response {
+            ServerMessage::TimerTick { .. } => continue,
+            ServerMessage::ScoreboardData { data } => {
+                assert_eq!(data.teams.len(), 1, "Should have one team");
+                assert_eq!(data.teams[0].team_name, "Test Team");
+                assert_eq!(
+                    data.teams[0].score.question_points, 50,
+                    "Score should be updated"
+                );
+                break;
+            }
+            other => panic!("Expected ScoreboardData or TimerTick message, got {other:?}"),
         }
-        other => panic!("Expected ScoreboardData message, got {other:?}"),
     }
 }
 

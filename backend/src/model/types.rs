@@ -247,4 +247,6 @@ pub struct TeamData {
 #[serde(rename_all = "camelCase")]
 pub struct ScoreboardData {
     pub teams: Vec<TeamData>,
+    pub timer_running: bool,
+    pub timer_seconds_remaining: Option<u32>,
 }

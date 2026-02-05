@@ -5,11 +5,12 @@ import { useWatcherStore, subscribeToWatcherMessages } from "../../stores/useWat
 import { webSocketService } from "../../services/websocket";
 import { getScore } from "../../types";
 import type { TeamData } from "../../types";
+import TimerDisplay from "../../components/ui/TimerDisplay";
 
 export default function PublicScoreboard() {
   const navigate = useNavigate();
   const { connectionState, connectAndSend, disconnect } = useWebSocket();
-  const { gameCode, scoreboardData, error, setGameCode, setError, reset } =
+  const { gameCode, teams, timerRunning, timerSecondsRemaining, error, setGameCode, setError, reset } =
     useWatcherStore();
   const [inputCode, setInputCode] = useState("");
   const [isWatching, setIsWatching] = useState(false);
@@ -28,12 +29,12 @@ export default function PublicScoreboard() {
     };
   }, [disconnect, reset]);
 
-  // When scoreboardData arrives, we're successfully watching
+  // When teams data arrives, we're successfully watching
   useEffect(() => {
-    if (scoreboardData) {
+    if (teams) {
       setIsWatching(true);
     }
-  }, [scoreboardData]);
+  }, [teams]);
 
   const handleWatch = useCallback(async () => {
     const code = inputCode.trim().toUpperCase();
@@ -75,10 +76,8 @@ export default function PublicScoreboard() {
   );
 
   // Sort teams by score descending
-  const sortedTeams = scoreboardData
-    ? [...scoreboardData.teams].sort(
-        (a, b) => getScore(b.score) - getScore(a.score)
-      )
+  const sortedTeams = teams
+    ? [...teams].sort((a, b) => getScore(b.score) - getScore(a.score))
     : [];
 
   // Calculate placement for each team, handling ties
@@ -91,7 +90,7 @@ export default function PublicScoreboard() {
   };
 
   // Show scoreboard if we have data
-  if (isWatching && scoreboardData) {
+  if (isWatching && teams) {
     return (
       <div className="min-h-screen flex flex-col">
         {/* Header */}
@@ -107,6 +106,16 @@ export default function PublicScoreboard() {
           </h1>
           <div className="w-12" /> {/* Spacer for centering */}
         </header>
+
+        {/* Timer */}
+        {timerSecondsRemaining != null && (
+          <div className="flex justify-center py-4">
+            <TimerDisplay
+              seconds={timerSecondsRemaining}
+              className={`text-4xl ${timerRunning ? "text-green-600" : "text-gray-400"}`}
+            />
+          </div>
+        )}
 
         {/* Scoreboard */}
         <div className="flex-1 px-4 py-6">
