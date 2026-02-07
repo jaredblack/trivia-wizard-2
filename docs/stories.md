@@ -9,6 +9,7 @@
 - favicon
 - should probably chill with the console.logs especially in websocket.ts
 - CI/CD
+- a "half points" button on standard question type scoring
 
 ## Maybe not worth doing
 - Words as game codes: I think bundling up some list of a few thousand words that can be random game codes seems reasonable enough. I don't think we need to do an external API call like in TW1

@@ -6,7 +6,8 @@ interface PerQuestionSettings {
   bonusIncrement: number;
   timerLength: number;
   speedBonusEnabled: boolean;
-  disabled?: boolean;
+  pointsDisabled?: boolean;
+  timerDisabled?: boolean;
   onQuestionPointsChange?: (value: number) => void;
   onBonusIncrementChange?: (value: number) => void;
   onTimerLengthChange?: (value: number) => void;
@@ -19,7 +20,8 @@ export default function PerQuestionSettings({
   bonusIncrement,
   timerLength,
   speedBonusEnabled,
-  disabled,
+  pointsDisabled,
+  timerDisabled,
   onQuestionPointsChange,
   onBonusIncrementChange,
   onTimerLengthChange,
@@ -35,7 +37,7 @@ export default function PerQuestionSettings({
           <AutoSubmitNumericInput
             value={questionPoints}
             onSubmit={onQuestionPointsChange}
-            disabled={disabled}
+            disabled={pointsDisabled}
           />
         </div>
 
@@ -45,7 +47,7 @@ export default function PerQuestionSettings({
           <AutoSubmitNumericInput
             value={bonusIncrement}
             onSubmit={onBonusIncrementChange}
-            disabled={disabled}
+            disabled={pointsDisabled}
           />
         </div>
 
@@ -55,7 +57,7 @@ export default function PerQuestionSettings({
           <AutoSubmitNumericInput
             value={timerLength}
             onSubmit={onTimerLengthChange}
-            disabled={disabled}
+            disabled={timerDisabled}
           />
         </div>
 
@@ -63,12 +65,11 @@ export default function PerQuestionSettings({
         <div className="flex items-center gap-2">
           <button
             onClick={() => onSpeedBonusEnabledChange?.(!speedBonusEnabled)}
-            disabled={disabled}
             className={`flex items-center gap-1 px-3 py-1 rounded-xl border transition-colors ${
               speedBonusEnabled
                 ? "bg-yellow-100 border-yellow-400 text-yellow-700"
                 : "bg-gray-100 border-gray-300 text-gray-500"
-            } ${disabled ? "opacity-50 cursor-not-allowed" : "hover:opacity-80 cursor-pointer"}`}
+            } hover:opacity-80 cursor-pointer`}
             title={speedBonusEnabled ? "Speed bonus enabled" : "Speed bonus disabled"}
           >
             <Zap className="w-4 h-4" />

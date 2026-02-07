@@ -175,6 +175,13 @@ impl Question {
         !self.answers.is_empty()
     }
 
+    /// Check if any team's answer has been scored (question_points > 0 or bonus_points > 0)
+    pub fn has_scored_answers(&self) -> bool {
+        self.answers
+            .iter()
+            .any(|a| a.score.question_points > 0 || a.score.bonus_points > 0)
+    }
+
     /// Filter question to only include a specific team's data
     pub fn filter_for_team(&self, team_name: &str) -> TeamQuestion {
         self.answers

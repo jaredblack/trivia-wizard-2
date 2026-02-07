@@ -829,7 +829,7 @@ impl Game {
     }
 
     /// Update settings for a specific question.
-    /// Returns Err if the question has answers or doesn't exist.
+    /// Per-field validation: only rejects changes that would cause actual problems.
     pub fn update_question_settings(
         &mut self,
         question_number: usize,
@@ -844,12 +844,43 @@ impl Game {
             return Err(anyhow!("Question does not exist"));
         }
 
-        let question = &mut self.questions[question_idx];
-        if question.has_answers() {
+        let question = &self.questions[question_idx];
+
+        // Validate question_type change: blocked if any submission exists
+        if question.question_config.kind() != question_type && question.has_answers() {
             return Err(anyhow!(
-                "Cannot update settings for a question that has answers"
+                "Cannot change question type for a question that has answers"
             ));
         }
+
+        // Validate question_points change: blocked if any answer is scored
+        if question.question_points != question_points && question.has_scored_answers() {
+            return Err(anyhow!(
+                "Cannot change question points for a question that has scored answers"
+            ));
+        }
+
+        // Validate bonus_increment change: blocked if any answer is scored
+        if question.bonus_increment != bonus_increment && question.has_scored_answers() {
+            return Err(anyhow!(
+                "Cannot change bonus increment for a question that has scored answers"
+            ));
+        }
+
+        // Validate timer_duration change: blocked if timer is currently running on this question
+        if question.timer_duration != timer_duration
+            && question_number == self.current_question_number
+            && self.timer_running
+        {
+            return Err(anyhow!(
+                "Cannot change timer duration while the timer is running"
+            ));
+        }
+
+        // speed_bonus_enabled: always allowed
+
+        let question = &mut self.questions[question_idx];
+        let speed_bonus_toggled = question.speed_bonus_enabled != speed_bonus_enabled;
 
         question.timer_duration = timer_duration;
         question.question_points = question_points;
@@ -860,9 +891,6 @@ impl Game {
         // we changed question types and we need to set the config to the
         // new default
         if question.question_config.kind() != question_type {
-            // Build a temporary GameSettings-like config for the new type.
-            // For MultipleChoice, use default McConfig (not the game-level one)
-            // to match original behavior.
             question.question_config = match question_type {
                 QuestionKind::Standard => QuestionConfig::Standard,
                 QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer {
@@ -874,6 +902,14 @@ impl Game {
             };
             // Clear correct set when switching to/from multi-answer
             question.multi_answer_correct_set.clear();
+        }
+
+        // If speed bonus was toggled on a question with answers, recalculate
+        if speed_bonus_toggled && self.questions[question_idx].has_answers() {
+            let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
+            for team in speed_bonus_teams {
+                self.recalculate_team_score(&team);
+            }
         }
 
         // Update timer display if this is current question and timer not running

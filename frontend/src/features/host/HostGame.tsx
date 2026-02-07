@@ -141,6 +141,9 @@ export default function HostGame() {
 
   // Check if the current question has any answers (used to disable settings)
   const questionHasAnswers = currentQuestion.answers.length > 0;
+  const questionHasScoredAnswers = currentQuestion.answers.some(
+    (a) => a.score.questionPoints > 0 || a.score.bonusPoints > 0
+  );
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -303,7 +306,8 @@ export default function HostGame() {
         bonusIncrement={currentQuestion.bonusIncrement}
         timerLength={currentQuestion.timerDuration}
         speedBonusEnabled={currentQuestion.speedBonusEnabled}
-        disabled={questionHasAnswers}
+        pointsDisabled={questionHasScoredAnswers}
+        timerDisabled={timerRunning}
         onQuestionPointsChange={(value) => {
           sendMessage({
             host: {

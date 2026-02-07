@@ -1,0 +1,23 @@
+Help me design this feature:
+
+I need to allow changing of certain question settings after teams have answered. It's just not realistic to expect the host to always put in the correct answer before people start submitting. I also think that switching between exact, range, and closest guess scoring after answers have been submitted will be necessary if people are worse at guessing a question than you're expecting. This has also become a sharp edge in general with TW2 so far - not being able to change question points if you've forgotten to before you opened submissions is annoying.
+
+Certain settings must remain immutable after a submission is received:
+- Question type
+- Number/type of multiple choice options or multi-answer boxes
+- Essentially, any setting that would impact the team's view and scoring interface for a question.
+
+Others can change:
+- Question points
+- Bonus increment
+- Timer duration
+- Numeric correct answer
+- Things that only impact the host's controls
+
+Any question setting that changes after answers have been submitted must be applied uniformly across already-submitted/scored answers. For example if we change question points from 50 to 25 after already scoring all of them, the scores must all be updated to reflect that. We can't have some answers having been scored for 50 and others for 25 within the same question
+
+I think the frontend at least should prevent the timer duration from being modified while the timer is running. There are likely other settings that will need to be gated in certain scenarios to prevent weird behavior.
+
+I think it makes sense to still have game settings only update subsequent questions for which no answers have been submitted. The thing I absolutely do not want is for default game settings updates to retroactively be applied to already scored previous answers. So we should keep the same behavior here.
+
+There's almost certainly going to be some ambiguity in what I just said, so I want you to ask me about that to make sure I've considered the implications. Also, look for settings that we currently lock once a submission arrives if I missed any so I can consider how we should handle those.
