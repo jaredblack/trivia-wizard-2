@@ -1,6 +1,3 @@
-> Blocked on allowing changing some question settings once submissions have started rolling in
-
-
 Help me design a fourth question type! This fourth question type will be called "Numeric", and the answer will be (you guessed it), numeric. Questions might be such that we are looking for an exact answer, e.g. "How many states are there in the US?" (you only get points if you put exactly 50) or we might be more lenient, e.g. "How many libraries are there in the US?", where we would give full points to a team that got the answer exactly right, and partial points to teams who got it pretty close. So, Numeric will have some settings:
 
 Scoring mode: Exact only, Range, or Closest Guess
@@ -30,8 +27,12 @@ Correct answer: 538, full question points 50 points, M = 3
 
 Note: scores must remain whole numbers, anywhere where there would be a decimal point value, we round down (floor).
 
-Numeric is notable because it is also the first question type that requires the host to manually input what the correct answer is instead of the app inferring it by what the host scores correct. In fact, numeric will not have any manual scoring for questionPoints at all - it will all be handled automatically according to what I explained above. 
+Numeric is notable because it is also the first question type that requires the host to manually input what the correct answer is instead of the app inferring it by what the host scores correct. In fact, numeric will not have any manual scoring for questionPoints at all - it will all be handled automatically according to what I explained above. So in the answer card for numeric questions, there should only be bonus controls (bonuses will function the same as they do for other question types, the special calculations based on how close to the correct answer the team is don't apply here, it's up to the host's discretion.), not a check/X button for questionPoints - that's all calculated by the server automatically.
 
+I think this actually isn't radically different from the other question types. In the other question types, the correct answers are inferred by the server when the host scores teams' responses. Here, we are asking the host to explicitly tell the server what the correct answer is instead. But in both cases, it's information from the host telling the server what the correct answer is.
 
+We should allow the host to change the correct answer (which would be configured in a NumericControlsBar) at any time, and changing the correct answer will cause all of the teams' answers to have their scores calculated.
 
-UI: the user's keyboard should only allow numeric input
+UI: the user's keyboard should only allow numeric input.
+
+Explore a bit to find out how current question types are implemented, and then ask me any clarifying questions about the design of the numeric question type. Then, we'll create an implementation plan.

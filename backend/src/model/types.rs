@@ -8,6 +8,7 @@ pub enum QuestionKind {
     Standard,
     MultiAnswer,
     MultipleChoice,
+    Numeric,
 }
 
 // === Multiple Choice Configuration ===
@@ -54,6 +55,43 @@ impl Default for MultiAnswerConfig {
     }
 }
 
+// === Numeric Configuration ===
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NumericScoringMode {
+    ExactOnly,
+    Range,
+    ClosestGuess,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NumericRangeType {
+    Absolute,
+    Percent,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NumericConfig {
+    pub scoring_mode: NumericScoringMode,
+    pub range_type: NumericRangeType,
+    pub range_value: f64,
+    pub num_winners: u32,
+}
+
+impl Default for NumericConfig {
+    fn default() -> Self {
+        Self {
+            scoring_mode: NumericScoringMode::ExactOnly,
+            range_type: NumericRangeType::Absolute,
+            range_value: 5.0,
+            num_winners: 3,
+        }
+    }
+}
+
 // === Question Config (discriminated union by question kind) ===
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,6 +106,10 @@ pub enum QuestionConfig {
     MultipleChoice {
         config: McConfig,
     },
+    #[serde(rename_all = "camelCase")]
+    Numeric {
+        config: NumericConfig,
+    },
 }
 
 impl QuestionConfig {
@@ -76,6 +118,7 @@ impl QuestionConfig {
             QuestionConfig::Standard => QuestionKind::Standard,
             QuestionConfig::MultiAnswer { .. } => QuestionKind::MultiAnswer,
             QuestionConfig::MultipleChoice { .. } => QuestionKind::MultipleChoice,
+            QuestionConfig::Numeric { .. } => QuestionKind::Numeric,
         }
     }
 }
@@ -167,6 +210,8 @@ pub struct Question {
     pub speed_bonus_enabled: bool,
     #[serde(default)]
     pub multi_answer_correct_set: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub numeric_correct_answer: Option<f64>,
 }
 
 impl Question {
@@ -209,6 +254,8 @@ pub struct GameSettings {
     pub default_mc_config: McConfig,
     #[serde(default)]
     pub default_multi_answer_config: MultiAnswerConfig,
+    #[serde(default)]
+    pub default_numeric_config: NumericConfig,
     pub speed_bonus_enabled: bool,
     pub speed_bonus_num_teams: u32,
     pub speed_bonus_first_place_points: u32,
@@ -224,6 +271,9 @@ impl GameSettings {
             },
             QuestionKind::MultipleChoice => QuestionConfig::MultipleChoice {
                 config: self.default_mc_config.clone(),
+            },
+            QuestionKind::Numeric => QuestionConfig::Numeric {
+                config: self.default_numeric_config.clone(),
             },
         }
     }

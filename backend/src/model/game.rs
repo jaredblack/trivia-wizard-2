@@ -1,8 +1,9 @@
 use crate::game_timer::pause_timer;
 use crate::model::server_message::{GameState, ServerMessage, TeamGameState, send_msg};
 use crate::model::types::{
-    AnswerContent, AnswerSubmission, GameSettings, McConfig, MultiAnswerConfig, Question,
-    QuestionConfig, QuestionKind, ScoreData, ScoreboardData, TeamColor, TeamData, TeamQuestion,
+    AnswerContent, AnswerSubmission, GameSettings, McConfig, MultiAnswerConfig, NumericConfig,
+    NumericRangeType, NumericScoringMode, Question, QuestionConfig, QuestionKind, ScoreData,
+    ScoreboardData, TeamColor, TeamData, TeamQuestion,
 };
 use crate::server::Tx;
 use anyhow::{Result, anyhow};
@@ -49,10 +50,103 @@ fn grade_multi_answer(answers: &[String], correct_set: &[String]) -> Vec<bool> {
 
 /// Calculate question points for a multi-answer submission.
 /// floor(base_points / num_answers) * num_correct
-fn calculate_multi_answer_question_points(correct: &[bool], base_points: u32, num_answers: u32) -> i32 {
+fn calculate_multi_answer_question_points(
+    correct: &[bool],
+    base_points: u32,
+    num_answers: u32,
+) -> i32 {
     let per_answer = base_points as i32 / num_answers as i32;
     let num_correct = correct.iter().filter(|&&c| c).count() as i32;
     per_answer * num_correct
+}
+
+// === Numeric Scoring Functions ===
+
+/// Calculate score for exact-only numeric mode.
+fn calculate_numeric_score_exact(answer: f64, correct: f64, base_points: u32) -> i32 {
+    if answer == correct {
+        base_points as i32
+    } else {
+        0
+    }
+}
+
+/// Calculate score for range numeric mode with linear falloff.
+fn calculate_numeric_score_range(
+    answer: f64,
+    correct: f64,
+    base_points: u32,
+    range_type: NumericRangeType,
+    range_value: f64,
+) -> i32 {
+    let max_distance = match range_type {
+        NumericRangeType::Absolute => range_value,
+        NumericRangeType::Percent => correct.abs() * range_value / 100.0,
+    };
+
+    // If max_distance is 0, fall back to exact-only behavior
+    if max_distance == 0.0 {
+        return calculate_numeric_score_exact(answer, correct, base_points);
+    }
+
+    let distance = (answer - correct).abs();
+    if distance >= max_distance {
+        0
+    } else {
+        ((base_points as f64) * (max_distance - distance) / max_distance).floor() as i32
+    }
+}
+
+/// Calculate scores for closest-guess numeric mode.
+/// Returns a map of team_name -> question_points.
+fn calculate_numeric_score_closest_guess(
+    answers: &[TeamQuestion],
+    correct: f64,
+    base_points: u32,
+    num_winners: u32,
+) -> HashMap<String, i32> {
+    let mut result = HashMap::new();
+
+    // Parse each team's answer and compute distance
+    let mut team_distances: Vec<(String, f64)> = Vec::new();
+    for tq in answers {
+        if let Some(AnswerContent::Single { answer_text }) = &tq.content {
+            if let Ok(val) = answer_text.trim().parse::<f64>() {
+                team_distances.push((tq.team_name.clone(), (val - correct).abs()));
+            }
+        }
+    }
+
+    if team_distances.is_empty() {
+        return result;
+    }
+
+    // Sort by distance
+    team_distances.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+
+    // Group by distance, walk through groups
+    let mut teams_awarded = 0u32;
+    let mut current_points = base_points as f64;
+    let mut i = 0;
+
+    while i < team_distances.len() && teams_awarded < num_winners {
+        // Collect all teams at this distance
+        let current_distance = team_distances[i].1;
+        let mut group = Vec::new();
+        while i < team_distances.len() && team_distances[i].1 == current_distance {
+            group.push(team_distances[i].0.clone());
+            i += 1;
+        }
+
+        let points = current_points.floor() as i32;
+        for team_name in &group {
+            result.insert(team_name.clone(), points);
+        }
+        teams_awarded += group.len() as u32;
+        current_points = (current_points / 2.0).floor();
+    }
+
+    result
 }
 
 /// Hardcoded game settings for this iteration
@@ -92,6 +186,7 @@ impl Game {
             default_question_type: QuestionKind::Standard,
             default_mc_config: McConfig::default(),
             default_multi_answer_config: MultiAnswerConfig::default(),
+            default_numeric_config: NumericConfig::default(),
             speed_bonus_enabled: DEFAULT_SPEED_BONUS_ENABLED,
             speed_bonus_num_teams: DEFAULT_SPEED_BONUS_NUM_TEAMS,
             speed_bonus_first_place_points: DEFAULT_SPEED_BONUS_FIRST_PLACE_POINTS,
@@ -106,6 +201,7 @@ impl Game {
             answers: vec![],
             speed_bonus_enabled: DEFAULT_SPEED_BONUS_ENABLED,
             multi_answer_correct_set: vec![],
+            numeric_correct_answer: None,
         };
 
         Self {
@@ -296,6 +392,7 @@ impl Game {
             answers: vec![],
             speed_bonus_enabled: self.game_settings.speed_bonus_enabled,
             multi_answer_correct_set: vec![],
+            numeric_correct_answer: None,
         }
     }
 
@@ -400,11 +497,105 @@ impl Game {
             return false;
         }
 
-        let is_multi_answer = question.question_config.kind() == QuestionKind::MultiAnswer;
+        let question_kind = question.question_config.kind();
+        let is_multi_answer = question_kind == QuestionKind::MultiAnswer;
+        let is_numeric = question_kind == QuestionKind::Numeric;
 
-        let submitted = match (submission, is_multi_answer) {
+        let submitted = match (submission, is_multi_answer, is_numeric) {
+            // Numeric question: validate as f64, auto-score
+            (AnswerSubmission::Single(answer_text), false, true) => {
+                // Validate that the answer is a valid number
+                let parsed: f64 = match answer_text.trim().parse() {
+                    Ok(v) => v,
+                    Err(_) => return false, // Reject non-numeric submissions
+                };
+
+                let content = AnswerContent::Single {
+                    answer_text: answer_text.clone(),
+                };
+
+                // Auto-calculate question_points if correct answer is set
+                let mut new_score = ScoreData::new();
+                if let Some(correct) = question.numeric_correct_answer {
+                    let config = match &question.question_config {
+                        QuestionConfig::Numeric { config } => config.clone(),
+                        _ => NumericConfig::default(),
+                    };
+                    let base_points = question.question_points;
+
+                    match config.scoring_mode {
+                        NumericScoringMode::ExactOnly => {
+                            new_score.question_points =
+                                calculate_numeric_score_exact(parsed, correct, base_points);
+                        }
+                        NumericScoringMode::Range => {
+                            new_score.question_points = calculate_numeric_score_range(
+                                parsed,
+                                correct,
+                                base_points,
+                                config.range_type,
+                                config.range_value,
+                            );
+                        }
+                        NumericScoringMode::ClosestGuess => {
+                            // For closest guess, we need to score after adding this answer.
+                            // Will be handled by recalculate below.
+                        }
+                    }
+                }
+
+                question.answers.push(TeamQuestion {
+                    team_name: team_name.to_string(),
+                    score: new_score,
+                    content: Some(content),
+                    question_config: question.question_config.clone(),
+                });
+
+                // Recalculate scores if correct answer is set
+                let question_idx = self.current_question_number - 1;
+                if self.questions[question_idx]
+                    .numeric_correct_answer
+                    .is_some()
+                {
+                    let config = match &self.questions[question_idx].question_config {
+                        QuestionConfig::Numeric { config } => config.clone(),
+                        _ => NumericConfig::default(),
+                    };
+                    if config.scoring_mode == NumericScoringMode::ClosestGuess {
+                        // For closest guess, recalculate ALL teams since rankings change
+                        self.recalculate_numeric_scores(question_idx);
+                        let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
+                        let all_team_names: Vec<String> = self.questions[question_idx]
+                            .answers
+                            .iter()
+                            .map(|a| a.team_name.clone())
+                            .collect();
+                        for team in all_team_names {
+                            self.recalculate_team_score(&team);
+                        }
+                        for team in speed_bonus_teams {
+                            self.recalculate_team_score(&team);
+                        }
+                    } else if self.questions[question_idx]
+                        .answers
+                        .last()
+                        .map_or(false, |a| a.score.question_points > 0)
+                    {
+                        let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
+                        self.recalculate_team_score(team_name);
+                        for team in speed_bonus_teams {
+                            if team != team_name {
+                                self.recalculate_team_score(&team);
+                            }
+                        }
+                    }
+                }
+
+                true
+            }
+
             // Single-answer submission for Standard/MultipleChoice question
-            (AnswerSubmission::Single(answer_text), false) => {
+            (AnswerSubmission::Single(answer_text), false, false) => {
                 let content = AnswerContent::Single {
                     answer_text: answer_text.clone(),
                 };
@@ -453,10 +644,9 @@ impl Game {
             }
 
             // Multi-answer submission for MultiAnswer question
-            (AnswerSubmission::Multi(answers), true) => {
+            (AnswerSubmission::Multi(answers), true, _) => {
                 // Grade against current correct set
-                let correct =
-                    grade_multi_answer(&answers, &question.multi_answer_correct_set);
+                let correct = grade_multi_answer(&answers, &question.multi_answer_correct_set);
 
                 // Get num_answers from config
                 let num_answers = match &question.question_config {
@@ -503,7 +693,9 @@ impl Game {
 
         // Auto-pause timer once all teams have submitted
         if submitted {
-            let answers_count = self.questions[self.current_question_number - 1].answers.len();
+            let answers_count = self.questions[self.current_question_number - 1]
+                .answers
+                .len();
             if answers_count >= self.teams.len() {
                 pause_timer(self);
             }
@@ -534,7 +726,10 @@ impl Game {
         let Some(answer) = answer else {
             return false;
         };
-        let Some(AnswerContent::Multi { answers, correct, .. }) = &answer.content else {
+        let Some(AnswerContent::Multi {
+            answers, correct, ..
+        }) = &answer.content
+        else {
             return false;
         };
         if sub_answer_index >= answers.len() {
@@ -630,9 +825,10 @@ impl Game {
             return false;
         };
 
-        // For multi-answer questions, only update bonus_points and override_points.
-        // question_points is derived from the correct set, speed_bonus_points is recalculated.
-        if question.answers[answer_idx].question_config.kind() == QuestionKind::MultiAnswer {
+        // For multi-answer and numeric questions, only update bonus_points and override_points.
+        // question_points is derived from the correct set / numeric scoring, speed_bonus_points is recalculated.
+        let answer_kind = question.answers[answer_idx].question_config.kind();
+        if answer_kind == QuestionKind::MultiAnswer || answer_kind == QuestionKind::Numeric {
             question.answers[answer_idx].score.bonus_points = score.bonus_points;
             question.answers[answer_idx].score.override_points = score.override_points;
 
@@ -800,6 +996,103 @@ impl Game {
         teams_changed
     }
 
+    // === Numeric scoring ===
+
+    /// Set the correct answer for a numeric question and recalculate all scores.
+    pub fn set_numeric_correct_answer(
+        &mut self,
+        question_number: usize,
+        correct_answer: Option<f64>,
+    ) -> Result<()> {
+        let question_idx = question_number - 1;
+        if question_idx >= self.questions.len() {
+            return Err(anyhow!("Question does not exist"));
+        }
+        if self.questions[question_idx].question_config.kind() != QuestionKind::Numeric {
+            return Err(anyhow!("Question is not a numeric question"));
+        }
+
+        self.questions[question_idx].numeric_correct_answer = correct_answer;
+        self.recalculate_numeric_scores(question_idx);
+
+        let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
+        let all_team_names: Vec<String> = self.questions[question_idx]
+            .answers
+            .iter()
+            .map(|a| a.team_name.clone())
+            .collect();
+        for team in all_team_names {
+            self.recalculate_team_score(&team);
+        }
+        for team in speed_bonus_teams {
+            self.recalculate_team_score(&team);
+        }
+
+        Ok(())
+    }
+
+    /// Recalculate question_points for all answers on a numeric question.
+    fn recalculate_numeric_scores(&mut self, question_idx: usize) {
+        let question = &self.questions[question_idx];
+        let Some(correct) = question.numeric_correct_answer else {
+            // No correct answer set - clear all question_points
+            for answer in &mut self.questions[question_idx].answers {
+                answer.score.question_points = 0;
+            }
+            return;
+        };
+
+        let config = match &question.question_config {
+            QuestionConfig::Numeric { config } => config.clone(),
+            _ => return,
+        };
+        let base_points = question.question_points;
+
+        match config.scoring_mode {
+            NumericScoringMode::ExactOnly => {
+                for answer in &mut self.questions[question_idx].answers {
+                    if let Some(AnswerContent::Single { answer_text }) = &answer.content {
+                        if let Ok(val) = answer_text.trim().parse::<f64>() {
+                            answer.score.question_points =
+                                calculate_numeric_score_exact(val, correct, base_points);
+                        } else {
+                            answer.score.question_points = 0;
+                        }
+                    }
+                }
+            }
+            NumericScoringMode::Range => {
+                for answer in &mut self.questions[question_idx].answers {
+                    if let Some(AnswerContent::Single { answer_text }) = &answer.content {
+                        if let Ok(val) = answer_text.trim().parse::<f64>() {
+                            answer.score.question_points = calculate_numeric_score_range(
+                                val,
+                                correct,
+                                base_points,
+                                config.range_type,
+                                config.range_value,
+                            );
+                        } else {
+                            answer.score.question_points = 0;
+                        }
+                    }
+                }
+            }
+            NumericScoringMode::ClosestGuess => {
+                let scores = calculate_numeric_score_closest_guess(
+                    &self.questions[question_idx].answers,
+                    correct,
+                    base_points,
+                    config.num_winners,
+                );
+                for answer in &mut self.questions[question_idx].answers {
+                    answer.score.question_points =
+                        scores.get(&answer.team_name).copied().unwrap_or(0);
+                }
+            }
+        }
+    }
+
     // === Settings operations ===
 
     /// Update game-level settings.
@@ -818,6 +1111,7 @@ impl Game {
                 question.question_config = default_question_config.clone();
                 question.speed_bonus_enabled = settings.speed_bonus_enabled;
                 question.multi_answer_correct_set.clear();
+                question.numeric_correct_answer = None;
             }
         }
 
@@ -899,9 +1193,13 @@ impl Game {
                 QuestionKind::MultipleChoice => QuestionConfig::MultipleChoice {
                     config: McConfig::default(),
                 },
+                QuestionKind::Numeric => QuestionConfig::Numeric {
+                    config: self.game_settings.default_numeric_config.clone(),
+                },
             };
-            // Clear correct set when switching to/from multi-answer
+            // Clear correct set and numeric answer when switching types
             question.multi_answer_correct_set.clear();
+            question.numeric_correct_answer = None;
         }
 
         // If speed bonus was toggled on a question with answers, recalculate
@@ -928,17 +1226,38 @@ impl Game {
         let question_idx = question_number - 1;
         let question = &mut self.questions[question_idx];
 
-        if question.has_answers() {
+        if question_config.kind() != question.question_config.kind() {
+            return Err(anyhow!("Config type does not match question type"));
+        }
+
+        // Numeric questions allow config updates even with answers (triggers recalculation)
+        if question.has_answers() && question_config.kind() != QuestionKind::Numeric {
             return Err(anyhow!(
                 "Cannot update settings for a question that has answers"
             ));
         }
 
-        if question_config.kind() != question.question_config.kind() {
-            return Err(anyhow!("Config type does not match question type"));
+        question.question_config = question_config;
+
+        // Recalculate numeric scores if config changed with answers present
+        if self.questions[question_idx].question_config.kind() == QuestionKind::Numeric
+            && self.questions[question_idx].has_answers()
+        {
+            self.recalculate_numeric_scores(question_idx);
+            let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
+            let all_team_names: Vec<String> = self.questions[question_idx]
+                .answers
+                .iter()
+                .map(|a| a.team_name.clone())
+                .collect();
+            for team in all_team_names {
+                self.recalculate_team_score(&team);
+            }
+            for team in speed_bonus_teams {
+                self.recalculate_team_score(&team);
+            }
         }
 
-        question.question_config = question_config;
         Ok(())
     }
 
@@ -1028,7 +1347,11 @@ mod tests {
     #[test]
     fn test_grade_multi_answer_partial() {
         let correct_set = vec!["blue".to_string(), "red".to_string(), "green".to_string()];
-        let answers = vec!["blue".to_string(), "yellow".to_string(), "green".to_string()];
+        let answers = vec![
+            "blue".to_string(),
+            "yellow".to_string(),
+            "green".to_string(),
+        ];
         let result = grade_multi_answer(&answers, &correct_set);
         assert_eq!(result, vec![true, false, true]);
     }
@@ -1074,7 +1397,10 @@ mod tests {
     fn test_is_speed_bonus_eligible_multi_answer_all_correct() {
         let tq = TeamQuestion {
             team_name: "Team A".to_string(),
-            score: ScoreData { question_points: 48, ..ScoreData::new() },
+            score: ScoreData {
+                question_points: 48,
+                ..ScoreData::new()
+            },
             content: Some(AnswerContent::Multi {
                 answers: vec!["a".into(), "b".into(), "c".into()],
                 correct: vec![true, true, true],
@@ -1090,7 +1416,10 @@ mod tests {
     fn test_is_speed_bonus_eligible_multi_answer_partial() {
         let tq = TeamQuestion {
             team_name: "Team A".to_string(),
-            score: ScoreData { question_points: 32, ..ScoreData::new() },
+            score: ScoreData {
+                question_points: 32,
+                ..ScoreData::new()
+            },
             content: Some(AnswerContent::Multi {
                 answers: vec!["a".into(), "b".into(), "c".into()],
                 correct: vec![true, false, true],
@@ -1120,13 +1449,19 @@ mod tests {
         game.add_team(
             "Team A".to_string(),
             tx_a,
-            TeamColor { hex_code: "#ff0000".into(), name: "Red".into() },
+            TeamColor {
+                hex_code: "#ff0000".into(),
+                name: "Red".into(),
+            },
             vec![],
         );
         game.add_team(
             "Team B".to_string(),
             tx_b,
-            TeamColor { hex_code: "#0000ff".into(), name: "Blue".into() },
+            TeamColor {
+                hex_code: "#0000ff".into(),
+                name: "Blue".into(),
+            },
             vec![],
         );
 
@@ -1146,7 +1481,12 @@ mod tests {
     /// Helper: get question_points for a team from question index 0
     fn get_question_points(game: &Game, team_name: &str) -> i32 {
         let q = &game.questions[0];
-        q.answers.iter().find(|a| a.team_name == team_name).unwrap().score.question_points
+        q.answers
+            .iter()
+            .find(|a| a.team_name == team_name)
+            .unwrap()
+            .score
+            .question_points
     }
 
     #[test]
@@ -1157,9 +1497,15 @@ mod tests {
         let mut game = setup_multi_answer_game();
 
         // 1. Team A submits ["stop", "stop", "stop"]
-        assert!(game.submit_answer("Team A", AnswerSubmission::Multi(vec!["stop".into(), "stop".into(), "stop".into()])));
+        assert!(game.submit_answer(
+            "Team A",
+            AnswerSubmission::Multi(vec!["stop".into(), "stop".into(), "stop".into()])
+        ));
         // 2. Team B submits ["stop", "go", "fish"]
-        assert!(game.submit_answer("Team B", AnswerSubmission::Multi(vec!["stop".into(), "go".into(), "fish".into()])));
+        assert!(game.submit_answer(
+            "Team B",
+            AnswerSubmission::Multi(vec!["stop".into(), "go".into(), "fish".into()])
+        ));
 
         // 3. Host clicks Team B's "stop" pill (index 0) -> adds "stop" to correct_set
         assert!(game.toggle_multi_answer_correctness(1, "Team B", 0));
@@ -1191,8 +1537,13 @@ mod tests {
     fn test_is_speed_bonus_eligible_standard() {
         let tq = TeamQuestion {
             team_name: "Team A".to_string(),
-            score: ScoreData { question_points: 50, ..ScoreData::new() },
-            content: Some(AnswerContent::Single { answer_text: "Paris".into() }),
+            score: ScoreData {
+                question_points: 50,
+                ..ScoreData::new()
+            },
+            content: Some(AnswerContent::Single {
+                answer_text: "Paris".into(),
+            }),
             question_config: QuestionConfig::Standard,
         };
         assert!(tq.is_speed_bonus_eligible());
@@ -1200,7 +1551,9 @@ mod tests {
         let tq_zero = TeamQuestion {
             team_name: "Team B".to_string(),
             score: ScoreData::new(),
-            content: Some(AnswerContent::Single { answer_text: "London".into() }),
+            content: Some(AnswerContent::Single {
+                answer_text: "London".into(),
+            }),
             question_config: QuestionConfig::Standard,
         };
         assert!(!tq_zero.is_speed_bonus_eligible());

@@ -11,6 +11,7 @@ import ScoreLogDrawer from "./ScoreLogDrawer";
 import StandardAnswerInput from "./StandardAnswerInput";
 import MultipleChoiceAnswerInput from "./MultipleChoiceAnswerInput";
 import MultiAnswerInput from "./MultiAnswerInput";
+import NumericAnswerInput from "./NumericAnswerInput";
 import { getScore, getMcOptions, answerToString } from "../../../types";
 
 export default function TeamGameView() {
@@ -164,6 +165,18 @@ export default function TeamGameView() {
             numAnswers={numAnswers}
             draftAnswers={draftMultiAnswers}
             onDraftChange={setDraftMultiAnswers}
+            onSubmit={handleSubmitAnswer}
+            teamColor={team.teamColor.hexCode}
+          />
+        );
+      }
+
+      // Numeric input
+      if (questionKind === "numeric") {
+        return (
+          <NumericAnswerInput
+            draftAnswer={draftAnswer}
+            onDraftChange={setDraftAnswer}
             onSubmit={handleSubmitAnswer}
             teamColor={team.teamColor.hexCode}
           />

@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::model::types::{McConfig, MultiAnswerConfig, QuestionConfig, QuestionKind, ScoreData};
+use crate::model::types::{
+    McConfig, MultiAnswerConfig, NumericConfig, QuestionConfig, QuestionKind, ScoreData,
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
@@ -40,9 +42,17 @@ pub enum HostAction {
         default_mc_config: McConfig,
         #[serde(default)]
         default_multi_answer_config: MultiAnswerConfig,
+        #[serde(default)]
+        default_numeric_config: NumericConfig,
         speed_bonus_enabled: bool,
         speed_bonus_num_teams: u32,
         speed_bonus_first_place_points: u32,
+    },
+
+    #[serde(rename_all = "camelCase")]
+    SetNumericCorrectAnswer {
+        question_number: usize,
+        correct_answer: Option<f64>,
     },
 
     #[serde(rename_all = "camelCase")]

@@ -1,11 +1,12 @@
 // === Question Kind (discriminant only) ===
 
-export type QuestionKind = "standard" | "multiAnswer" | "multipleChoice";
+export type QuestionKind = "standard" | "multiAnswer" | "multipleChoice" | "numeric";
 
 export const questionKindLabels: Record<QuestionKind, string> = {
   standard: "Standard",
   multiAnswer: "Multi-Answer",
   multipleChoice: "Multiple Choice",
+  numeric: "Numeric",
 };
 
 // === Multiple Choice Configuration ===
@@ -46,6 +47,26 @@ export const defaultMultiAnswerConfig: MultiAnswerConfig = {
   numAnswers: 3,
 };
 
+// === Numeric Configuration ===
+
+export type NumericScoringMode = "exactOnly" | "range" | "closestGuess";
+
+export type NumericRangeType = "absolute" | "percent";
+
+export interface NumericConfig {
+  scoringMode: NumericScoringMode;
+  rangeType: NumericRangeType;
+  rangeValue: number;
+  numWinners: number;
+}
+
+export const defaultNumericConfig: NumericConfig = {
+  scoringMode: "exactOnly",
+  rangeType: "absolute",
+  rangeValue: 5,
+  numWinners: 3,
+};
+
 // === Question Config (discriminated union by question kind) ===
 
 export interface StandardQuestionConfig {
@@ -62,10 +83,16 @@ export interface MultipleChoiceQuestionConfig {
   config: McConfig;
 }
 
+export interface NumericQuestionConfig {
+  type: "numeric";
+  config: NumericConfig;
+}
+
 export type QuestionConfig =
   | StandardQuestionConfig
   | MultiAnswerQuestionConfig
-  | MultipleChoiceQuestionConfig;
+  | MultipleChoiceQuestionConfig
+  | NumericQuestionConfig;
 
 // Helper function to generate MC options based on config
 export function getMcOptions(config: McConfig): string[] {
@@ -147,6 +174,7 @@ export interface Question {
   answers: TeamQuestion[];
   speedBonusEnabled: boolean;
   multiAnswerCorrectSet?: string[];
+  numericCorrectAnswer?: number | null;
 }
 
 // === Game Settings ===
@@ -158,6 +186,7 @@ export interface GameSettings {
   defaultQuestionType: QuestionKind;
   defaultMcConfig: McConfig;
   defaultMultiAnswerConfig: MultiAnswerConfig;
+  defaultNumericConfig: NumericConfig;
   speedBonusEnabled: boolean;
   speedBonusNumTeams: number;
   speedBonusFirstPlacePoints: number;
@@ -297,6 +326,7 @@ export interface UpdateGameSettingsAction {
   defaultQuestionType: QuestionKind;
   defaultMcConfig: McConfig;
   defaultMultiAnswerConfig: MultiAnswerConfig;
+  defaultNumericConfig: NumericConfig;
   speedBonusEnabled: boolean;
   speedBonusNumTeams: number;
   speedBonusFirstPlacePoints: number;
@@ -326,6 +356,12 @@ export interface ToggleMultiAnswerCorrectnessAction {
   subAnswerIndex: number;
 }
 
+export interface SetNumericCorrectAnswerAction {
+  type: "setNumericCorrectAnswer";
+  questionNumber: number;
+  correctAnswer: number | null;
+}
+
 export type HostAction =
   | CreateGameAction
   | StartTimerAction
@@ -338,7 +374,8 @@ export type HostAction =
   | UpdateGameSettingsAction
   | UpdateQuestionSettingsAction
   | UpdateTypeSpecificSettingsAction
-  | ToggleMultiAnswerCorrectnessAction;
+  | ToggleMultiAnswerCorrectnessAction
+  | SetNumericCorrectAnswerAction;
 
 // Team actions use externally tagged enum format (variant name as key)
 export interface ValidateJoinData {

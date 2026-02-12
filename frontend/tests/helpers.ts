@@ -193,3 +193,13 @@ export async function submitMultiAnswer(page: Page, answers: string[]): Promise<
   await page.getByRole('button', { name: 'Submit Answers' }).click();
   await expect(page.getByText('Submissions closed.')).toBeVisible();
 }
+
+/**
+ * Submits a numeric answer as a team.
+ * Fills the numeric input field and clicks "Submit Answer".
+ */
+export async function submitNumericAnswer(page: Page, answer: string): Promise<void> {
+  await page.getByPlaceholder('Enter a number').fill(answer);
+  await page.getByRole('button', { name: 'Submit Answer' }).click();
+  await expect(page.getByText('Submissions closed.')).toBeVisible();
+}

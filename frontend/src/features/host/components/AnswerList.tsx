@@ -1,5 +1,6 @@
 import AnswerCard from "./AnswerCard";
 import MultiAnswerAnswerCard from "./MultiAnswerAnswerCard";
+import NumericAnswerCard from "./NumericAnswerCard";
 import type { TeamData, Question, ScoreData } from "../../../types";
 import { answerToString } from "../../../types";
 
@@ -24,12 +25,27 @@ export default function AnswerList({
   const teamMap = new Map(teams.map((t) => [t.teamName, t]));
 
   const isMultiAnswer = question.questionConfig.type === "multiAnswer";
+  const isNumeric = question.questionConfig.type === "numeric";
 
   return (
     <div className="flex flex-col gap-4 p-4 overflow-y-auto">
       {answers.map((answer) => {
         const team = teamMap.get(answer.teamName);
         const teamColor = team?.teamColor.hexCode ?? "#666666";
+
+        if (isNumeric && answer.content?.type === "single") {
+          return (
+            <NumericAnswerCard
+              key={answer.teamName}
+              teamName={answer.teamName}
+              answerText={answer.content.answerText}
+              teamColor={teamColor}
+              score={answer.score}
+              bonusIncrement={question.bonusIncrement}
+              onScoreChange={(score) => onScoreAnswer(answer.teamName, score)}
+            />
+          );
+        }
 
         if (isMultiAnswer && answer.content?.type === "multi") {
           return (

@@ -170,6 +170,7 @@ fn process_host_action(
             default_question_type,
             default_mc_config,
             default_multi_answer_config,
+            default_numeric_config,
             speed_bonus_enabled,
             speed_bonus_num_teams,
             speed_bonus_first_place_points,
@@ -181,6 +182,7 @@ fn process_host_action(
                 default_question_type,
                 default_mc_config,
                 default_multi_answer_config,
+                default_numeric_config,
                 speed_bonus_enabled,
                 speed_bonus_num_teams,
                 speed_bonus_first_place_points,
@@ -215,6 +217,13 @@ fn process_host_action(
                 question_type,
                 speed_bonus_enabled,
             )?;
+            Ok(false)
+        }
+        HostAction::SetNumericCorrectAnswer {
+            question_number,
+            correct_answer,
+        } => {
+            game.set_numeric_correct_answer(question_number, correct_answer)?;
             Ok(false)
         }
         HostAction::UpdateTypeSpecificSettings {

@@ -95,6 +95,7 @@ export default function SettingsModal({
               <option value="standard">{questionKindLabels.standard}</option>
               <option value="multiAnswer">{questionKindLabels.multiAnswer}</option>
               <option value="multipleChoice">{questionKindLabels.multipleChoice}</option>
+              <option value="numeric">{questionKindLabels.numeric}</option>
             </select>
           </div>
 

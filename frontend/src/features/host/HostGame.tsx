@@ -9,6 +9,7 @@ import QuestionControls from "./components/QuestionControls";
 import StandardMainArea from "./components/StandardMainArea";
 import MultipleChoiceMainArea from "./components/MultipleChoiceMainArea";
 import MultiAnswerMainArea from "./components/MultiAnswerMainArea";
+import NumericMainArea from "./components/NumericMainArea";
 import Scoreboard from "./components/Scoreboard";
 import PerQuestionSettings from "./components/PerQuestionSettings";
 import SettingsModal from "./components/SettingsModal";
@@ -18,8 +19,13 @@ import type {
   HostClientMessage,
   McConfig,
   MultiAnswerConfig,
+  NumericConfig,
 } from "../../types";
-import { defaultMcConfig, defaultMultiAnswerConfig } from "../../types";
+import {
+  defaultMcConfig,
+  defaultMultiAnswerConfig,
+  defaultNumericConfig,
+} from "../../types";
 
 export default function HostGame() {
   const navigate = useNavigate();
@@ -264,6 +270,48 @@ export default function HostGame() {
                 });
               }}
             />
+          ) : currentQuestion.questionConfig.type === "numeric" ? (
+            <NumericMainArea
+              question={currentQuestion}
+              questionNumber={currentQuestionNumber}
+              teams={teams}
+              numericConfig={
+                currentQuestion.questionConfig.type === "numeric"
+                  ? currentQuestion.questionConfig.config
+                  : defaultNumericConfig
+              }
+              onScoreAnswer={(teamName, score) => {
+                sendMessage({
+                  host: {
+                    type: "scoreAnswer",
+                    questionNumber: currentQuestionNumber,
+                    teamName,
+                    score,
+                  },
+                });
+              }}
+              onSetCorrectAnswer={(correctAnswer) => {
+                sendMessage({
+                  host: {
+                    type: "setNumericCorrectAnswer",
+                    questionNumber: currentQuestionNumber,
+                    correctAnswer,
+                  },
+                });
+              }}
+              onNumericConfigChange={(config: NumericConfig) => {
+                sendMessage({
+                  host: {
+                    type: "updateTypeSpecificSettings",
+                    questionNumber: currentQuestionNumber,
+                    questionConfig: {
+                      type: "numeric",
+                      config: config,
+                    },
+                  },
+                });
+              }}
+            />
           ) : (
             <StandardMainArea
               question={currentQuestion}
@@ -378,6 +426,7 @@ export default function HostGame() {
                 defaultQuestionType: newSettings.defaultQuestionType,
                 defaultMcConfig: newSettings.defaultMcConfig,
                 defaultMultiAnswerConfig: newSettings.defaultMultiAnswerConfig,
+                defaultNumericConfig: newSettings.defaultNumericConfig,
                 speedBonusEnabled: newSettings.speedBonusEnabled,
                 speedBonusNumTeams: newSettings.speedBonusNumTeams,
                 speedBonusFirstPlacePoints:
