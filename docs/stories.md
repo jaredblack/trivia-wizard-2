@@ -1,6 +1,7 @@
 # Backlog
 
 ## Definitely doing
+- Range: make bounds inclusive, allow getting full points if you're within the range
 - "Connecting..." -> timeout currently leads to nowhere, just a blank screen with an error toast
    - we really need to use the health check endpoint here to enable/disable the button instead of blindly trying to connect to WS
 
@@ -10,12 +11,15 @@
 - should probably chill with the console.logs especially in websocket.ts
 - CI/CD
 - a "half points" button on standard question type scoring
+- End of game stats - graph showing teams' trajectories, % overall correct
 
 ## Maybe not worth doing
 - Words as game codes: I think bundling up some list of a few thousand words that can be random game codes seems reasonable enough. I don't think we need to do an external API call like in TW1
 - update verification email
 
 # Bug reports
+- Phone keyboard doesn't have negative (2026-02-11)
+- Getting "team name already in use" for some reason even though it's the same phone :( could somehow have to do with "Other" multiple choice? (2026-02-11)
 - Joe got kicked out with an "Already validated" once (2026-01-24)
 - BYU WiFi refusing to connect to backend?! (2026-01-30)
 

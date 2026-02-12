@@ -19,7 +19,7 @@ WORKDIR /app
 
 COPY --from=builder /usr/src/app/target/release/backend /app/backend
 
-EXPOSE 9002
+EXPOSE 80
 EXPOSE 8080
 
 ENV RUST_LOG=info

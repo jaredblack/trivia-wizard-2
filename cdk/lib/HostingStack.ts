@@ -39,7 +39,6 @@ export class HostingStack extends cdk.Stack {
         "/ws": {
           origin: new origins.HttpOrigin("ws-origin.trivia.jarbla.com", {
             protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
-            httpPort: 9002,
           }),
           viewerProtocolPolicy:
             cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,

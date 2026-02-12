@@ -91,7 +91,7 @@ export class ServerStack extends cdk.Stack {
 
     taskDefinition.addContainer("TriviaBackendContainer", {
       image: ecs.ContainerImage.fromDockerImageAsset(image),
-      portMappings: [{ containerPort: 9002 }],
+      portMappings: [{ containerPort: 80 }],
       logging: ecs.LogDrivers.awsLogs({
         streamPrefix: "trivia-backend",
         logGroup: logGroup,
@@ -124,7 +124,7 @@ export class ServerStack extends cdk.Stack {
     });
 
     this.service.connections.allowFromAnyIpv4(
-      ec2.Port.tcp(9002),
+      ec2.Port.tcp(80),
       "Allow WebSocket connections"
     );
 
