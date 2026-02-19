@@ -3,7 +3,8 @@ use crate::{TestClient, TestServer};
 use backend::model::client_message::{AnswerSubmission, ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::ServerMessage;
 use backend::model::types::{
-    NumericConfig, NumericRangeType, NumericScoringMode, QuestionConfig, QuestionKind, ScoreData,
+    NumericConfig, NumericRangeType, NumericScoringMode, QuestionConfig, QuestionKind,
+    RangeScoringType, ScoreData,
 };
 
 /// Helper to set up a game with host and multiple teams, timer NOT started yet
@@ -221,6 +222,7 @@ async fn numeric_range_scoring_linear_falloff() {
             range_type: NumericRangeType::Absolute,
             range_value: 10.0,
             num_winners: 3,
+            range_scoring_type: RangeScoringType::Linear,
         },
     )
     .await;
@@ -237,7 +239,45 @@ async fn numeric_range_scoring_linear_falloff() {
     assert_eq!(get_question_points(&state, "Team1"), 50);
     // Team2: distance=5, points = floor(50 * 5/10) = 25
     assert_eq!(get_question_points(&state, "Team2"), 25);
-    // Team3: distance=12, >= max_distance(10), points = 0
+    // Team3: distance=12, > max_distance(10), points = 0
+    assert_eq!(get_question_points(&state, "Team3"), 0);
+}
+
+#[tokio::test]
+async fn numeric_range_boundary_gets_one_point() {
+    let server = TestServer::start().await;
+    let (mut host, _code, mut teams) =
+        setup_game_with_teams(&server, &["Team1", "Team2", "Team3"]).await;
+
+    switch_to_numeric(&mut host, &mut teams).await;
+
+    // Set range mode with absolute range of 5
+    update_numeric_config(
+        &mut host,
+        &mut teams,
+        NumericConfig {
+            scoring_mode: NumericScoringMode::Range,
+            range_type: NumericRangeType::Absolute,
+            range_value: 5.0,
+            num_winners: 3,
+            range_scoring_type: RangeScoringType::Linear,
+        },
+    )
+    .await;
+
+    start_timer(&mut host, &mut teams).await;
+
+    submit_answer(&mut teams, &mut host, 0, "Team1", "25").await; // exactly on boundary
+    submit_answer(&mut teams, &mut host, 1, "Team2", "30").await; // exact match
+    submit_answer_last_team(&mut teams, &mut host, 2, "Team3", "24").await; // beyond boundary
+
+    let state = set_correct_answer(&mut host, &mut teams, 1, Some(30.0)).await;
+
+    // Team1: distance=5, equals max_distance, gets minimum 1 point
+    assert_eq!(get_question_points(&state, "Team1"), 1);
+    // Team2: exact match, full points
+    assert_eq!(get_question_points(&state, "Team2"), 50);
+    // Team3: distance=6, beyond range, gets 0
     assert_eq!(get_question_points(&state, "Team3"), 0);
 }
 
@@ -257,6 +297,7 @@ async fn numeric_range_scoring_percent_mode() {
             range_type: NumericRangeType::Percent,
             range_value: 10.0,
             num_winners: 3,
+            range_scoring_type: RangeScoringType::Linear,
         },
     )
     .await;
@@ -292,6 +333,7 @@ async fn numeric_closest_guess_basic() {
             range_type: NumericRangeType::Absolute,
             range_value: 5.0,
             num_winners: 3,
+            range_scoring_type: RangeScoringType::Linear,
         },
     )
     .await;
@@ -333,6 +375,7 @@ async fn numeric_closest_guess_tie_handling() {
             range_type: NumericRangeType::Absolute,
             range_value: 5.0,
             num_winners: 2,
+            range_scoring_type: RangeScoringType::Linear,
         },
     )
     .await;
@@ -402,6 +445,7 @@ async fn numeric_scoring_mode_change_recalculates() {
             range_type: NumericRangeType::Absolute,
             range_value: 10.0,
             num_winners: 3,
+            range_scoring_type: RangeScoringType::Linear,
         },
     )
     .await;
@@ -525,4 +569,76 @@ async fn numeric_clearing_correct_answer_resets_scores() {
     // Clear correct answer
     let state = set_correct_answer(&mut host, &mut teams, 1, None).await;
     assert_eq!(get_question_points(&state, "Team1"), 0);
+}
+
+#[tokio::test]
+async fn numeric_flat_range_scoring_full_points_within_range() {
+    let server = TestServer::start().await;
+    let (mut host, _code, mut teams) =
+        setup_game_with_teams(&server, &["Team1", "Team2", "Team3"]).await;
+
+    switch_to_numeric(&mut host, &mut teams).await;
+
+    // Set range mode with flat scoring, absolute range of 10
+    update_numeric_config(
+        &mut host,
+        &mut teams,
+        NumericConfig {
+            scoring_mode: NumericScoringMode::Range,
+            range_type: NumericRangeType::Absolute,
+            range_value: 10.0,
+            num_winners: 3,
+            range_scoring_type: RangeScoringType::Flat,
+        },
+    )
+    .await;
+
+    start_timer(&mut host, &mut teams).await;
+
+    submit_answer(&mut teams, &mut host, 0, "Team1", "100").await; // exact
+    submit_answer(&mut teams, &mut host, 1, "Team2", "108").await; // within range
+    submit_answer_last_team(&mut teams, &mut host, 2, "Team3", "112").await; // outside range
+
+    let state = set_correct_answer(&mut host, &mut teams, 1, Some(100.0)).await;
+
+    // Flat: everyone within range gets full points
+    assert_eq!(get_question_points(&state, "Team1"), 50);
+    assert_eq!(get_question_points(&state, "Team2"), 50);
+    // Outside range: 0
+    assert_eq!(get_question_points(&state, "Team3"), 0);
+}
+
+#[tokio::test]
+async fn numeric_flat_range_scoring_boundary_gets_full_points() {
+    let server = TestServer::start().await;
+    let (mut host, _code, mut teams) =
+        setup_game_with_teams(&server, &["Team1", "Team2"]).await;
+
+    switch_to_numeric(&mut host, &mut teams).await;
+
+    // Set range mode with flat scoring, absolute range of 5
+    update_numeric_config(
+        &mut host,
+        &mut teams,
+        NumericConfig {
+            scoring_mode: NumericScoringMode::Range,
+            range_type: NumericRangeType::Absolute,
+            range_value: 5.0,
+            num_winners: 3,
+            range_scoring_type: RangeScoringType::Flat,
+        },
+    )
+    .await;
+
+    start_timer(&mut host, &mut teams).await;
+
+    submit_answer(&mut teams, &mut host, 0, "Team1", "25").await; // exactly on boundary (distance=5)
+    submit_answer_last_team(&mut teams, &mut host, 1, "Team2", "24").await; // just beyond (distance=6)
+
+    let state = set_correct_answer(&mut host, &mut teams, 1, Some(30.0)).await;
+
+    // Flat: boundary answer gets full points (inclusive)
+    assert_eq!(get_question_points(&state, "Team1"), 50);
+    // Beyond range: 0
+    assert_eq!(get_question_points(&state, "Team2"), 0);
 }

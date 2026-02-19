@@ -72,6 +72,14 @@ pub enum NumericRangeType {
     Percent,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum RangeScoringType {
+    #[default]
+    Linear,
+    Flat,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NumericConfig {
@@ -79,6 +87,8 @@ pub struct NumericConfig {
     pub range_type: NumericRangeType,
     pub range_value: f64,
     pub num_winners: u32,
+    #[serde(default)]
+    pub range_scoring_type: RangeScoringType,
 }
 
 impl Default for NumericConfig {
@@ -88,6 +98,7 @@ impl Default for NumericConfig {
             range_type: NumericRangeType::Absolute,
             range_value: 5.0,
             num_winners: 3,
+            range_scoring_type: RangeScoringType::Linear,
         }
     }
 }
@@ -98,16 +109,16 @@ impl Default for NumericConfig {
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum QuestionConfig {
     Standard,
-    #[serde(rename_all = "camelCase")]
     MultiAnswer {
+        #[serde(flatten)]
         config: MultiAnswerConfig,
     },
-    #[serde(rename_all = "camelCase")]
     MultipleChoice {
+        #[serde(flatten)]
         config: McConfig,
     },
-    #[serde(rename_all = "camelCase")]
     Numeric {
+        #[serde(flatten)]
         config: NumericConfig,
     },
 }
@@ -144,22 +155,19 @@ impl ScoreData {
     }
 }
 
-// === TeamQuestion ===
-// Represents a team's state for a question, including their answer (if any) and score.
-// - On the host side (Question.answers): only contains entries for teams that submitted.
-// - On the team side (TeamGameState.questions): includes all historic questions,
-//   so content may be None if the team didn't submit.
+// === Answer ===
+// Lean struct used in Question.answers (host view). The parent Question already has
+// questionConfig, so we don't repeat it here.
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TeamQuestion {
+pub struct Answer {
     pub team_name: String,
     pub score: ScoreData,
     pub content: Option<AnswerContent>,
-    pub question_config: QuestionConfig,
 }
 
-impl TeamQuestion {
+impl Answer {
     /// Check if this team's answer qualifies for speed bonus.
     /// For multi-answer: all sub-answers must be correct.
     /// For other types: question_points > 0 (i.e., marked correct).
@@ -171,6 +179,21 @@ impl TeamQuestion {
             _ => self.score.question_points > 0,
         }
     }
+}
+
+// === TeamQuestion ===
+// Represents a team's per-question view (team side). Includes questionConfig because
+// there is no parent Question in TeamGameState.questions.
+// - On the team side (TeamGameState.questions): includes all historic questions,
+//   so content may be None if the team didn't submit.
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamQuestion {
+    pub team_name: String,
+    pub score: ScoreData,
+    pub content: Option<AnswerContent>,
+    pub question_config: QuestionConfig,
 }
 
 /// The content of a team's answer, varying by answer shape (not question type).
@@ -206,7 +229,7 @@ pub struct Question {
     pub question_points: u32,
     pub bonus_increment: u32,
     pub question_config: QuestionConfig,
-    pub answers: Vec<TeamQuestion>,
+    pub answers: Vec<Answer>,
     pub speed_bonus_enabled: bool,
     #[serde(default)]
     pub multi_answer_correct_set: Vec<String>,
@@ -229,16 +252,20 @@ impl Question {
 
     /// Filter question to only include a specific team's data
     pub fn filter_for_team(&self, team_name: &str) -> TeamQuestion {
-        self.answers
-            .iter()
-            .find(|a| a.team_name.eq_ignore_ascii_case(team_name))
-            .cloned()
-            .unwrap_or_else(|| TeamQuestion {
+        match self.answers.iter().find(|a| a.team_name.eq_ignore_ascii_case(team_name)) {
+            Some(a) => TeamQuestion {
+                team_name: a.team_name.clone(),
+                score: a.score.clone(),
+                content: a.content.clone(),
+                question_config: self.question_config.clone(),
+            },
+            None => TeamQuestion {
                 team_name: team_name.to_string(),
                 score: ScoreData::new(),
                 content: None,
                 question_config: self.question_config.clone(),
-            })
+            },
+        }
     }
 }
 

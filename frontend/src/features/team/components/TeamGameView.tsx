@@ -142,7 +142,7 @@ export default function TeamGameView() {
         questionKind === "multipleChoice" &&
         questionConfig?.type === "multipleChoice"
       ) {
-        const options = getMcOptions(questionConfig.config);
+        const options = getMcOptions(questionConfig);
         return (
           <MultipleChoiceAnswerInput
             options={options}
@@ -159,7 +159,7 @@ export default function TeamGameView() {
         questionKind === "multiAnswer" &&
         questionConfig?.type === "multiAnswer"
       ) {
-        const numAnswers = questionConfig.config.numAnswers;
+        const numAnswers = questionConfig.numAnswers;
         return (
           <MultiAnswerInput
             numAnswers={numAnswers}

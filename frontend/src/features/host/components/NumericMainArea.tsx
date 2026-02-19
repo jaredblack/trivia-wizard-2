@@ -7,6 +7,7 @@ import type {
   NumericConfig,
   NumericScoringMode,
   NumericRangeType,
+  RangeScoringType,
 } from "../../../types";
 
 interface NumericMainAreaProps {
@@ -107,6 +108,24 @@ export default function NumericMainArea({
                 min={0}
                 className="w-20 px-2 py-1 border bg-white border-gray-300 hover:border-gray-400 rounded-xl text-center"
               />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 whitespace-nowrap">
+                Range scoring
+              </label>
+              <select
+                value={numericConfig.rangeScoringType ?? "linear"}
+                onChange={(e) =>
+                  onNumericConfigChange({
+                    ...numericConfig,
+                    rangeScoringType: e.target.value as RangeScoringType,
+                  })
+                }
+                className="border border-gray-300 bg-white rounded-xl px-2 py-1 hover:bg-gray-50 cursor-pointer"
+              >
+                <option value="linear">Linear</option>
+                <option value="flat">Flat</option>
+              </select>
             </div>
           </>
         )}

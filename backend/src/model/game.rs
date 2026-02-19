@@ -1,9 +1,9 @@
 use crate::game_timer::pause_timer;
 use crate::model::server_message::{GameState, ServerMessage, TeamGameState, send_msg};
 use crate::model::types::{
-    AnswerContent, AnswerSubmission, GameSettings, McConfig, MultiAnswerConfig, NumericConfig,
-    NumericRangeType, NumericScoringMode, Question, QuestionConfig, QuestionKind, ScoreData,
-    ScoreboardData, TeamColor, TeamData, TeamQuestion,
+    Answer, AnswerContent, AnswerSubmission, GameSettings, McConfig, MultiAnswerConfig,
+    NumericConfig, NumericRangeType, NumericScoringMode, Question, QuestionConfig, QuestionKind,
+    RangeScoringType, ScoreData, ScoreboardData, TeamColor, TeamData,
 };
 use crate::server::Tx;
 use anyhow::{Result, anyhow};
@@ -71,13 +71,16 @@ fn calculate_numeric_score_exact(answer: f64, correct: f64, base_points: u32) ->
     }
 }
 
-/// Calculate score for range numeric mode with linear falloff.
+/// Calculate score for range numeric mode.
+/// Linear: points decrease linearly from full to 1 across the range.
+/// Flat: full points for any answer within range, 0 outside.
 fn calculate_numeric_score_range(
     answer: f64,
     correct: f64,
     base_points: u32,
     range_type: NumericRangeType,
     range_value: f64,
+    range_scoring_type: RangeScoringType,
 ) -> i32 {
     let max_distance = match range_type {
         NumericRangeType::Absolute => range_value,
@@ -90,17 +93,25 @@ fn calculate_numeric_score_range(
     }
 
     let distance = (answer - correct).abs();
-    if distance >= max_distance {
-        0
-    } else {
-        ((base_points as f64) * (max_distance - distance) / max_distance).floor() as i32
+    if distance > max_distance {
+        return 0;
+    }
+
+    match range_scoring_type {
+        RangeScoringType::Flat => base_points as i32,
+        RangeScoringType::Linear => {
+            let score =
+                ((base_points as f64) * (max_distance - distance) / max_distance).floor() as i32;
+            // Guarantee at least 1 point for answers within range (inclusive)
+            score.max(1)
+        }
     }
 }
 
 /// Calculate scores for closest-guess numeric mode.
 /// Returns a map of team_name -> question_points.
 fn calculate_numeric_score_closest_guess(
-    answers: &[TeamQuestion],
+    answers: &[Answer],
     correct: f64,
     base_points: u32,
     num_winners: u32,
@@ -535,6 +546,7 @@ impl Game {
                                 base_points,
                                 config.range_type,
                                 config.range_value,
+                                config.range_scoring_type,
                             );
                         }
                         NumericScoringMode::ClosestGuess => {
@@ -544,11 +556,10 @@ impl Game {
                     }
                 }
 
-                question.answers.push(TeamQuestion {
+                question.answers.push(Answer {
                     team_name: team_name.to_string(),
                     score: new_score,
                     content: Some(content),
-                    question_config: question.question_config.clone(),
                 });
 
                 // Recalculate scores if correct answer is set
@@ -621,11 +632,10 @@ impl Game {
                     new_score.bonus_points = bonus_points;
                 }
 
-                question.answers.push(TeamQuestion {
+                question.answers.push(Answer {
                     team_name: team_name.to_string(),
                     score: new_score,
                     content: Some(content),
-                    question_config: question.question_config.clone(),
                 });
 
                 // If auto-scored, recalculate speed bonuses and team scores
@@ -665,11 +675,10 @@ impl Game {
                     ..ScoreData::new()
                 };
 
-                question.answers.push(TeamQuestion {
+                question.answers.push(Answer {
                     team_name: team_name.to_string(),
                     score,
                     content: Some(AnswerContent::Multi { answers, correct }),
-                    question_config: question.question_config.clone(),
                 });
 
                 // Recalculate speed bonuses and team scores if auto-scored
@@ -827,7 +836,7 @@ impl Game {
 
         // For multi-answer and numeric questions, only update bonus_points and override_points.
         // question_points is derived from the correct set / numeric scoring, speed_bonus_points is recalculated.
-        let answer_kind = question.answers[answer_idx].question_config.kind();
+        let answer_kind = question.question_config.kind();
         if answer_kind == QuestionKind::MultiAnswer || answer_kind == QuestionKind::Numeric {
             question.answers[answer_idx].score.bonus_points = score.bonus_points;
             question.answers[answer_idx].score.override_points = score.override_points;
@@ -1071,6 +1080,7 @@ impl Game {
                                 base_points,
                                 config.range_type,
                                 config.range_value,
+                                config.range_scoring_type,
                             );
                         } else {
                             answer.score.question_points = 0;
@@ -1395,7 +1405,7 @@ mod tests {
 
     #[test]
     fn test_is_speed_bonus_eligible_multi_answer_all_correct() {
-        let tq = TeamQuestion {
+        let tq = Answer {
             team_name: "Team A".to_string(),
             score: ScoreData {
                 question_points: 48,
@@ -1405,16 +1415,13 @@ mod tests {
                 answers: vec!["a".into(), "b".into(), "c".into()],
                 correct: vec![true, true, true],
             }),
-            question_config: QuestionConfig::MultiAnswer {
-                config: MultiAnswerConfig { num_answers: 3 },
-            },
         };
         assert!(tq.is_speed_bonus_eligible());
     }
 
     #[test]
     fn test_is_speed_bonus_eligible_multi_answer_partial() {
-        let tq = TeamQuestion {
+        let tq = Answer {
             team_name: "Team A".to_string(),
             score: ScoreData {
                 question_points: 32,
@@ -1424,9 +1431,6 @@ mod tests {
                 answers: vec!["a".into(), "b".into(), "c".into()],
                 correct: vec![true, false, true],
             }),
-            question_config: QuestionConfig::MultiAnswer {
-                config: MultiAnswerConfig { num_answers: 3 },
-            },
         };
         assert!(!tq.is_speed_bonus_eligible());
     }
@@ -1535,7 +1539,7 @@ mod tests {
 
     #[test]
     fn test_is_speed_bonus_eligible_standard() {
-        let tq = TeamQuestion {
+        let tq = Answer {
             team_name: "Team A".to_string(),
             score: ScoreData {
                 question_points: 50,
@@ -1544,17 +1548,15 @@ mod tests {
             content: Some(AnswerContent::Single {
                 answer_text: "Paris".into(),
             }),
-            question_config: QuestionConfig::Standard,
         };
         assert!(tq.is_speed_bonus_eligible());
 
-        let tq_zero = TeamQuestion {
+        let tq_zero = Answer {
             team_name: "Team B".to_string(),
             score: ScoreData::new(),
             content: Some(AnswerContent::Single {
                 answer_text: "London".into(),
             }),
-            question_config: QuestionConfig::Standard,
         };
         assert!(!tq_zero.is_speed_bonus_eligible());
     }

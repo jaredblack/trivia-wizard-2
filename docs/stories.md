@@ -1,11 +1,12 @@
 # Backlog
 
 ## Definitely doing
-- Range: make bounds inclusive, allow getting full points if you're within the range
 - "Connecting..." -> timeout currently leads to nowhere, just a blank screen with an error toast
    - we really need to use the health check endpoint here to enable/disable the button instead of blindly trying to connect to WS
 
 ## Nice to have
+- more improvements to range
+   - rename/possibly reorganize settings, make more clear how many points will be given
 - set an alarm on log::error from my app?
 - favicon
 - should probably chill with the console.logs especially in websocket.ts
@@ -13,13 +14,16 @@
 - a "half points" button on standard question type scoring
 - End of game stats - graph showing teams' trajectories, % overall correct
 
-## Maybe not worth doing
+## Maybe worth doing
 - Words as game codes: I think bundling up some list of a few thousand words that can be random game codes seems reasonable enough. I don't think we need to do an external API call like in TW1
 - update verification email
+- If I see more bugs where the server thinks a team is connected even when they're not, could add an option for the host to force disconnect a team.
+- Per-question point breakdown for host
 
 # Bug reports
 - Phone keyboard doesn't have negative (2026-02-11)
 - Getting "team name already in use" for some reason even though it's the same phone :( could somehow have to do with "Other" multiple choice? (2026-02-11)
+   - Potential root cause: local development - hot reload causes state to be cleared while WS stays active. Should watch to see if this pops up in production
 - Joe got kicked out with an "Already validated" once (2026-01-24)
 - BYU WiFi refusing to connect to backend?! (2026-01-30)
 

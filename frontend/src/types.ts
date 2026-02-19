@@ -53,11 +53,14 @@ export type NumericScoringMode = "exactOnly" | "range" | "closestGuess";
 
 export type NumericRangeType = "absolute" | "percent";
 
+export type RangeScoringType = "linear" | "flat";
+
 export interface NumericConfig {
   scoringMode: NumericScoringMode;
   rangeType: NumericRangeType;
   rangeValue: number;
   numWinners: number;
+  rangeScoringType: RangeScoringType;
 }
 
 export const defaultNumericConfig: NumericConfig = {
@@ -65,6 +68,7 @@ export const defaultNumericConfig: NumericConfig = {
   rangeType: "absolute",
   rangeValue: 5,
   numWinners: 3,
+  rangeScoringType: "linear",
 };
 
 // === Question Config (discriminated union by question kind) ===
@@ -75,17 +79,23 @@ export interface StandardQuestionConfig {
 
 export interface MultiAnswerQuestionConfig {
   type: "multiAnswer";
-  config: MultiAnswerConfig;
+  numAnswers: number;
 }
 
 export interface MultipleChoiceQuestionConfig {
   type: "multipleChoice";
-  config: McConfig;
+  optionType: McOptionType;
+  numOptions: number;
+  customOptions?: string[];
 }
 
 export interface NumericQuestionConfig {
   type: "numeric";
-  config: NumericConfig;
+  scoringMode: NumericScoringMode;
+  rangeType: NumericRangeType;
+  rangeValue: number;
+  numWinners: number;
+  rangeScoringType: RangeScoringType;
 }
 
 export type QuestionConfig =
@@ -126,11 +136,20 @@ export function getScore(score: ScoreData): number {
   return score.questionPoints + score.bonusPoints + score.overridePoints + score.speedBonusPoints;
 }
 
+// === Answer ===
+// Lean struct used in Question.answers (host view). The parent Question already has
+// questionConfig, so it is not repeated here.
+
+export interface Answer {
+  teamName: string;
+  score: ScoreData;
+  content: AnswerContent | null;
+}
+
 // === TeamQuestion ===
-// Represents a team's state for a question, including their answer (if any) and score.
-// - On the host side (Question.answers): only contains entries for teams that submitted.
-// - On the team side (TeamGameState.questions): includes all historic questions,
-//   so content may be null if the team didn't submit.
+// Represents a team's per-question view (team side). Includes questionConfig because
+// there is no parent Question in TeamGameState.questions.
+// - content may be null if the team didn't submit.
 
 export interface TeamQuestion {
   teamName: string;
@@ -171,7 +190,7 @@ export interface Question {
   questionPoints: number;
   bonusIncrement: number;
   questionConfig: QuestionConfig;
-  answers: TeamQuestion[];
+  answers: Answer[];
   speedBonusEnabled: boolean;
   multiAnswerCorrectSet?: string[];
   numericCorrectAnswer?: number | null;

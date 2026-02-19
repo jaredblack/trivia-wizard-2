@@ -199,7 +199,7 @@ export default function HostGame() {
               teams={teams}
               mcConfig={
                 currentQuestion.questionConfig.type === "multipleChoice"
-                  ? currentQuestion.questionConfig.config
+                  ? currentQuestion.questionConfig
                   : defaultMcConfig
               }
               settingsDisabled={questionHasAnswers}
@@ -220,7 +220,7 @@ export default function HostGame() {
                     questionNumber: currentQuestionNumber,
                     questionConfig: {
                       type: "multipleChoice",
-                      config: config,
+                      ...config,
                     },
                   },
                 });
@@ -233,7 +233,7 @@ export default function HostGame() {
               teams={teams}
               multiAnswerConfig={
                 currentQuestion.questionConfig.type === "multiAnswer"
-                  ? currentQuestion.questionConfig.config
+                  ? currentQuestion.questionConfig
                   : defaultMultiAnswerConfig
               }
               settingsDisabled={questionHasAnswers}
@@ -264,7 +264,7 @@ export default function HostGame() {
                     questionNumber: currentQuestionNumber,
                     questionConfig: {
                       type: "multiAnswer",
-                      config: config,
+                      ...config,
                     },
                   },
                 });
@@ -277,7 +277,7 @@ export default function HostGame() {
               teams={teams}
               numericConfig={
                 currentQuestion.questionConfig.type === "numeric"
-                  ? currentQuestion.questionConfig.config
+                  ? currentQuestion.questionConfig
                   : defaultNumericConfig
               }
               onScoreAnswer={(teamName, score) => {
@@ -306,7 +306,7 @@ export default function HostGame() {
                     questionNumber: currentQuestionNumber,
                     questionConfig: {
                       type: "numeric",
-                      config: config,
+                      ...config,
                     },
                   },
                 });
