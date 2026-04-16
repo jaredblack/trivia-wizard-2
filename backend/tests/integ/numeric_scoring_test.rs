@@ -611,8 +611,7 @@ async fn numeric_flat_range_scoring_full_points_within_range() {
 #[tokio::test]
 async fn numeric_flat_range_scoring_boundary_gets_full_points() {
     let server = TestServer::start().await;
-    let (mut host, _code, mut teams) =
-        setup_game_with_teams(&server, &["Team1", "Team2"]).await;
+    let (mut host, _code, mut teams) = setup_game_with_teams(&server, &["Team1", "Team2"]).await;
 
     switch_to_numeric(&mut host, &mut teams).await;
 

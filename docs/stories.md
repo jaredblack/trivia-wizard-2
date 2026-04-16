@@ -1,6 +1,7 @@
 # Backlog
 
 ## Definitely doing
+- circle back on Geoguessr algorithm for Map as it may need to be calibrated to better fit our typical point totals (50)
 - "Connecting..." -> timeout currently leads to nowhere, just a blank screen with an error toast
    - we really need to use the health check endpoint here to enable/disable the button instead of blindly trying to connect to WS
 
@@ -33,6 +34,7 @@
 - The big game state Mutex<HashMap> gets touched _a lot_. We're not doing anything expensive while holding the lock (I think), but intuitively it feels like there could be contention which could lead to issues in when messages get processed, timer updates going out on time, etc. I think for now we continue down this path but if things look problematic in testing, we might have to consider a radically different architecture.
    - Likely that it will be fine for 1-2 games happening at the same time, but more than that... there may be some contention. Would be interesting to benchmark somehow. Hopefully it will never matter
    - There's probably a way to have the lock only be per-game instead of per-games. A fixed array of games maybe? Would be interesting to look into
+- game.rs continues to get more bloated -- we can probably factor some stuff, for example tests and map calculation utils
 
 ## edge cases worth considering
 - someone tries to create a game with the same code as another currently-connected host

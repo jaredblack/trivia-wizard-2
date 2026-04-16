@@ -10,6 +10,7 @@ import StandardMainArea from "./components/StandardMainArea";
 import MultipleChoiceMainArea from "./components/MultipleChoiceMainArea";
 import MultiAnswerMainArea from "./components/MultiAnswerMainArea";
 import NumericMainArea from "./components/NumericMainArea";
+import MapMainArea from "./components/MapMainArea";
 import Scoreboard from "./components/Scoreboard";
 import PerQuestionSettings from "./components/PerQuestionSettings";
 import SettingsModal from "./components/SettingsModal";
@@ -20,11 +21,13 @@ import type {
   McConfig,
   MultiAnswerConfig,
   NumericConfig,
+  MapConfig,
 } from "../../types";
 import {
   defaultMcConfig,
   defaultMultiAnswerConfig,
   defaultNumericConfig,
+  defaultMapConfig,
 } from "../../types";
 
 export default function HostGame() {
@@ -270,6 +273,48 @@ export default function HostGame() {
                 });
               }}
             />
+          ) : currentQuestion.questionConfig.type === "map" ? (
+            <MapMainArea
+              question={currentQuestion}
+              questionNumber={currentQuestionNumber}
+              teams={teams}
+              mapConfig={
+                currentQuestion.questionConfig.type === "map"
+                  ? currentQuestion.questionConfig
+                  : defaultMapConfig
+              }
+              onScoreAnswer={(teamName, score) => {
+                sendMessage({
+                  host: {
+                    type: "scoreAnswer",
+                    questionNumber: currentQuestionNumber,
+                    teamName,
+                    score,
+                  },
+                });
+              }}
+              onSetCorrectLocation={(location) => {
+                sendMessage({
+                  host: {
+                    type: "setMapCorrectLocation",
+                    questionNumber: currentQuestionNumber,
+                    correctLocation: location,
+                  },
+                });
+              }}
+              onMapConfigChange={(config: MapConfig) => {
+                sendMessage({
+                  host: {
+                    type: "updateTypeSpecificSettings",
+                    questionNumber: currentQuestionNumber,
+                    questionConfig: {
+                      type: "map",
+                      ...config,
+                    },
+                  },
+                });
+              }}
+            />
           ) : currentQuestion.questionConfig.type === "numeric" ? (
             <NumericMainArea
               question={currentQuestion}
@@ -427,6 +472,7 @@ export default function HostGame() {
                 defaultMcConfig: newSettings.defaultMcConfig,
                 defaultMultiAnswerConfig: newSettings.defaultMultiAnswerConfig,
                 defaultNumericConfig: newSettings.defaultNumericConfig,
+                defaultMapConfig: newSettings.defaultMapConfig,
                 speedBonusEnabled: newSettings.speedBonusEnabled,
                 speedBonusNumTeams: newSettings.speedBonusNumTeams,
                 speedBonusFirstPlacePoints:

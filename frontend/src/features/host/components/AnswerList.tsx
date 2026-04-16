@@ -1,6 +1,7 @@
 import AnswerCard from "./AnswerCard";
 import MultiAnswerAnswerCard from "./MultiAnswerAnswerCard";
 import NumericAnswerCard from "./NumericAnswerCard";
+import MapAnswerCard from "./MapAnswerCard";
 import type { TeamData, Question, ScoreData } from "../../../types";
 import { answerToString } from "../../../types";
 
@@ -26,12 +27,29 @@ export default function AnswerList({
 
   const isMultiAnswer = question.questionConfig.type === "multiAnswer";
   const isNumeric = question.questionConfig.type === "numeric";
+  const isMap = question.questionConfig.type === "map";
 
   return (
     <div className="flex flex-col gap-4 p-4 overflow-y-auto">
       {answers.map((answer) => {
         const team = teamMap.get(answer.teamName);
         const teamColor = team?.teamColor.hexCode ?? "#666666";
+
+        if (isMap && answer.content?.type === "coordinates") {
+          return (
+            <MapAnswerCard
+              key={answer.teamName}
+              teamName={answer.teamName}
+              lat={answer.content.lat}
+              lng={answer.content.lng}
+              correctLocation={question.mapCorrectLocation ?? null}
+              teamColor={teamColor}
+              score={answer.score}
+              bonusIncrement={question.bonusIncrement}
+              onScoreChange={(score) => onScoreAnswer(answer.teamName, score)}
+            />
+          );
+        }
 
         if (isNumeric && answer.content?.type === "single") {
           return (

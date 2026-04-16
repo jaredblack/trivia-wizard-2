@@ -9,6 +9,7 @@ pub enum QuestionKind {
     MultiAnswer,
     MultipleChoice,
     Numeric,
+    Map,
 }
 
 // === Multiple Choice Configuration ===
@@ -103,6 +104,24 @@ impl Default for NumericConfig {
     }
 }
 
+// === Map Configuration ===
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MapConfig {
+    pub full_points_distance_km: f64,
+    pub zero_points_distance_km: f64,
+}
+
+impl Default for MapConfig {
+    fn default() -> Self {
+        Self {
+            full_points_distance_km: 0.025,   // 25 meters
+            zero_points_distance_km: 20000.0, // ~half Earth's circumference
+        }
+    }
+}
+
 // === Question Config (discriminated union by question kind) ===
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -121,6 +140,10 @@ pub enum QuestionConfig {
         #[serde(flatten)]
         config: NumericConfig,
     },
+    Map {
+        #[serde(flatten)]
+        config: MapConfig,
+    },
 }
 
 impl QuestionConfig {
@@ -130,6 +153,7 @@ impl QuestionConfig {
             QuestionConfig::MultiAnswer { .. } => QuestionKind::MultiAnswer,
             QuestionConfig::MultipleChoice { .. } => QuestionKind::MultipleChoice,
             QuestionConfig::Numeric { .. } => QuestionKind::Numeric,
+            QuestionConfig::Map { .. } => QuestionKind::Map,
         }
     }
 }
@@ -210,6 +234,8 @@ pub enum AnswerContent {
         #[serde(default)]
         correct: Vec<bool>,
     },
+    #[serde(rename_all = "camelCase")]
+    Coordinates { lat: f64, lng: f64 },
 }
 
 /// Flexible answer payload: a single string or an array of strings.
@@ -218,6 +244,7 @@ pub enum AnswerContent {
 pub enum AnswerSubmission {
     Single(String),
     Multi(Vec<String>),
+    Coordinates { lat: f64, lng: f64 },
 }
 
 // === Question ===
@@ -235,6 +262,8 @@ pub struct Question {
     pub multi_answer_correct_set: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub numeric_correct_answer: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub map_correct_location: Option<(f64, f64)>,
 }
 
 impl Question {
@@ -252,7 +281,11 @@ impl Question {
 
     /// Filter question to only include a specific team's data
     pub fn filter_for_team(&self, team_name: &str) -> TeamQuestion {
-        match self.answers.iter().find(|a| a.team_name.eq_ignore_ascii_case(team_name)) {
+        match self
+            .answers
+            .iter()
+            .find(|a| a.team_name.eq_ignore_ascii_case(team_name))
+        {
             Some(a) => TeamQuestion {
                 team_name: a.team_name.clone(),
                 score: a.score.clone(),
@@ -283,6 +316,8 @@ pub struct GameSettings {
     pub default_multi_answer_config: MultiAnswerConfig,
     #[serde(default)]
     pub default_numeric_config: NumericConfig,
+    #[serde(default)]
+    pub default_map_config: MapConfig,
     pub speed_bonus_enabled: bool,
     pub speed_bonus_num_teams: u32,
     pub speed_bonus_first_place_points: u32,
@@ -301,6 +336,9 @@ impl GameSettings {
             },
             QuestionKind::Numeric => QuestionConfig::Numeric {
                 config: self.default_numeric_config.clone(),
+            },
+            QuestionKind::Map => QuestionConfig::Map {
+                config: self.default_map_config.clone(),
             },
         }
     }

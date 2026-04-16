@@ -1,7 +1,7 @@
 use crate::game_timer::pause_timer;
 use crate::model::server_message::{GameState, ServerMessage, TeamGameState, send_msg};
 use crate::model::types::{
-    Answer, AnswerContent, AnswerSubmission, GameSettings, McConfig, MultiAnswerConfig,
+    Answer, AnswerContent, AnswerSubmission, GameSettings, MapConfig, McConfig, MultiAnswerConfig,
     NumericConfig, NumericRangeType, NumericScoringMode, Question, QuestionConfig, QuestionKind,
     RangeScoringType, ScoreData, ScoreboardData, TeamColor, TeamData,
 };
@@ -160,6 +160,36 @@ fn calculate_numeric_score_closest_guess(
     result
 }
 
+// === Map Scoring Functions ===
+
+/// Calculate the great-circle distance between two points using the Haversine formula.
+/// Returns distance in kilometers.
+fn haversine_distance_km(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
+    const EARTH_RADIUS_KM: f64 = 6371.0;
+
+    let lat1_rad = lat1.to_radians();
+    let lat2_rad = lat2.to_radians();
+    let dlat = (lat2 - lat1).to_radians();
+    let dlng = (lng2 - lng1).to_radians();
+
+    let a =
+        (dlat / 2.0).sin().powi(2) + lat1_rad.cos() * lat2_rad.cos() * (dlng / 2.0).sin().powi(2);
+    let c = 2.0 * a.sqrt().asin();
+
+    EARTH_RADIUS_KM * c
+}
+
+/// Calculate score for a map question using GeoGuessr-style exponential decay.
+/// score = base_points * e^(-10 * distance / zero_points_distance)
+/// Full points if within full_points_distance.
+fn calculate_map_score(distance_km: f64, base_points: u32, config: &MapConfig) -> i32 {
+    if distance_km <= config.full_points_distance_km {
+        return base_points as i32;
+    }
+    let score = (base_points as f64) * (-10.0 * distance_km / config.zero_points_distance_km).exp();
+    (score.floor() as i32).max(0)
+}
+
 /// Hardcoded game settings for this iteration
 const DEFAULT_TIMER_DURATION: u32 = 30;
 const DEFAULT_QUESTION_POINTS: u32 = 50;
@@ -198,6 +228,7 @@ impl Game {
             default_mc_config: McConfig::default(),
             default_multi_answer_config: MultiAnswerConfig::default(),
             default_numeric_config: NumericConfig::default(),
+            default_map_config: MapConfig::default(),
             speed_bonus_enabled: DEFAULT_SPEED_BONUS_ENABLED,
             speed_bonus_num_teams: DEFAULT_SPEED_BONUS_NUM_TEAMS,
             speed_bonus_first_place_points: DEFAULT_SPEED_BONUS_FIRST_PLACE_POINTS,
@@ -213,6 +244,7 @@ impl Game {
             speed_bonus_enabled: DEFAULT_SPEED_BONUS_ENABLED,
             multi_answer_correct_set: vec![],
             numeric_correct_answer: None,
+            map_correct_location: None,
         };
 
         Self {
@@ -404,6 +436,7 @@ impl Game {
             speed_bonus_enabled: self.game_settings.speed_bonus_enabled,
             multi_answer_correct_set: vec![],
             numeric_correct_answer: None,
+            map_correct_location: None,
         }
     }
 
@@ -511,10 +544,11 @@ impl Game {
         let question_kind = question.question_config.kind();
         let is_multi_answer = question_kind == QuestionKind::MultiAnswer;
         let is_numeric = question_kind == QuestionKind::Numeric;
+        let is_map = question_kind == QuestionKind::Map;
 
-        let submitted = match (submission, is_multi_answer, is_numeric) {
+        let submitted = match (submission, is_multi_answer, is_numeric, is_map) {
             // Numeric question: validate as f64, auto-score
-            (AnswerSubmission::Single(answer_text), false, true) => {
+            (AnswerSubmission::Single(answer_text), false, true, false) => {
                 // Validate that the answer is a valid number
                 let parsed: f64 = match answer_text.trim().parse() {
                     Ok(v) => v,
@@ -606,7 +640,7 @@ impl Game {
             }
 
             // Single-answer submission for Standard/MultipleChoice question
-            (AnswerSubmission::Single(answer_text), false, false) => {
+            (AnswerSubmission::Single(answer_text), false, false, false) => {
                 let content = AnswerContent::Single {
                     answer_text: answer_text.clone(),
                 };
@@ -654,7 +688,7 @@ impl Game {
             }
 
             // Multi-answer submission for MultiAnswer question
-            (AnswerSubmission::Multi(answers), true, _) => {
+            (AnswerSubmission::Multi(answers), true, _, _) => {
                 // Grade against current correct set
                 let correct = grade_multi_answer(&answers, &question.multi_answer_correct_set);
 
@@ -684,6 +718,48 @@ impl Game {
                 // Recalculate speed bonuses and team scores if auto-scored
                 if question_points > 0 {
                     let question_idx = self.current_question_number - 1;
+                    let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
+                    self.recalculate_team_score(team_name);
+                    for team in speed_bonus_teams {
+                        if team != team_name {
+                            self.recalculate_team_score(&team);
+                        }
+                    }
+                }
+
+                true
+            }
+
+            // Map question: validate coordinates, auto-score
+            (AnswerSubmission::Coordinates { lat, lng }, false, false, true) => {
+                // Validate coordinate ranges
+                if !(-90.0..=90.0).contains(&lat) || !(-180.0..=180.0).contains(&lng) {
+                    return false;
+                }
+
+                let content = AnswerContent::Coordinates { lat, lng };
+
+                // Auto-calculate question_points if correct location is set
+                let mut new_score = ScoreData::new();
+                if let Some((correct_lat, correct_lng)) = question.map_correct_location {
+                    let config = match &question.question_config {
+                        QuestionConfig::Map { config } => config.clone(),
+                        _ => MapConfig::default(),
+                    };
+                    let distance = haversine_distance_km(lat, lng, correct_lat, correct_lng);
+                    new_score.question_points =
+                        calculate_map_score(distance, question.question_points, &config);
+                }
+
+                question.answers.push(Answer {
+                    team_name: team_name.to_string(),
+                    score: new_score,
+                    content: Some(content),
+                });
+
+                // Recalculate speed bonuses and team scores if auto-scored
+                let question_idx = self.current_question_number - 1;
+                if self.questions[question_idx].map_correct_location.is_some() {
                     let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
                     self.recalculate_team_score(team_name);
                     for team in speed_bonus_teams {
@@ -1103,6 +1179,68 @@ impl Game {
         }
     }
 
+    // === Map scoring ===
+
+    /// Set the correct location for a map question and recalculate all scores.
+    pub fn set_map_correct_location(
+        &mut self,
+        question_number: usize,
+        correct_location: Option<(f64, f64)>,
+    ) -> Result<()> {
+        let question_idx = question_number - 1;
+        if question_idx >= self.questions.len() {
+            return Err(anyhow!("Question does not exist"));
+        }
+        if self.questions[question_idx].question_config.kind() != QuestionKind::Map {
+            return Err(anyhow!("Question is not a map question"));
+        }
+
+        self.questions[question_idx].map_correct_location = correct_location;
+        self.recalculate_map_scores(question_idx);
+
+        let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
+        let all_team_names: Vec<String> = self.questions[question_idx]
+            .answers
+            .iter()
+            .map(|a| a.team_name.clone())
+            .collect();
+        for team in all_team_names {
+            self.recalculate_team_score(&team);
+        }
+        for team in speed_bonus_teams {
+            self.recalculate_team_score(&team);
+        }
+
+        Ok(())
+    }
+
+    /// Recalculate question_points for all answers on a map question.
+    fn recalculate_map_scores(&mut self, question_idx: usize) {
+        let question = &self.questions[question_idx];
+        let Some((correct_lat, correct_lng)) = question.map_correct_location else {
+            // No correct location set - clear all question_points
+            for answer in &mut self.questions[question_idx].answers {
+                answer.score.question_points = 0;
+            }
+            return;
+        };
+
+        let config = match &question.question_config {
+            QuestionConfig::Map { config } => config.clone(),
+            _ => return,
+        };
+        let base_points = question.question_points;
+
+        for answer in &mut self.questions[question_idx].answers {
+            if let Some(AnswerContent::Coordinates { lat, lng }) = &answer.content {
+                let distance = haversine_distance_km(*lat, *lng, correct_lat, correct_lng);
+                answer.score.question_points = calculate_map_score(distance, base_points, &config);
+            } else {
+                answer.score.question_points = 0;
+            }
+        }
+    }
+
     // === Settings operations ===
 
     /// Update game-level settings.
@@ -1122,6 +1260,7 @@ impl Game {
                 question.speed_bonus_enabled = settings.speed_bonus_enabled;
                 question.multi_answer_correct_set.clear();
                 question.numeric_correct_answer = None;
+                question.map_correct_location = None;
             }
         }
 
@@ -1206,10 +1345,14 @@ impl Game {
                 QuestionKind::Numeric => QuestionConfig::Numeric {
                     config: self.game_settings.default_numeric_config.clone(),
                 },
+                QuestionKind::Map => QuestionConfig::Map {
+                    config: self.game_settings.default_map_config.clone(),
+                },
             };
-            // Clear correct set and numeric answer when switching types
+            // Clear correct set, numeric answer, and map location when switching types
             question.multi_answer_correct_set.clear();
             question.numeric_correct_answer = None;
+            question.map_correct_location = None;
         }
 
         // If speed bonus was toggled on a question with answers, recalculate
@@ -1240,8 +1383,9 @@ impl Game {
             return Err(anyhow!("Config type does not match question type"));
         }
 
-        // Numeric questions allow config updates even with answers (triggers recalculation)
-        if question.has_answers() && question_config.kind() != QuestionKind::Numeric {
+        // Numeric and Map questions allow config updates even with answers (triggers recalculation)
+        let kind = question_config.kind();
+        if question.has_answers() && kind != QuestionKind::Numeric && kind != QuestionKind::Map {
             return Err(anyhow!(
                 "Cannot update settings for a question that has answers"
             ));
@@ -1249,11 +1393,16 @@ impl Game {
 
         question.question_config = question_config;
 
-        // Recalculate numeric scores if config changed with answers present
-        if self.questions[question_idx].question_config.kind() == QuestionKind::Numeric
-            && self.questions[question_idx].has_answers()
-        {
-            self.recalculate_numeric_scores(question_idx);
+        // Recalculate scores if config changed with answers present
+        if self.questions[question_idx].has_answers() {
+            let kind = self.questions[question_idx].question_config.kind();
+            if kind == QuestionKind::Numeric {
+                self.recalculate_numeric_scores(question_idx);
+            } else if kind == QuestionKind::Map {
+                self.recalculate_map_scores(question_idx);
+            } else {
+                return Ok(());
+            }
             let speed_bonus_teams = self.recalculate_speed_bonuses(question_idx);
             let all_team_names: Vec<String> = self.questions[question_idx]
                 .answers
@@ -1559,5 +1708,114 @@ mod tests {
             }),
         };
         assert!(!tq_zero.is_speed_bonus_eligible());
+    }
+
+    // === Map scoring tests ===
+
+    #[test]
+    fn test_haversine_distance_same_point() {
+        let d = haversine_distance_km(48.8584, 2.2945, 48.8584, 2.2945);
+        assert_eq!(d, 0.0);
+    }
+
+    #[test]
+    fn test_haversine_distance_known_cities() {
+        // Paris to London: ~344 km
+        let d = haversine_distance_km(48.8566, 2.3522, 51.5074, -0.1278);
+        assert!((d - 344.0).abs() < 5.0, "Paris-London distance was {d}");
+    }
+
+    #[test]
+    fn test_haversine_distance_antipodal() {
+        // North pole to south pole: ~20,015 km
+        let d = haversine_distance_km(90.0, 0.0, -90.0, 0.0);
+        assert!((d - 20015.0).abs() < 100.0, "Pole-to-pole distance was {d}");
+    }
+
+    #[test]
+    fn test_map_score_exact_match() {
+        let config = MapConfig::default();
+        let score = calculate_map_score(0.0, 1000, &config);
+        assert_eq!(score, 1000);
+    }
+
+    #[test]
+    fn test_map_score_within_full_points_threshold() {
+        let config = MapConfig::default(); // full_points_distance_km = 0.025
+        let score = calculate_map_score(0.020, 1000, &config);
+        assert_eq!(score, 1000);
+    }
+
+    #[test]
+    fn test_map_score_just_outside_threshold() {
+        let config = MapConfig::default();
+        let score = calculate_map_score(0.030, 1000, &config);
+        assert!(score < 1000);
+        assert!(score > 990, "Score was {score}, expected close to 1000");
+    }
+
+    #[test]
+    fn test_map_score_moderate_distance() {
+        let config = MapConfig::default(); // zero_points_distance_km = 20000
+        // 100 km away: score = 1000 * e^(-10 * 100 / 20000) = 1000 * e^(-0.05) ≈ 951
+        let score = calculate_map_score(100.0, 1000, &config);
+        assert!((score - 951).abs() <= 2, "Score was {score}");
+    }
+
+    #[test]
+    fn test_map_score_very_far() {
+        let config = MapConfig::default();
+        // 10000 km away: score = 1000 * e^(-10 * 10000 / 20000) = 1000 * e^(-5) ≈ 6
+        let score = calculate_map_score(10000.0, 1000, &config);
+        assert!(score < 10, "Score was {score}");
+        assert!(score >= 0);
+    }
+
+    #[test]
+    fn test_map_score_at_zero_distance() {
+        let config = MapConfig::default();
+        // At the zero_points_distance: score = 1000 * e^(-10) ≈ 0
+        let score = calculate_map_score(20000.0, 1000, &config);
+        assert_eq!(score, 0);
+    }
+
+    #[test]
+    fn test_map_score_custom_config() {
+        let config = MapConfig {
+            full_points_distance_km: 1.0,   // 1 km for full points
+            zero_points_distance_km: 100.0, // 100 km for zero
+        };
+        // Within threshold
+        assert_eq!(calculate_map_score(0.5, 500, &config), 500);
+        // At threshold edge
+        assert_eq!(calculate_map_score(1.0, 500, &config), 500);
+        // Beyond threshold: 50 km away = 500 * e^(-10 * 50 / 100) = 500 * e^(-5) ≈ 3
+        let score = calculate_map_score(50.0, 500, &config);
+        assert!(score < 10, "Score was {score}");
+    }
+
+    #[test]
+    fn test_is_speed_bonus_eligible_map() {
+        // Map answer with points > 0 should be eligible
+        let answer = Answer {
+            team_name: "Team A".to_string(),
+            score: ScoreData {
+                question_points: 500,
+                ..ScoreData::new()
+            },
+            content: Some(AnswerContent::Coordinates {
+                lat: 48.8584,
+                lng: 2.2945,
+            }),
+        };
+        assert!(answer.is_speed_bonus_eligible());
+
+        // Map answer with 0 points should not be eligible
+        let answer_zero = Answer {
+            team_name: "Team B".to_string(),
+            score: ScoreData::new(),
+            content: Some(AnswerContent::Coordinates { lat: 0.0, lng: 0.0 }),
+        };
+        assert!(!answer_zero.is_speed_bonus_eligible());
     }
 }

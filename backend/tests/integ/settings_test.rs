@@ -1,7 +1,7 @@
 use crate::{TestClient, TestServer, default_mc_config};
 use backend::model::client_message::{AnswerSubmission, ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::ServerMessage;
-use backend::model::types::{MultiAnswerConfig, NumericConfig, QuestionKind, ScoreData};
+use backend::model::types::{MapConfig, MultiAnswerConfig, NumericConfig, QuestionKind, ScoreData};
 
 #[tokio::test]
 async fn update_game_settings_changes_defaults() {
@@ -20,6 +20,7 @@ async fn update_game_settings_changes_defaults() {
         speed_bonus_first_place_points: 10,
         default_multi_answer_config: MultiAnswerConfig::default(),
         default_numeric_config: NumericConfig::default(),
+        default_map_config: MapConfig::default(),
     }))
     .await;
 
@@ -60,6 +61,7 @@ async fn update_game_settings_propagates_to_unanswered_questions() {
         speed_bonus_first_place_points: 10,
         default_multi_answer_config: MultiAnswerConfig::default(),
         default_numeric_config: NumericConfig::default(),
+        default_map_config: MapConfig::default(),
     }))
     .await;
 
@@ -128,6 +130,7 @@ async fn update_game_settings_does_not_change_answered_questions() {
         speed_bonus_first_place_points: 10,
         default_multi_answer_config: MultiAnswerConfig::default(),
         default_numeric_config: NumericConfig::default(),
+        default_map_config: MapConfig::default(),
     }))
     .await;
 
@@ -774,6 +777,7 @@ async fn settings_changes_broadcast_to_teams() {
         speed_bonus_first_place_points: 10,
         default_multi_answer_config: MultiAnswerConfig::default(),
         default_numeric_config: NumericConfig::default(),
+        default_map_config: MapConfig::default(),
     }))
     .await;
 
@@ -805,6 +809,7 @@ async fn new_questions_use_updated_game_settings() {
         speed_bonus_first_place_points: 10,
         default_multi_answer_config: MultiAnswerConfig::default(),
         default_numeric_config: NumericConfig::default(),
+        default_map_config: MapConfig::default(),
     }))
     .await;
     let _: ServerMessage = host.recv_json().await;

@@ -72,6 +72,7 @@ export default function QuestionControls({
             <option value="multiAnswer">{questionKindLabels.multiAnswer}</option>
             <option value="multipleChoice">{questionKindLabels.multipleChoice}</option>
             <option value="numeric">{questionKindLabels.numeric}</option>
+            <option value="map">{questionKindLabels.map}</option>
           </select>
         </div>
 

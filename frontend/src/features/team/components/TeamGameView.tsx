@@ -12,6 +12,7 @@ import StandardAnswerInput from "./StandardAnswerInput";
 import MultipleChoiceAnswerInput from "./MultipleChoiceAnswerInput";
 import MultiAnswerInput from "./MultiAnswerInput";
 import NumericAnswerInput from "./NumericAnswerInput";
+import MapAnswerInput from "./MapAnswerInput";
 import { getScore, getMcOptions, answerToString } from "../../../types";
 
 export default function TeamGameView() {
@@ -19,6 +20,7 @@ export default function TeamGameView() {
   const { teamGameState, gameCode, reset } = useTeamStore();
   const [draftAnswer, setDraftAnswer] = useState("");
   const [draftMultiAnswers, setDraftMultiAnswers] = useState<string[]>([]);
+  const [draftCoordinates, setDraftCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [showScoreLog, setShowScoreLog] = useState(false);
 
@@ -36,6 +38,7 @@ export default function TeamGameView() {
   useEffect(() => {
     setDraftAnswer("");
     setDraftMultiAnswers([]);
+    setDraftCoordinates(null);
   }, [currentQuestionNumber]);
 
   // Auto-submit when timer reaches 0 (not when host closes early)
@@ -56,6 +59,18 @@ export default function TeamGameView() {
           },
         });
       }
+    } else if (questionKind === "map") {
+      // Auto-submit map if pin is placed
+      if (draftCoordinates) {
+        webSocketService.send({
+          team: {
+            submitAnswer: {
+              teamName,
+              answer: { lat: draftCoordinates.lat, lng: draftCoordinates.lng },
+            },
+          },
+        });
+      }
     } else if (draftAnswer.trim()) {
       webSocketService.send({
         team: {
@@ -66,7 +81,7 @@ export default function TeamGameView() {
         },
       });
     }
-  }, [timerSecondsRemaining, hasAnswer, draftAnswer, draftMultiAnswers, teamName, questionKind]);
+  }, [timerSecondsRemaining, hasAnswer, draftAnswer, draftMultiAnswers, draftCoordinates, teamName, questionKind]);
 
   if (!teamGameState) {
     return (
@@ -93,6 +108,16 @@ export default function TeamGameView() {
           submitAnswer: {
             teamName: team.teamName,
             answer: draftMultiAnswers.map((a) => a ?? ""),
+          },
+        },
+      });
+    } else if (questionKind === "map") {
+      if (!draftCoordinates) return;
+      webSocketService.send({
+        team: {
+          submitAnswer: {
+            teamName: team.teamName,
+            answer: { lat: draftCoordinates.lat, lng: draftCoordinates.lng },
           },
         },
       });
@@ -166,6 +191,17 @@ export default function TeamGameView() {
             draftAnswers={draftMultiAnswers}
             onDraftChange={setDraftMultiAnswers}
             onSubmit={handleSubmitAnswer}
+            teamColor={team.teamColor.hexCode}
+          />
+        );
+      }
+
+      // Map input
+      if (questionKind === "map") {
+        return (
+          <MapAnswerInput
+            onSubmit={handleSubmitAnswer}
+            onPinChange={setDraftCoordinates}
             teamColor={team.teamColor.hexCode}
           />
         );

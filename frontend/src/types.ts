@@ -1,12 +1,13 @@
 // === Question Kind (discriminant only) ===
 
-export type QuestionKind = "standard" | "multiAnswer" | "multipleChoice" | "numeric";
+export type QuestionKind = "standard" | "multiAnswer" | "multipleChoice" | "numeric" | "map";
 
 export const questionKindLabels: Record<QuestionKind, string> = {
   standard: "Standard",
   multiAnswer: "Multi-Answer",
   multipleChoice: "Multiple Choice",
   numeric: "Numeric",
+  map: "Map",
 };
 
 // === Multiple Choice Configuration ===
@@ -71,6 +72,18 @@ export const defaultNumericConfig: NumericConfig = {
   rangeScoringType: "linear",
 };
 
+// === Map Configuration ===
+
+export interface MapConfig {
+  fullPointsDistanceKm: number;
+  zeroPointsDistanceKm: number;
+}
+
+export const defaultMapConfig: MapConfig = {
+  fullPointsDistanceKm: 0.025,
+  zeroPointsDistanceKm: 20000,
+};
+
 // === Question Config (discriminated union by question kind) ===
 
 export interface StandardQuestionConfig {
@@ -98,11 +111,18 @@ export interface NumericQuestionConfig {
   rangeScoringType: RangeScoringType;
 }
 
+export interface MapQuestionConfig {
+  type: "map";
+  fullPointsDistanceKm: number;
+  zeroPointsDistanceKm: number;
+}
+
 export type QuestionConfig =
   | StandardQuestionConfig
   | MultiAnswerQuestionConfig
   | MultipleChoiceQuestionConfig
-  | NumericQuestionConfig;
+  | NumericQuestionConfig
+  | MapQuestionConfig;
 
 // Helper function to generate MC options based on config
 export function getMcOptions(config: McConfig): string[] {
@@ -172,7 +192,13 @@ export interface MultiAnswerContent {
   correct: boolean[];
 }
 
-export type AnswerContent = SingleAnswerContent | MultiAnswerContent;
+export interface CoordinatesAnswerContent {
+  type: "coordinates";
+  lat: number;
+  lng: number;
+}
+
+export type AnswerContent = SingleAnswerContent | MultiAnswerContent | CoordinatesAnswerContent;
 
 export function answerToString(content: AnswerContent): string {
   switch (content.type) {
@@ -180,6 +206,8 @@ export function answerToString(content: AnswerContent): string {
       return content.answerText;
     case "multi":
       return content.answers.join(", ");
+    case "coordinates":
+      return `${content.lat.toFixed(4)}, ${content.lng.toFixed(4)}`;
   }
 }
 
@@ -194,6 +222,7 @@ export interface Question {
   speedBonusEnabled: boolean;
   multiAnswerCorrectSet?: string[];
   numericCorrectAnswer?: number | null;
+  mapCorrectLocation?: [number, number] | null;
 }
 
 // === Game Settings ===
@@ -206,6 +235,7 @@ export interface GameSettings {
   defaultMcConfig: McConfig;
   defaultMultiAnswerConfig: MultiAnswerConfig;
   defaultNumericConfig: NumericConfig;
+  defaultMapConfig: MapConfig;
   speedBonusEnabled: boolean;
   speedBonusNumTeams: number;
   speedBonusFirstPlacePoints: number;
@@ -346,6 +376,7 @@ export interface UpdateGameSettingsAction {
   defaultMcConfig: McConfig;
   defaultMultiAnswerConfig: MultiAnswerConfig;
   defaultNumericConfig: NumericConfig;
+  defaultMapConfig: MapConfig;
   speedBonusEnabled: boolean;
   speedBonusNumTeams: number;
   speedBonusFirstPlacePoints: number;
@@ -381,6 +412,12 @@ export interface SetNumericCorrectAnswerAction {
   correctAnswer: number | null;
 }
 
+export interface SetMapCorrectLocationAction {
+  type: "setMapCorrectLocation";
+  questionNumber: number;
+  correctLocation: [number, number] | null;
+}
+
 export type HostAction =
   | CreateGameAction
   | StartTimerAction
@@ -394,7 +431,8 @@ export type HostAction =
   | UpdateQuestionSettingsAction
   | UpdateTypeSpecificSettingsAction
   | ToggleMultiAnswerCorrectnessAction
-  | SetNumericCorrectAnswerAction;
+  | SetNumericCorrectAnswerAction
+  | SetMapCorrectLocationAction;
 
 // Team actions use externally tagged enum format (variant name as key)
 export interface ValidateJoinData {
@@ -412,7 +450,7 @@ export interface JoinGameData {
 
 export interface SubmitAnswerData {
   teamName: string;
-  answer: string | string[];
+  answer: string | string[] | { lat: number; lng: number };
 }
 
 export type TeamAction =
