@@ -6,6 +6,7 @@
    - we really need to use the health check endpoint here to enable/disable the button instead of blindly trying to connect to WS
 
 ## Nice to have
+- should upgrade deps
 - more improvements to range
    - rename/possibly reorganize settings, make more clear how many points will be given
 - set an alarm on log::error from my app?

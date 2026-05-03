@@ -10,8 +10,8 @@ export const TEAM_COLORS: TeamColorOption[] = [
   { name: "Blue", hex: "#3B82F6" },
   { name: "Pink", hex: "#EC4899" },
   // Row 2
-  { name: "Mauve", hex: "#C4A484" },
-  { name: "Khaki", hex: "#BDB76B" },
+  { name: "Red", hex: "#B51414" },
+  { name: "Pineapple", hex: "#FEE12B" },
   { name: "Cream", hex: "#FEF3C7" },
   { name: "Lavender", hex: "#DDD6FE" },
   // Row 3
@@ -23,5 +23,5 @@ export const TEAM_COLORS: TeamColorOption[] = [
   { name: "Green", hex: "#22C55E" },
   { name: "Hot Pink", hex: "#F472B6" },
   { name: "Black", hex: "#000000" },
-  { name: "Silver", hex: "#9CA3AF" },
+  { name: "Sky Blue", hex: "#87CFEB" },
 ];

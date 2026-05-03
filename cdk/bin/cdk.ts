@@ -11,13 +11,16 @@ const env = {
 
 const app = new cdk.App();
 
-const authStack = new AuthStack(app, 'TriviaAppAuthStack', { env });
+const hostingStack = new HostingStack(app, 'TriviaAppHostingStack', {
+  env: env,
+});
+
+const authStack = new AuthStack(app, 'TriviaAppAuthStack', {
+  env,
+  assetsBucket: hostingStack.assetsBucket,
+});
 
 new ServerStack(app, 'TriviaAppServerStack', {
   env: env,
   authStack: authStack,
-});
-
-new HostingStack(app, 'TriviaAppHostingStack', {
-  env: env,
 });

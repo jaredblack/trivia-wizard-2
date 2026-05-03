@@ -8,14 +8,19 @@ import {
 } from "aws-cdk-lib/aws-cognito-identitypool";
 import { Construct } from "constructs";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as s3 from "aws-cdk-lib/aws-s3";
 import { ECS_CLUSTER_NAME, ECS_SERVICE_NAME } from "./constants";
+
+interface AuthStackProps extends cdk.StackProps {
+  assetsBucket: s3.IBucket;
+}
 
 export class AuthStack extends cdk.Stack {
   public readonly userPool: cognito.UserPool;
   public readonly userPoolClient: cognito.UserPoolClient;
   public readonly identityPool: IdentityPool;
 
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props: AuthStackProps) {
     super(scope, id, props);
 
     // Create Cognito User Pool
@@ -139,6 +144,38 @@ export class AuthStack extends cdk.Stack {
       new iam.PolicyStatement({
         actions: ["ecs:UpdateService", "ecs:DescribeServices"],
         resources: [serviceArn],
+      })
+    );
+
+    // S3 access for the in-app event editor.
+    // Hosts can read/write their own private/ events keyed by Cognito identity sub,
+    // and write the publish snapshot under public/cdn/events/.
+    const sub = "${cognito-identity.amazonaws.com:sub}";
+    const privatePrefix = `private/events/${sub}/`;
+
+    hostsRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+        resources: [`${props.assetsBucket.bucketArn}/${privatePrefix}*`],
+      })
+    );
+
+    hostsRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["s3:ListBucket"],
+        resources: [props.assetsBucket.bucketArn],
+        conditions: {
+          StringLike: {
+            "s3:prefix": [`${privatePrefix}*`, privatePrefix],
+          },
+        },
+      })
+    );
+
+    hostsRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["s3:PutObject"],
+        resources: [`${props.assetsBucket.bucketArn}/public/cdn/events/*`],
       })
     );
 

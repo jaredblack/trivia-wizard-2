@@ -34,7 +34,7 @@ export default function MapAnswerInput({
   return (
     <div className="flex flex-col gap-3 flex-1">
       <label className="text-base">Place your pin on the map</label>
-      <div className="rounded-lg overflow-hidden border border-gray-300" style={{ height: 300 }}>
+      <div className="rounded-lg overflow-hidden border border-gray-300" style={{ height: 500 }}>
         <APIProvider apiKey={API_KEY}>
           <Map
             defaultCenter={{ lat: 20, lng: 0 }}

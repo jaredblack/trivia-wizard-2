@@ -9,6 +9,8 @@ import * as targets from "aws-cdk-lib/aws-route53-targets";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
 
 export class HostingStack extends cdk.Stack {
+  public readonly assetsBucket: s3.Bucket;
+
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
@@ -31,9 +33,38 @@ export class HostingStack extends cdk.Stack {
       enforceSSL: true,
     });
 
+    // Assets bucket: hosts' private event files under private/, published
+    // snapshots + shared cdn assets under public/cdn/. Served read-only via
+    // the /cdn/* CloudFront behavior; editor writes via S3 SDK with Cognito
+    // creds (see AuthStack hostsRole).
+    this.assetsBucket = new s3.Bucket(this, "AssetsBucket", {
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      enforceSSL: true,
+      cors: [
+        {
+          allowedMethods: [
+            s3.HttpMethods.GET,
+            s3.HttpMethods.HEAD,
+            s3.HttpMethods.PUT,
+            s3.HttpMethods.POST,
+            s3.HttpMethods.DELETE,
+          ],
+          allowedOrigins: [
+            "https://trivia.jarbla.com",
+            "http://localhost:5173",
+          ],
+          allowedHeaders: ["*"],
+          exposedHeaders: ["ETag"],
+          maxAge: 3000,
+        },
+      ],
+    });
+
     const distribution = new cloudfront.Distribution(this, "TriviaAppDist", {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(bucket),
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
       },
       additionalBehaviors: {
         "/ws": {
@@ -56,6 +87,16 @@ export class HostingStack extends cdk.Stack {
             cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
           cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+        },
+        "/cdn/*": {
+          origin: origins.S3BucketOrigin.withOriginAccessControl(
+            this.assetsBucket,
+            { originPath: "/public" }
+          ),
+          viewerProtocolPolicy:
+            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+          cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
         },
       },
       defaultRootObject: "index.html",
@@ -92,6 +133,12 @@ export class HostingStack extends cdk.Stack {
     new cdk.CfnOutput(this, "CloudFrontURL", {
       value: `https://${distribution.distributionDomainName}`,
       description: "The URL of the CloudFront distribution",
+    });
+
+    new cdk.CfnOutput(this, "AssetsBucketName", {
+      value: this.assetsBucket.bucketName,
+      description: "Name of the trivia assets bucket",
+      exportName: "AssetsBucketName",
     });
   }
 }
