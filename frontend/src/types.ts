@@ -332,6 +332,7 @@ export type ServerMessage =
 export interface CreateGameAction {
   type: "createGame";
   gameCode?: string;
+  uuid?: string;
 }
 
 export interface StartTimerAction {

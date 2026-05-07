@@ -46,8 +46,8 @@ export interface PresentationData {
 }
 
 export interface BuildContext {
-  eventId: string;
   cdnBase: string;
+  eventBase: string;
   sharedImages: string[];
   eventImages: string[];
   customSlides: Map<string, string>;
@@ -74,8 +74,8 @@ function renderNotes(slide: BaseSlide): string {
 // Resolve an image ref into a site-relative URL, mirroring slider/build.js.
 //   - http(s)://    passthrough
 //   - /<path>       passthrough
-//   - ./<name>      event manifest, /cdn/events/<eventId>/images/<file>
-//   - <name>        shared manifest, /cdn/images/<file>
+//   - ./<name>      event manifest, <eventBase>/images/<file>
+//   - <name>        shared manifest, <cdnBase>/images/<file>
 // Match by stem (filename minus extension), case-insensitive.
 function makeResolveImageUrl(ctx: BuildContext) {
   return function resolveImageUrl(ref: string): string {
@@ -88,7 +88,7 @@ function makeResolveImageUrl(ctx: BuildContext) {
     let needle: string;
     if (ref.startsWith('./')) {
       manifest = ctx.eventImages;
-      urlBase = `${ctx.cdnBase}/events/${ctx.eventId}/images`;
+      urlBase = `${ctx.eventBase}/images`;
       needle = ref.slice(2).toLowerCase();
     } else {
       manifest = ctx.sharedImages;
@@ -114,12 +114,12 @@ function makeResolveImageUrl(ctx: BuildContext) {
 // Resolve a custom-slide `file:` ref into a site-relative URL the page can fetch.
 //   - http(s)://   rejected (matches slider/build.js)
 //   - /<path>      passthrough
-//   - ./<path>     /cdn/events/<eventId>/<path>
-//   - <path>       /cdn/<path>
+//   - ./<path>     <eventBase>/<path>
+//   - <path>       <cdnBase>/<path>
 // `..` segments are rejected to keep refs inside the bucket boundary.
 export function resolveCustomFileUrl(
   ref: string,
-  ctx: { cdnBase: string; eventId: string }
+  ctx: { cdnBase: string; eventBase: string }
 ): string {
   if (/^https?:\/\//i.test(ref)) {
     throw new Error(
@@ -137,7 +137,7 @@ export function resolveCustomFileUrl(
   }
   const cleanPath = segments.join('/');
   return ref.startsWith('./')
-    ? `${ctx.cdnBase}/events/${ctx.eventId}/${cleanPath}`
+    ? `${ctx.eventBase}/${cleanPath}`
     : `${ctx.cdnBase}/${cleanPath}`;
 }
 

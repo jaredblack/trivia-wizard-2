@@ -27,7 +27,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 export default function PresentationPage() {
-  const { eventId } = useParams<{ eventId: string }>();
+  const { uuid } = useParams<{ uuid: string }>();
   const [error, setError] = useState<string | null>(null);
   const [render, setRender] = useState<{ html: string; bgUrl: string } | null>(null);
   const revealRef = useRef<HTMLDivElement>(null);
@@ -55,20 +55,19 @@ export default function PresentationPage() {
 
   // Fetch deck + manifests + custom slide HTML, then render.
   useEffect(() => {
-    if (!eventId) return;
+    if (!uuid) return;
+    const eventBase = `/events/${uuid}`;
     let cancelled = false;
     (async () => {
       try {
-        const yamlText = await fetchText(
-          `${CDN_BASE}/events/${eventId}/trivia-${eventId}.yaml`
-        );
+        const yamlText = await fetchText(`${eventBase}/event.yaml`);
         const data = yaml.load(yamlText) as PresentationData;
 
         const [sharedImages, eventImages] = await Promise.all([
           fetchJson<string[]>(`${CDN_BASE}/images/manifest.json`),
-          fetchJson<string[]>(
-            `${CDN_BASE}/events/${eventId}/images/manifest.json`
-          ).catch(() => [] as string[]),
+          fetchJson<string[]>(`${eventBase}/images/manifest.json`).catch(
+            () => [] as string[]
+          ),
         ]);
 
         const customRefs = collectCustomFileRefs(data);
@@ -76,7 +75,7 @@ export default function PresentationPage() {
           customRefs.map(async (ref) => {
             const url = resolveCustomFileUrl(ref, {
               cdnBase: CDN_BASE,
-              eventId,
+              eventBase,
             });
             const html = await fetchText(url);
             return [ref, html] as const;
@@ -85,8 +84,8 @@ export default function PresentationPage() {
         const customSlides = new Map(customEntries);
 
         const ctx: BuildContext = {
-          eventId,
           cdnBase: CDN_BASE,
+          eventBase,
           sharedImages,
           eventImages,
           customSlides,
@@ -102,7 +101,7 @@ export default function PresentationPage() {
     return () => {
       cancelled = true;
     };
-  }, [eventId]);
+  }, [uuid]);
 
   // Initialize reveal.js once slides HTML is in the DOM.
   useEffect(() => {

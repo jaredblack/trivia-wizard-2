@@ -33,10 +33,9 @@ export class HostingStack extends cdk.Stack {
       enforceSSL: true,
     });
 
-    // Assets bucket: hosts' private event files under private/, published
-    // snapshots + shared cdn assets under public/cdn/. Served read-only via
-    // the /cdn/* CloudFront behavior; editor writes via S3 SDK with Cognito
-    // creds (see AuthStack hostsRole).
+    // Assets bucket: per-event files under events/<uuid>/, shared assets under
+    // cdn/. Served read-only via the /cdn/* and /events/* CloudFront behaviors;
+    // editor writes via S3 SDK with Cognito creds (see AuthStack hostsRole).
     this.assetsBucket = new s3.Bucket(this, "AssetsBucket", {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -90,13 +89,21 @@ export class HostingStack extends cdk.Stack {
         },
         "/cdn/*": {
           origin: origins.S3BucketOrigin.withOriginAccessControl(
-            this.assetsBucket,
-            { originPath: "/public" }
+            this.assetsBucket
           ),
           viewerProtocolPolicy:
             cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        },
+        "/events/*": {
+          origin: origins.S3BucketOrigin.withOriginAccessControl(
+            this.assetsBucket
+          ),
+          viewerProtocolPolicy:
+            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+          cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
         },
       },
       defaultRootObject: "index.html",

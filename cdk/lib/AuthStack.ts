@@ -148,15 +148,15 @@ export class AuthStack extends cdk.Stack {
     );
 
     // S3 access for the in-app event editor.
-    // Hosts can read/write their own private/ events keyed by Cognito identity sub,
-    // and write the publish snapshot under public/cdn/events/.
-    const sub = "${cognito-identity.amazonaws.com:sub}";
-    const privatePrefix = `private/events/${sub}/`;
-
+    // Any host in the Trivia-Hosts group can edit any event. Per-host privacy
+    // is deferred (see slider/context/editor-plan.md).
     hostsRole.addToPolicy(
       new iam.PolicyStatement({
-        actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
-        resources: [`${props.assetsBucket.bucketArn}/${privatePrefix}*`],
+        actions: ["s3:GetObject", "s3:PutObject"],
+        resources: [
+          `${props.assetsBucket.bucketArn}/events/*`,
+          `${props.assetsBucket.bucketArn}/cdn/*`,
+        ],
       })
     );
 
@@ -166,16 +166,9 @@ export class AuthStack extends cdk.Stack {
         resources: [props.assetsBucket.bucketArn],
         conditions: {
           StringLike: {
-            "s3:prefix": [`${privatePrefix}*`, privatePrefix],
+            "s3:prefix": ["events/*", "events/", "cdn/*", "cdn/"],
           },
         },
-      })
-    );
-
-    hostsRole.addToPolicy(
-      new iam.PolicyStatement({
-        actions: ["s3:PutObject"],
-        resources: [`${props.assetsBucket.bucketArn}/public/cdn/events/*`],
       })
     );
 

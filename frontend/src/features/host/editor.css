@@ -1,0 +1,87 @@
+/* Constrain image previews shown in Monaco hover tooltips so large source
+   images (e.g. 4500px wide originals) don't blow out the widget. */
+.monaco-hover img {
+  max-width: 360px;
+  max-height: 240px;
+  object-fit: contain;
+}
+
+/* ── Light-beige editor surface ────────────────────────────────────────────
+   The container paints a flat warm beige; Monaco's own layers are made
+   transparent so the surface shows through unbroken. */
+.editor-paper {
+  background: rgb(244, 237, 230);
+}
+.editor-paper .monaco-editor,
+.editor-paper .monaco-editor .overflow-guard,
+.editor-paper .monaco-editor-background,
+.editor-paper .monaco-editor .margin,
+.editor-paper .monaco-editor .margin-view-overlays,
+.editor-paper .monaco-editor .minimap,
+.editor-paper .monaco-editor .monaco-scrollable-element > .scrollbar {
+  background: transparent !important;
+}
+/* Soften the gutter line numbers + current-line highlight to match. */
+.editor-paper .monaco-editor .line-numbers {
+  color: #8b7355;
+}
+.editor-paper .monaco-editor .current-line {
+  border: none !important;
+  background: rgba(107, 28, 28, 0.05) !important;
+}
+/* Selection: a warm parchment wash instead of cool blue. */
+.editor-paper .monaco-editor .selected-text,
+.editor-paper .monaco-editor .focused .selected-text {
+  background: rgba(107, 28, 28, 0.18) !important;
+}
+
+/* Sticky-scroll widget pins parent context (e.g. `slides:`) to the top of
+   the editor. Default bg is transparent in this theme, which lets scrolling
+   text bleed through and become unreadable — give it an opaque beige tint
+   so it stays legible. */
+.editor-paper .monaco-editor .sticky-widget {
+  background: rgba(236, 228, 208, 0.95) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgba(139, 115, 85, 0.25);
+}
+.editor-paper .monaco-editor .sticky-line-content,
+.editor-paper .monaco-editor .sticky-line-number {
+  background: transparent !important;
+}
+
+/* Header tint matches the surface. */
+.editor-header {
+  background: rgb(240, 231, 223);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-color: rgba(139, 115, 85, 0.25);
+}
+
+/* Tiny per-line image thumbnails in the line-decorations gutter. The lane
+   width comes from `lineDecorationsWidth` in the editor options; per-URL
+   background-image rules are injected at runtime by ensureThumbStyle. */
+.img-thumb {
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  cursor: pointer;
+}
+
+/* Larger preview shown when the user mouses over a gutter thumbnail. */
+#thumb-tooltip {
+  position: fixed;
+  display: none;
+  z-index: 1000;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  padding: 4px;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+#thumb-tooltip img {
+  display: block;
+  max-width: 360px;
+  max-height: 240px;
+}

@@ -1,0 +1,144 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Trivia Event",
+  "description": "A single trivia event: title, optional subtitle, and an ordered list of slides.",
+  "type": "object",
+  "required": ["title", "slides"],
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Title shown on the auto-generated title slide."
+    },
+    "subtitle": {
+      "type": "string",
+      "description": "Optional subtitle on the title slide."
+    },
+    "slides": {
+      "type": "array",
+      "description": "Ordered list of slides. Slide types: category, question, image, custom.",
+      "items": {
+        "oneOf": [
+          { "$ref": "#/definitions/categorySlide" },
+          { "$ref": "#/definitions/questionSlide" },
+          { "$ref": "#/definitions/imageSlide" },
+          { "$ref": "#/definitions/customSlide" }
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "imageRef": {
+      "description": "Image reference. Bare name (e.g. `kfr`) resolves to cdn/images/<name>.<ext>. `./name` resolves to the event's images/ folder. Absolute paths and http(s):// URLs pass through.",
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "required": ["url"],
+          "additionalProperties": false,
+          "properties": {
+            "url": { "type": "string", "description": "Image reference (see above)." },
+            "reveal": {
+              "type": "string",
+              "enum": ["question", "answer"],
+              "description": "When the image appears. `question` = visible immediately. `answer` = appears with the answer fragment. Default: `answer`."
+            },
+            "position": {
+              "type": "string",
+              "enum": ["side", "center"],
+              "description": "Where the image is laid out. `side` = right column next to text (default). `center` = hero, fills available space."
+            }
+          }
+        }
+      ]
+    },
+    "categorySlide": {
+      "type": "object",
+      "title": "Category slide",
+      "description": "Section divider with a large title (and optional subtitle/images).",
+      "required": ["type", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "category" },
+        "title": { "type": "string", "description": "Category name (large, centered)." },
+        "subtitle": { "type": "string", "description": "Optional subtitle below the category name." },
+        "images": {
+          "type": "array",
+          "description": "Optional decorative images shown below the title.",
+          "items": { "$ref": "#/definitions/imageRef" }
+        },
+        "notes": { "type": "string", "description": "Speaker notes (host-only)." }
+      }
+    },
+    "questionSlide": {
+      "type": "object",
+      "title": "Question slide",
+      "description": "A trivia question, with optional choices/matching/images and an answer.",
+      "required": ["type", "id", "question"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "question" },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z]{3}$",
+          "description": "Stable 3-letter alpha ID. Display number is assigned by order of first appearance. Two slides with the same id share the same question number (useful for follow-up/context slides)."
+        },
+        "question": { "type": "string", "description": "The question text." },
+        "answer": { "type": "string", "description": "The answer (revealed as a fragment). Optional." },
+        "choices": {
+          "type": "array",
+          "description": "Multiple-choice options (rendered A/B/C/...).",
+          "items": { "type": "string" }
+        },
+        "matching": {
+          "type": "object",
+          "description": "Two-column matching exercise (numbered left, lettered right).",
+          "required": ["left", "right"],
+          "additionalProperties": false,
+          "properties": {
+            "left": { "type": "array", "items": { "type": "string" } },
+            "right": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "images": {
+          "type": "array",
+          "description": "Question images. Use object form to control reveal timing and position.",
+          "items": { "$ref": "#/definitions/imageRef" }
+        },
+        "notes": { "type": "string", "description": "Speaker notes (host-only)." }
+      }
+    },
+    "imageSlide": {
+      "type": "object",
+      "title": "Image slide",
+      "description": "Title text plus a centered image (e.g. join-game QR code).",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "image" },
+        "title": { "type": "string", "description": "Slide title (multi-line allowed via YAML `|`)." },
+        "image": {
+          "type": "string",
+          "description": "Image reference (same rules as question images)."
+        },
+        "notes": { "type": "string", "description": "Speaker notes (host-only)." }
+      }
+    },
+    "customSlide": {
+      "type": "object",
+      "title": "Custom slide",
+      "description": "Escape hatch: load HTML from a file or inline.",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "custom" },
+        "file": {
+          "type": "string",
+          "description": "Path to an HTML file. `./slides/foo.html` resolves to the event's slides/ folder."
+        },
+        "html": { "type": "string", "description": "Inline HTML." },
+        "notes": { "type": "string", "description": "Speaker notes (host-only)." }
+      }
+    }
+  }
+}

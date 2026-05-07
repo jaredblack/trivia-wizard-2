@@ -1,4 +1,4 @@
-import { useOutletContext, useNavigate } from "react-router-dom";
+import { useOutletContext, useNavigate, Link } from "react-router-dom";
 import type { AuthOutletContext } from "../../ProtectedRoute";
 import { useEffect, useState, useRef } from "react";
 import { fetchAuthSession } from "aws-amplify/auth";
@@ -12,6 +12,7 @@ import { useHostStore, subscribeToHostMessages } from "../../stores/useHostStore
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { saveHostRejoin } from "../../utils/rejoinStorage";
 import type { HostClientMessage } from "../../types";
+import { listEvents, type EventSummary } from "../../services/eventsApi";
 
 export default function HostLanding() {
   const { signOut } = useOutletContext<AuthOutletContext>();
@@ -25,7 +26,30 @@ export default function HostLanding() {
   const [serverStartFailed, setServerStartFailed] = useState(false);
   const [customGameCode, setCustomGameCode] = useState("");
   const [isCreatingGame, setIsCreatingGame] = useState(false);
+  const [events, setEvents] = useState<EventSummary[] | null>(null);
+  const [selectedUuid, setSelectedUuid] = useState<string>("");
   const hasNavigated = useRef(false);
+
+  // Load the events list once the user is confirmed as a host (in local
+  // mode this fires immediately).
+  useEffect(() => {
+    if (!isHost) return;
+    let cancelled = false;
+    listEvents()
+      .then((rows) => {
+        if (cancelled) return;
+        setEvents(rows);
+        if (rows.length > 0) setSelectedUuid(rows[0].uuid);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        console.error("Failed to load events:", e);
+        setEvents([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isHost]);
 
   // Subscribe to host messages
   useEffect(() => {
@@ -113,19 +137,29 @@ export default function HostLanding() {
     setCustomGameCode(value.toUpperCase());
   };
 
-  // Navigate to game page when game is created (gameCode is set)
+  // Navigate to game page when game is created (gameCode is set), and open
+  // the projector window for the selected event.
   useEffect(() => {
     if (gameCode && !hasNavigated.current) {
       hasNavigated.current = true;
       saveHostRejoin({ gameCode });
+      if (selectedUuid) {
+        window.open(`/present/${selectedUuid}`, "_blank", "noopener");
+      }
       navigate("/host/game");
     }
-  }, [gameCode, navigate]);
+  }, [gameCode, navigate, selectedUuid]);
 
   const createGame = async (useCustomCode: boolean) => {
     setIsCreatingGame(true);
     try {
-      const msg: HostClientMessage = { host: { type: "createGame", gameCode: useCustomCode ? customGameCode : undefined } };
+      const msg: HostClientMessage = {
+        host: {
+          type: "createGame",
+          gameCode: useCustomCode ? customGameCode : undefined,
+          uuid: selectedUuid || undefined,
+        },
+      };
       await connectAndSend(msg);
       // Success - message handlers will update store and effect will navigate
     } catch (error) {
@@ -213,6 +247,11 @@ export default function HostLanding() {
               </div>
             ) : (
               <div className="flex flex-col items-center gap-4">
+                <EventPicker
+                  events={events}
+                  selectedUuid={selectedUuid}
+                  onChange={setSelectedUuid}
+                />
                 <div className="flex items-center gap-2">
                   <Input
                     value={customGameCode}
@@ -224,7 +263,9 @@ export default function HostLanding() {
                   <Button
                     variant="primary"
                     onClick={() => createGame(true)}
-                    disabled={isCreatingGame || !customGameCode}
+                    disabled={
+                      isCreatingGame || !customGameCode || !selectedUuid
+                    }
                   >
                     Create Game
                   </Button>
@@ -232,7 +273,7 @@ export default function HostLanding() {
                 <Button
                   variant="secondary"
                   onClick={() => createGame(false)}
-                  disabled={isCreatingGame}
+                  disabled={isCreatingGame || !selectedUuid}
                   className="flex flex-col items-center py-4"
                 >
                   <span>Create Game</span>
@@ -259,5 +300,47 @@ export default function HostLanding() {
         </a>
       </footer>
     </div>
+  );
+}
+
+interface EventPickerProps {
+  events: EventSummary[] | null;
+  selectedUuid: string;
+  onChange: (uuid: string) => void;
+}
+
+function EventPicker({ events, selectedUuid, onChange }: EventPickerProps) {
+  if (events === null) {
+    return <p className="text-sm text-gray-500">Loading events…</p>;
+  }
+  if (events.length === 0) {
+    return (
+      <p className="text-sm text-gray-600">
+        No events yet.{" "}
+        <Link to="/host/events" className="underline">
+          Create your first event
+        </Link>
+        .
+      </p>
+    );
+  }
+  return (
+    <label className="flex items-center gap-2 text-sm">
+      <span className="text-gray-700">Event:</span>
+      <select
+        value={selectedUuid}
+        onChange={(e) => onChange(e.target.value)}
+        className="border border-gray-400 rounded px-2 py-1 bg-white"
+      >
+        {events.map((e) => (
+          <option key={e.uuid} value={e.uuid}>
+            {e.subtitle ? `${e.title} — ${e.subtitle}` : e.title}
+          </option>
+        ))}
+      </select>
+      <Link to="/host/events" className="underline text-gray-600 text-xs">
+        manage
+      </Link>
+    </label>
   );
 }
