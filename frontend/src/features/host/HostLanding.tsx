@@ -30,8 +30,8 @@ export default function HostLanding() {
   const [selectedUuid, setSelectedUuid] = useState<string>("");
   const hasNavigated = useRef(false);
 
-  // Load the events list once the user is confirmed as a host (in local
-  // mode this fires immediately).
+  // Load the events list once the user is confirmed as a host. Selecting an
+  // event is opt-in — default is "None" (no presentation).
   useEffect(() => {
     if (!isHost) return;
     let cancelled = false;
@@ -39,7 +39,6 @@ export default function HostLanding() {
       .then((rows) => {
         if (cancelled) return;
         setEvents(rows);
-        if (rows.length > 0) setSelectedUuid(rows[0].uuid);
       })
       .catch((e) => {
         if (cancelled) return;
@@ -57,11 +56,6 @@ export default function HostLanding() {
   }, []);
 
   useEffect(() => {
-    if (isLocalMode) {
-      setIsHost(true);
-      return;
-    }
-
     const checkGroup = async () => {
       try {
         const session = await fetchAuthSession();
@@ -137,21 +131,36 @@ export default function HostLanding() {
     setCustomGameCode(value.toUpperCase());
   };
 
-  // Navigate to game page when game is created (gameCode is set), and open
-  // the projector window for the selected event.
+  // Navigate to game page when game is created (gameCode is set). The
+  // projector window is opened up front in createGame (during the user
+  // click) so the popup-blocker and focus shift don't fight with this
+  // post-await navigation.
   useEffect(() => {
     if (gameCode && !hasNavigated.current) {
       hasNavigated.current = true;
       saveHostRejoin({ gameCode });
-      if (selectedUuid) {
-        window.open(`/present/${selectedUuid}`, "_blank", "noopener");
-      }
       navigate("/host/game");
     }
-  }, [gameCode, navigate, selectedUuid]);
+  }, [gameCode, navigate]);
 
   const createGame = async (useCustomCode: boolean) => {
     setIsCreatingGame(true);
+
+    // Open the projector window synchronously in response to the click so
+    // (a) the popup blocker treats it as user-initiated, and (b) the focus
+    // shift happens before the post-await navigation, not in the middle of
+    // it (which previously left the host tab stuck on this page).
+    if (selectedUuid) {
+      const { screen } = window;
+      const width = Math.min(1600, screen.availWidth);
+      const height = Math.min(1000, screen.availHeight);
+      window.open(
+        `/present/${selectedUuid}`,
+        "_blank",
+        `popup,noopener,width=${width},height=${height}`
+      );
+    }
+
     try {
       const msg: HostClientMessage = {
         host: {
@@ -263,9 +272,7 @@ export default function HostLanding() {
                   <Button
                     variant="primary"
                     onClick={() => createGame(true)}
-                    disabled={
-                      isCreatingGame || !customGameCode || !selectedUuid
-                    }
+                    disabled={isCreatingGame || !customGameCode}
                   >
                     Create Game
                   </Button>
@@ -273,7 +280,7 @@ export default function HostLanding() {
                 <Button
                   variant="secondary"
                   onClick={() => createGame(false)}
-                  disabled={isCreatingGame || !selectedUuid}
+                  disabled={isCreatingGame}
                   className="flex flex-col items-center py-4"
                 >
                   <span>Create Game</span>
@@ -313,17 +320,6 @@ function EventPicker({ events, selectedUuid, onChange }: EventPickerProps) {
   if (events === null) {
     return <p className="text-sm text-gray-500">Loading events…</p>;
   }
-  if (events.length === 0) {
-    return (
-      <p className="text-sm text-gray-600">
-        No events yet.{" "}
-        <Link to="/host/events" className="underline">
-          Create your first event
-        </Link>
-        .
-      </p>
-    );
-  }
   return (
     <label className="flex items-center gap-2 text-sm">
       <span className="text-gray-700">Event:</span>
@@ -332,6 +328,7 @@ function EventPicker({ events, selectedUuid, onChange }: EventPickerProps) {
         onChange={(e) => onChange(e.target.value)}
         className="border border-gray-400 rounded px-2 py-1 bg-white"
       >
+        <option value="">None</option>
         {events.map((e) => (
           <option key={e.uuid} value={e.uuid}>
             {e.subtitle ? `${e.title} — ${e.subtitle}` : e.title}

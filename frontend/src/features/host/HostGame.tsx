@@ -54,9 +54,16 @@ export default function HostGame() {
     return subscribeToHostMessages();
   }, []);
 
-  // Auto-rejoin: check for saved game code on mount
+  // Auto-rejoin: check for saved game code on mount. Skip if the store
+  // already has the game loaded (e.g., we just navigated here from
+  // HostLanding after creating a game), otherwise we'd send a duplicate
+  // createGame and clobber the live state.
   useEffect(() => {
     if (hasAttemptedRejoin.current) return;
+    if (useHostStore.getState().gameCode) {
+      hasAttemptedRejoin.current = true;
+      return;
+    }
 
     const rejoinData = getHostRejoin();
     if (!rejoinData) return;

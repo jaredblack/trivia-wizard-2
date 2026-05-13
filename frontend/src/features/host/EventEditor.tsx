@@ -248,6 +248,7 @@ function findSlideBlockEndLine(
   if (slideStart === -1) return lineNumber;
 
   const lineCount = model.getLineCount();
+  let lastContent = slideStart;
   for (let n = slideStart + 1; n <= lineCount; n++) {
     const line = model.getLineContent(n);
     if (/^\s*$/.test(line) || /^\s*#/.test(line)) continue;
@@ -255,12 +256,13 @@ function findSlideBlockEndLine(
     if (!m) continue;
     const indent = m[1].length;
     const firstChar = m[2];
-    // Dedent past the slide's own indent → block ended.
-    if (indent < slideIndent) return n - 1;
-    // Sibling slide at the same indent → block ended just before.
-    if (indent === slideIndent && firstChar === "-") return n - 1;
+    // Dedent past the slide's own indent, or sibling slide at the same
+    // indent → block ended at the last content line we saw.
+    if (indent < slideIndent) return lastContent;
+    if (indent === slideIndent && firstChar === "-") return lastContent;
+    lastContent = n;
   }
-  return lineCount;
+  return lastContent;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────
@@ -581,18 +583,39 @@ export default function EventEditor() {
           if (!pos || !model) return;
           const indent = QUESTION_INDENT;
           const inner = indent + "  ";
-          // Anchor at the end of the enclosing slide so the new block lands
-          // after the current question, not in the middle of it.
-          const anchorLine = findSlideBlockEndLine(model, pos.lineNumber);
-          const eol = model.getLineMaxColumn(anchorLine);
-          ed.setPosition({ lineNumber: anchorLine, column: eol });
-          ed.trigger("keyboard", "type", { text: "\n" });
-          ed.setPosition({ lineNumber: anchorLine + 1, column: 1 });
+          const currentLine = model.getLineContent(pos.lineNumber);
+          let insertLine: number;
+          if (/^\s*$/.test(currentLine)) {
+            // Cursor on a blank line — fill it in place.
+            if (currentLine.length > 0) {
+              ed.executeEdits("trivia.newQuestion.clearBlank", [
+                {
+                  range: new monaco.Range(
+                    pos.lineNumber,
+                    1,
+                    pos.lineNumber,
+                    currentLine.length + 1
+                  ),
+                  text: "",
+                },
+              ]);
+            }
+            insertLine = pos.lineNumber;
+          } else {
+            // Anchor at the end of the enclosing slide so the new block lands
+            // after the current question, not in the middle of it.
+            const anchorLine = findSlideBlockEndLine(model, pos.lineNumber);
+            const eol = model.getLineMaxColumn(anchorLine);
+            ed.setPosition({ lineNumber: anchorLine, column: eol });
+            ed.trigger("keyboard", "type", { text: "\n" });
+            insertLine = anchorLine + 1;
+          }
+          ed.setPosition({ lineNumber: insertLine, column: 1 });
           const snippet =
             `${indent}- type: question\n` +
             `${inner}id: ${id}\n` +
             `${inner}question: \${1:question text}\n` +
-            `${inner}answer: \${2:answer text}\n`;
+            `${inner}answer: \${2:answer text}`;
           const snippetController = ed.getContribution(
             "snippetController2"
           ) as { insert(s: string): void } | null;
