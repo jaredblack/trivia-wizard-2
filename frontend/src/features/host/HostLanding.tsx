@@ -21,7 +21,7 @@ export default function HostLanding() {
   const { connectionState, connectAndSend } = useWebSocket();
 
   const [serverRunning, setServerRunning] = useState(false);
-  const [isHost, setIsHost] = useState(false);
+  const [isHost, setIsHost] = useState(isLocalMode);
   const [isStartingServer, setIsStartingServer] = useState(false);
   const [serverStartFailed, setServerStartFailed] = useState(false);
   const [customGameCode, setCustomGameCode] = useState("");
@@ -56,6 +56,7 @@ export default function HostLanding() {
   }, []);
 
   useEffect(() => {
+    if (isLocalMode) return;
     const checkGroup = async () => {
       try {
         const session = await fetchAuthSession();

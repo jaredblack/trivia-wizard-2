@@ -7,14 +7,9 @@ import {
 } from "@aws-sdk/client-s3";
 import { nanoid } from "nanoid";
 import yaml from "js-yaml";
-import { ASSETS_BUCKET, AWS_REGION, getCredentials } from "../aws";
-
-export class ConflictError extends Error {
-  constructor(message = "ETag conflict") {
-    super(message);
-    this.name = "ConflictError";
-  }
-}
+import { ASSETS_BUCKET, AWS_REGION, getCredentials } from "../../aws";
+import { ConflictError, type EventsBackend, type EventSummary } from "./types";
+import { scaffoldYaml } from "./scaffold";
 
 let _client: S3Client | null = null;
 async function client(): Promise<S3Client> {
@@ -28,35 +23,7 @@ async function client(): Promise<S3Client> {
 
 const eventKey = (uuid: string) => `events/${uuid}/event.yaml`;
 
-function randomQuestionId(): string {
-  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  let id = "";
-  for (let i = 0; i < 3; i++) {
-    id += letters[Math.floor(Math.random() * letters.length)];
-  }
-  return id;
-}
-
-function scaffoldYaml(): string {
-  return `title: Untitled
-subtitle: ''
-slides:
-  - type: image
-    title: |
-      One person from each team:
-      Join the game on Trivia Wizard
-      Game code: TODO
-    image: trivia-wizard-join-qr
-  - type: category
-    title: First Category
-  - type: question
-    id: ${randomQuestionId()}
-    question: Sample question?
-    answer: Sample answer
-`;
-}
-
-export async function listEventUuids(): Promise<string[]> {
+async function listEventUuids(): Promise<string[]> {
   const c = await client();
   const uuids: string[] = [];
   let token: string | undefined;
@@ -78,7 +45,7 @@ export async function listEventUuids(): Promise<string[]> {
   return uuids;
 }
 
-export async function getYaml(
+async function getYaml(
   uuid: string
 ): Promise<{ text: string; etag: string }> {
   const c = await client();
@@ -90,7 +57,7 @@ export async function getYaml(
   return { text, etag: res.ETag };
 }
 
-export async function putYaml(
+async function putYaml(
   uuid: string,
   text: string,
   ifMatch: string
@@ -116,7 +83,7 @@ export async function putYaml(
   }
 }
 
-export async function listEventImages(uuid: string): Promise<string[]> {
+async function listEventImages(uuid: string): Promise<string[]> {
   const c = await client();
   const files: string[] = [];
   const prefix = `events/${uuid}/images/`;
@@ -140,7 +107,7 @@ export async function listEventImages(uuid: string): Promise<string[]> {
   return files;
 }
 
-export async function putImagesManifest(
+async function putImagesManifest(
   uuid: string,
   files: string[]
 ): Promise<void> {
@@ -155,17 +122,7 @@ export async function putImagesManifest(
   );
 }
 
-export interface EventSummary {
-  uuid: string;
-  title: string;
-  subtitle: string | null;
-  lastModified: Date;
-}
-
-// Convenience wrapper: lists events and fetches each event.yaml + HEAD in
-// parallel. Used by both /host/events (full list view) and /host (game-night
-// picker). Sorted by lastModified desc.
-export async function listEvents(): Promise<EventSummary[]> {
+async function listEvents(): Promise<EventSummary[]> {
   const c = await client();
   const uuids = await listEventUuids();
   const rows = await Promise.all(
@@ -191,7 +148,7 @@ export async function listEvents(): Promise<EventSummary[]> {
   return rows;
 }
 
-export async function mintEvent(): Promise<string> {
+async function mintEvent(): Promise<string> {
   const c = await client();
   const uuid = nanoid(8);
   await c.send(
@@ -204,3 +161,13 @@ export async function mintEvent(): Promise<string> {
   );
   return uuid;
 }
+
+export const s3Backend: EventsBackend = {
+  listEventUuids,
+  listEvents,
+  getYaml,
+  putYaml,
+  listEventImages,
+  putImagesManifest,
+  mintEvent,
+};
