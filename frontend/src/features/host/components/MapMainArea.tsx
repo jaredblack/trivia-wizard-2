@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef, useEffect, useState } from "react";
 import { APIProvider, Map, AdvancedMarker, Pin, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
 import type { MapMouseEvent } from "@vis.gl/react-google-maps";
 import AnswerList from "./AnswerList";
@@ -6,6 +6,8 @@ import AutoSubmitNumericInput from "./AutoSubmitNumericInput";
 import type { Question, TeamData, ScoreData, MapConfig } from "../../../types";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "";
+// Bypasses Google Maps to make E2E tests deterministic; see playwright.config.ts.
+const TEST_MODE = import.meta.env.VITE_TEST_MODE === "true";
 const MAP_ID = "trivia-host-map";
 
 interface MapMainAreaProps {
@@ -207,7 +209,115 @@ function MapContent({
   );
 }
 
+function MapTestModeArea({
+  question,
+  questionNumber,
+  teams,
+  mapConfig,
+  onScoreAnswer,
+  onSetCorrectLocation,
+  onMapConfigChange,
+}: MapMainAreaProps) {
+  const correctLocation = question.mapCorrectLocation ?? null;
+  const [latInput, setLatInput] = useState("");
+  const [lngInput, setLngInput] = useState("");
+
+  const handleSet = () => {
+    const lat = parseFloat(latInput);
+    const lng = parseFloat(lngInput);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      onSetCorrectLocation([lat, lng]);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex flex-wrap items-center gap-4 p-4 m-4 rounded-2xl bg-gray-100">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600">Lat</label>
+          <input
+            aria-label="Correct location lat"
+            value={latInput}
+            onChange={(e) => setLatInput(e.target.value)}
+            className="w-24 px-2 py-1 border bg-white border-gray-300 rounded-xl text-center"
+          />
+          <label className="text-sm text-gray-600">Lng</label>
+          <input
+            aria-label="Correct location lng"
+            value={lngInput}
+            onChange={(e) => setLngInput(e.target.value)}
+            className="w-24 px-2 py-1 border bg-white border-gray-300 rounded-xl text-center"
+          />
+          <button
+            aria-label="Set correct location"
+            onClick={handleSet}
+            className="px-3 py-1 bg-blue-500 text-white rounded-xl cursor-pointer"
+          >
+            Set
+          </button>
+        </div>
+
+        {correctLocation && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">
+              {correctLocation[0].toFixed(4)}, {correctLocation[1].toFixed(4)}
+            </span>
+            <button
+              onClick={() => onSetCorrectLocation(null)}
+              className="text-xs text-gray-500 hover:text-gray-700 underline cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600 whitespace-nowrap">
+            Full pts (km)
+          </label>
+          <AutoSubmitNumericInput
+            value={mapConfig.fullPointsDistanceKm}
+            onSubmit={(v) =>
+              onMapConfigChange({ ...mapConfig, fullPointsDistanceKm: Math.max(0, v) })
+            }
+            step="any"
+            min={0}
+            className="w-20 px-2 py-1 border bg-white border-gray-300 hover:border-gray-400 rounded-xl text-center"
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600 whitespace-nowrap">
+            1 pt (km)
+          </label>
+          <AutoSubmitNumericInput
+            value={mapConfig.onePointDistanceKm}
+            onSubmit={(v) =>
+              onMapConfigChange({ ...mapConfig, onePointDistanceKm: Math.max(1, v) })
+            }
+            step="any"
+            min={1}
+            className="w-24 px-2 py-1 border bg-white border-gray-300 hover:border-gray-400 rounded-xl text-center"
+          />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        <AnswerList
+          question={question}
+          questionNumber={questionNumber}
+          teams={teams}
+          onScoreAnswer={onScoreAnswer}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function MapMainArea(props: MapMainAreaProps) {
+  if (TEST_MODE) {
+    return <MapTestModeArea {...props} />;
+  }
   return (
     <APIProvider apiKey={API_KEY} libraries={["places"]}>
       <MapContent {...props} />

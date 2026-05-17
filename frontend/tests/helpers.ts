@@ -1,4 +1,4 @@
-import { Page, expect } from '@playwright/test';
+import { Browser, BrowserContext, Page, expect } from '@playwright/test';
 
 /**
  * Creates a game as host and returns the game code.
@@ -202,4 +202,52 @@ export async function submitNumericAnswer(page: Page, answer: string): Promise<v
   await page.getByPlaceholder('Enter a number').fill(answer);
   await page.getByRole('button', { name: 'Submit Answer' }).click();
   await expect(page.getByText('Submissions closed.')).toBeVisible();
+}
+
+/**
+ * Submits a map pin answer as a team. Requires the dev server to be running
+ * with VITE_TEST_MODE=true so that the lat/lng input escape hatch is rendered.
+ */
+export async function submitMapAnswer(
+  page: Page,
+  lat: number,
+  lng: number,
+): Promise<void> {
+  await page.getByLabel('Team pin lat').fill(String(lat));
+  await page.getByLabel('Team pin lng').fill(String(lng));
+  await page.getByRole('button', { name: 'Place pin' }).click();
+  await page.getByRole('button', { name: 'Submit Location' }).click();
+  await expect(page.getByText('Submissions closed.')).toBeVisible();
+}
+
+/**
+ * Sets the correct location for a map question as host. Requires VITE_TEST_MODE.
+ */
+export async function setMapCorrectLocation(
+  hostPage: Page,
+  lat: number,
+  lng: number,
+): Promise<void> {
+  await hostPage.getByLabel('Correct location lat').fill(String(lat));
+  await hostPage.getByLabel('Correct location lng').fill(String(lng));
+  await hostPage.getByRole('button', { name: 'Set correct location' }).click();
+}
+
+/**
+ * Connects a watcher to a game and returns the context and page.
+ * Used by watcher.spec.ts and timer.spec.ts; lives here to avoid duplication.
+ */
+export async function connectWatcher(
+  browser: Browser,
+  gameCode: string,
+): Promise<{ context: BrowserContext; page: Page }> {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto('/watch');
+
+  await page.getByLabel('Game Code').fill(gameCode);
+  await page.getByRole('button', { name: 'Watch Game' }).click();
+
+  await expect(page.getByText(`Scoreboard: ${gameCode}`)).toBeVisible();
+  return { context, page };
 }

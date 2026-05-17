@@ -1,5 +1,5 @@
 import { test, expect, Browser, BrowserContext, Page } from '@playwright/test';
-import { createGame } from './helpers';
+import { connectWatcher, createGame, submitAnswer } from './helpers';
 
 /**
  * Helper to join a team and return the context and page.
@@ -126,7 +126,68 @@ test.describe('Timer Functionality', () => {
     });
   });
 
-  test.describe('4.2 Timer-Based Submission Restrictions', () => {
+  test.describe('4.2 Auto-Pause On All Submissions', () => {
+    test('timer auto-pauses when all teams submit (host)', async ({ browser }) => {
+      // Commit 3b96475: once every joined team submits, the backend pauses
+      // the timer automatically. Verify via the host's pause/play button.
+      const hostContext = await browser.newContext();
+      const hostPage = await hostContext.newPage();
+      const gameCode = await createGame(hostPage);
+
+      const teamA = await joinTeamHelper(browser, gameCode, 'Alpha', 'Alice', 'Orange');
+      const teamB = await joinTeamHelper(browser, gameCode, 'Bravo', 'Bob', 'Blue');
+
+      await hostPage.getByRole('button', { name: 'Start timer' }).click();
+      await expect(hostPage.getByRole('button', { name: 'Pause timer' })).toBeVisible();
+
+      // First submission: timer still running.
+      await submitAnswer(teamA.page, 'team-A-answer');
+      await expect(hostPage.getByRole('button', { name: 'Pause timer' })).toBeVisible();
+
+      // Last submission: timer auto-pauses, host's button reverts to Start.
+      await submitAnswer(teamB.page, 'team-B-answer');
+      await expect(hostPage.getByRole('button', { name: 'Start timer' })).toBeVisible();
+
+      await teamA.context.close();
+      await teamB.context.close();
+      await hostContext.close();
+    });
+
+    // Expected to fail: the auto-pause backend path (backend/src/model/game.rs:790)
+    // sets timer_running = false but does NOT call broadcast_scoreboard_data,
+    // so watchers don't see the flip. Host-initiated pause works fine (covered
+    // in watcher.spec.ts). When the broadcast is added, this test will start
+    // passing and Playwright will flag the `test.fail` for removal.
+    test.fail('watcher sees timer auto-pause when all teams submit', async ({
+      browser,
+    }) => {
+      const hostContext = await browser.newContext();
+      const hostPage = await hostContext.newPage();
+      const gameCode = await createGame(hostPage);
+
+      const teamA = await joinTeamHelper(browser, gameCode, 'Alpha', 'Alice', 'Orange');
+      const teamB = await joinTeamHelper(browser, gameCode, 'Bravo', 'Bob', 'Blue');
+      const watcher = await connectWatcher(browser, gameCode);
+
+      const watcherTimer = watcher.page.locator('.font-mono.font-bold');
+
+      await hostPage.getByRole('button', { name: 'Start timer' }).click();
+      await expect(watcherTimer).toHaveClass(/text-green-600/);
+
+      await submitAnswer(teamA.page, 'team-A-answer');
+      await submitAnswer(teamB.page, 'team-B-answer');
+
+      // The flip we want the watcher to see — currently broken on the backend.
+      await expect(watcherTimer).toHaveClass(/text-gray-400/);
+
+      await watcher.context.close();
+      await teamA.context.close();
+      await teamB.context.close();
+      await hostContext.close();
+    });
+  });
+
+  test.describe('4.3 Timer-Based Submission Restrictions', () => {
     test('team cannot submit before timer starts', async ({ browser }) => {
       // Create a game as host
       const hostContext = await browser.newContext();
