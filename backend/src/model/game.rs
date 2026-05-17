@@ -915,10 +915,14 @@ impl Game {
             return false;
         };
 
-        // For multi-answer and numeric questions, only update bonus_points and override_points.
-        // question_points is derived from the correct set / numeric scoring, speed_bonus_points is recalculated.
+        // For auto-scored question types, only update bonus_points and override_points.
+        // question_points is derived from the auto-scoring path (correct set / numeric / map),
+        // speed_bonus_points is recalculated.
         let answer_kind = question.question_config.kind();
-        if answer_kind == QuestionKind::MultiAnswer || answer_kind == QuestionKind::Numeric {
+        if matches!(
+            answer_kind,
+            QuestionKind::MultiAnswer | QuestionKind::Numeric | QuestionKind::Map
+        ) {
             question.answers[answer_idx].score.bonus_points = score.bonus_points;
             question.answers[answer_idx].score.override_points = score.override_points;
 
@@ -1786,8 +1790,8 @@ mod tests {
     #[test]
     fn test_map_score_custom_config() {
         let config = MapConfig {
-            full_points_distance_km: 1.0,  // 1 km for full points
-            one_point_distance_km: 100.0,  // 1 point at 100 km
+            full_points_distance_km: 1.0, // 1 km for full points
+            one_point_distance_km: 100.0, // 1 point at 100 km
         };
         // Within threshold
         assert_eq!(calculate_map_score(0.5, 500, &config), 500);

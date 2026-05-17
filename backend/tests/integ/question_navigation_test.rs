@@ -1,7 +1,7 @@
 use crate::{TestClient, TestServer};
 use backend::model::client_message::{AnswerSubmission, ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::ServerMessage;
-use backend::model::types::{AnswerContent, ScoreData};
+use backend::model::types::{AnswerContent, QuestionKind, ScoreData};
 
 /// Tests the scenario where a team skips a question, answers a later question,
 /// then goes back to answer and score the earlier question.
@@ -434,5 +434,334 @@ async fn question_navigation_broadcasts_to_teams() {
             assert_eq!(state.current_question_number, 2);
         }
         other => panic!("Expected TeamGameState, got {other:?}"),
+    }
+}
+
+// === Score preservation across navigation, per question type ===
+
+async fn switch_question_type(
+    host: &mut TestClient,
+    teams: &mut [&mut TestClient],
+    question_number: usize,
+    question_type: QuestionKind,
+) {
+    host.send_json(&ClientMessage::Host(HostAction::UpdateQuestionSettings {
+        question_number,
+        timer_duration: 30,
+        question_points: 50,
+        bonus_increment: 5,
+        question_type,
+        speed_bonus_enabled: false,
+    }))
+    .await;
+    let _: ServerMessage = host.recv_json().await;
+    for team in teams.iter_mut() {
+        let _: ServerMessage = team.recv_json().await;
+    }
+}
+
+async fn start_timer(host: &mut TestClient, teams: &mut [&mut TestClient]) {
+    host.send_json(&ClientMessage::Host(HostAction::StartTimer))
+        .await;
+    let _: ServerMessage = host.recv_json().await;
+    for team in teams.iter_mut() {
+        let _: ServerMessage = team.recv_json().await;
+    }
+}
+
+async fn nav_next(host: &mut TestClient, teams: &mut [&mut TestClient]) {
+    host.send_json(&ClientMessage::Host(HostAction::NextQuestion))
+        .await;
+    let _: ServerMessage = host.recv_json().await;
+    for team in teams.iter_mut() {
+        let _: ServerMessage = team.recv_json().await;
+    }
+}
+
+async fn nav_prev(host: &mut TestClient, teams: &mut [&mut TestClient]) {
+    host.send_json(&ClientMessage::Host(HostAction::PrevQuestion))
+        .await;
+    let _: ServerMessage = host.recv_json().await;
+    for team in teams.iter_mut() {
+        let _: ServerMessage = team.recv_json().await;
+    }
+}
+
+#[tokio::test]
+async fn navigation_preserves_numeric_score() {
+    let server = TestServer::start().await;
+    let (mut host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
+    let mut team = TestClient::connect(&server.ws_url()).await;
+    team.join_game(&game_code, "Team1").await;
+    let _: ServerMessage = host.recv_json().await;
+
+    switch_question_type(&mut host, &mut [&mut team], 1, QuestionKind::Numeric).await;
+    start_timer(&mut host, &mut [&mut team]).await;
+
+    team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
+        team_name: "Team1".to_string(),
+        answer: AnswerSubmission::Single("42".to_string()),
+    }))
+    .await;
+    let _: ServerMessage = team.recv_json().await;
+    let _: ServerMessage = host.recv_json().await;
+
+    // Set correct answer → auto-scored
+    host.send_json(&ClientMessage::Host(HostAction::SetNumericCorrectAnswer {
+        question_number: 1,
+        correct_answer: Some(42.0),
+    }))
+    .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+
+    // Navigate to Q2 and back to Q1
+    nav_next(&mut host, &mut [&mut team]).await;
+    nav_prev(&mut host, &mut [&mut team]).await;
+
+    // Verify host state shows Q1's answer + score preserved
+    host.send_json(&ClientMessage::Host(HostAction::ResetTimer))
+        .await;
+    let response: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+    match response {
+        ServerMessage::GameState { state } => {
+            let answer = &state.questions[0].answers[0];
+            assert_eq!(answer.team_name, "Team1");
+            assert_eq!(answer.score.question_points, 50);
+            match &answer.content {
+                Some(AnswerContent::Single { answer_text }) => assert_eq!(answer_text, "42"),
+                other => panic!("Expected Single content, got {other:?}"),
+            }
+        }
+        other => panic!("Expected GameState, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn navigation_preserves_map_score() {
+    let server = TestServer::start().await;
+    let (mut host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
+    let mut team = TestClient::connect(&server.ws_url()).await;
+    team.join_game(&game_code, "Team1").await;
+    let _: ServerMessage = host.recv_json().await;
+
+    switch_question_type(&mut host, &mut [&mut team], 1, QuestionKind::Map).await;
+    start_timer(&mut host, &mut [&mut team]).await;
+
+    let target = (40.6892, -74.0445);
+    team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
+        team_name: "Team1".to_string(),
+        answer: AnswerSubmission::Coordinates {
+            lat: target.0,
+            lng: target.1,
+        },
+    }))
+    .await;
+    let _: ServerMessage = team.recv_json().await;
+    let _: ServerMessage = host.recv_json().await;
+
+    // Set correct location → auto-scored
+    host.send_json(&ClientMessage::Host(HostAction::SetMapCorrectLocation {
+        question_number: 1,
+        correct_location: Some(target),
+    }))
+    .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+
+    nav_next(&mut host, &mut [&mut team]).await;
+    nav_prev(&mut host, &mut [&mut team]).await;
+
+    host.send_json(&ClientMessage::Host(HostAction::ResetTimer))
+        .await;
+    let response: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+    match response {
+        ServerMessage::GameState { state } => {
+            let answer = &state.questions[0].answers[0];
+            assert_eq!(answer.score.question_points, 50);
+            match &answer.content {
+                Some(AnswerContent::Coordinates { lat, lng }) => {
+                    assert!((lat - target.0).abs() < 1e-9);
+                    assert!((lng - target.1).abs() < 1e-9);
+                }
+                other => panic!("Expected Coordinates content, got {other:?}"),
+            }
+        }
+        other => panic!("Expected GameState, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn navigation_preserves_multi_answer_score_and_correctness() {
+    let server = TestServer::start().await;
+    let (mut host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
+    let mut team = TestClient::connect(&server.ws_url()).await;
+    team.join_game(&game_code, "Team1").await;
+    let _: ServerMessage = host.recv_json().await;
+
+    switch_question_type(&mut host, &mut [&mut team], 1, QuestionKind::MultiAnswer).await;
+    start_timer(&mut host, &mut [&mut team]).await;
+
+    team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
+        team_name: "Team1".to_string(),
+        answer: AnswerSubmission::Multi(vec![
+            "alpha".to_string(),
+            "beta".to_string(),
+            "gamma".to_string(),
+        ]),
+    }))
+    .await;
+    let _: ServerMessage = team.recv_json().await;
+    let _: ServerMessage = host.recv_json().await;
+
+    // Toggle "alpha" (index 0) correct
+    host.send_json(&ClientMessage::Host(
+        HostAction::ToggleMultiAnswerCorrectness {
+            question_number: 1,
+            team_name: "Team1".to_string(),
+            sub_answer_index: 0,
+        },
+    ))
+    .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+
+    nav_next(&mut host, &mut [&mut team]).await;
+    nav_prev(&mut host, &mut [&mut team]).await;
+
+    host.send_json(&ClientMessage::Host(HostAction::ResetTimer))
+        .await;
+    let response: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+    match response {
+        ServerMessage::GameState { state } => {
+            let answer = &state.questions[0].answers[0];
+            match &answer.content {
+                Some(AnswerContent::Multi { answers, correct }) => {
+                    assert_eq!(
+                        answers,
+                        &vec!["alpha".to_string(), "beta".to_string(), "gamma".to_string()]
+                    );
+                    assert_eq!(correct, &vec![true, false, false]);
+                }
+                other => panic!("Expected Multi content, got {other:?}"),
+            }
+            assert!(
+                answer.score.question_points > 0,
+                "Expected non-zero score for 1/3 correct"
+            );
+        }
+        other => panic!("Expected GameState, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn navigation_preserves_scores_across_mixed_type_game() {
+    let server = TestServer::start().await;
+    let (mut host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
+    let mut team = TestClient::connect(&server.ws_url()).await;
+    team.join_game(&game_code, "Team1").await;
+    let _: ServerMessage = host.recv_json().await;
+
+    // Q1 Standard, Q2 Numeric, Q3 Map — set all up
+    // Q1 stays as default Standard
+    start_timer(&mut host, &mut [&mut team]).await;
+    team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
+        team_name: "Team1".to_string(),
+        answer: AnswerSubmission::Single("standard answer".to_string()),
+    }))
+    .await;
+    let _: ServerMessage = team.recv_json().await;
+    let _: ServerMessage = host.recv_json().await;
+    host.send_json(&ClientMessage::Host(HostAction::ScoreAnswer {
+        question_number: 1,
+        team_name: "Team1".to_string(),
+        score: ScoreData {
+            question_points: 50,
+            bonus_points: 0,
+            override_points: 0,
+            speed_bonus_points: 0,
+        },
+    }))
+    .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+
+    // Q2 Numeric
+    nav_next(&mut host, &mut [&mut team]).await;
+    switch_question_type(&mut host, &mut [&mut team], 2, QuestionKind::Numeric).await;
+    start_timer(&mut host, &mut [&mut team]).await;
+    team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
+        team_name: "Team1".to_string(),
+        answer: AnswerSubmission::Single("100".to_string()),
+    }))
+    .await;
+    let _: ServerMessage = team.recv_json().await;
+    let _: ServerMessage = host.recv_json().await;
+    host.send_json(&ClientMessage::Host(HostAction::SetNumericCorrectAnswer {
+        question_number: 2,
+        correct_answer: Some(100.0),
+    }))
+    .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+
+    // Q3 Map
+    nav_next(&mut host, &mut [&mut team]).await;
+    switch_question_type(&mut host, &mut [&mut team], 3, QuestionKind::Map).await;
+    start_timer(&mut host, &mut [&mut team]).await;
+    let target = (40.6892, -74.0445);
+    team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
+        team_name: "Team1".to_string(),
+        answer: AnswerSubmission::Coordinates {
+            lat: target.0,
+            lng: target.1,
+        },
+    }))
+    .await;
+    let _: ServerMessage = team.recv_json().await;
+    let _: ServerMessage = host.recv_json().await;
+    host.send_json(&ClientMessage::Host(HostAction::SetMapCorrectLocation {
+        question_number: 3,
+        correct_location: Some(target),
+    }))
+    .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+
+    // Navigate back to Q1, then forward to Q3
+    nav_prev(&mut host, &mut [&mut team]).await;
+    nav_prev(&mut host, &mut [&mut team]).await;
+    nav_next(&mut host, &mut [&mut team]).await;
+    nav_next(&mut host, &mut [&mut team]).await;
+
+    // Verify all questions still have their scored answers
+    host.send_json(&ClientMessage::Host(HostAction::ResetTimer))
+        .await;
+    let response: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+    match response {
+        ServerMessage::GameState { state } => {
+            assert_eq!(state.questions.len(), 3);
+            assert_eq!(
+                state.questions[0].question_config.kind(),
+                QuestionKind::Standard
+            );
+            assert_eq!(
+                state.questions[1].question_config.kind(),
+                QuestionKind::Numeric
+            );
+            assert_eq!(state.questions[2].question_config.kind(), QuestionKind::Map);
+
+            assert_eq!(state.questions[0].answers[0].score.question_points, 50);
+            assert_eq!(state.questions[1].answers[0].score.question_points, 50);
+            assert_eq!(state.questions[2].answers[0].score.question_points, 50);
+
+            // Cumulative team score = 150
+            assert_eq!(state.teams[0].score.question_points, 150);
+        }
+        other => panic!("Expected GameState, got {other:?}"),
     }
 }

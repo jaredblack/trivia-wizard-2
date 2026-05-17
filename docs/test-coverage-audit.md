@@ -124,5 +124,8 @@ Total: ~24 new tests, mostly mechanical given the existing helper patterns in ea
 ## Behavior questions worth confirming before writing tests
 
 1. **Map manual scoring** (Gap 6) — when host calls `ScoreAnswer` on a Map question, what *should* happen? Lock in current or change first?
+    > This is saying that score_answer will try to match text-identical coordinate submissions and apply equal points? That sounds wrong. We should change the code if that's what it is. Otherwise let's discuss more.
 2. **Auto-pause with 0 teams** — start timer with no teams joined: confirm intended behavior is "timer runs normally; auto-pause only triggers via submission".
+    > Auto-pause only triggers via submission.
 3. **Late-joining team after auto-pause** — does the host need to manually restart the timer for late joiners? (Almost certainly yes, but worth confirming so the test asserts the right thing.)
+    > Yes late joiner does need to restart after auto pause

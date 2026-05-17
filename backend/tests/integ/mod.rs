@@ -1,9 +1,11 @@
 mod answer_submission_test;
 mod authentication_test;
+mod auto_pause_test;
 mod auto_scoring_test;
 mod connection_and_game_creation_test;
 mod game_timer_test;
 mod host_reconnection_test;
+mod map_scoring_test;
 mod message_validation_test;
 mod numeric_scoring_test;
 mod question_navigation_test;

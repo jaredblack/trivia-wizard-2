@@ -4,7 +4,7 @@ use backend::model::client_message::{
     AnswerSubmission, ClientMessage, HostAction, TeamAction, WatcherAction,
 };
 use backend::model::server_message::ServerMessage;
-use backend::model::types::ScoreData;
+use backend::model::types::{QuestionKind, ScoreData};
 
 #[tokio::test]
 async fn watcher_receives_initial_scoreboard_data() {
@@ -213,4 +213,135 @@ async fn watcher_receives_update_when_team_score_override() {
         }
         other => panic!("Expected ScoreboardData message, got {other:?}"),
     }
+}
+
+/// Drain TimerTicks and other ScoreboardData until we see a scoreboard with the
+/// expected team's question_points reaching `expected_points`.
+async fn await_scoreboard_with_points(
+    watcher: &mut TestClient,
+    team_name: &str,
+    expected_points: i32,
+) {
+    loop {
+        let msg: ServerMessage = watcher.recv_json().await;
+        match msg {
+            ServerMessage::TimerTick { .. } => continue,
+            ServerMessage::ScoreboardData { data } => {
+                let team = data
+                    .teams
+                    .iter()
+                    .find(|t| t.team_name == team_name)
+                    .expect("team should be in scoreboard");
+                if team.score.question_points == expected_points {
+                    return;
+                }
+                // Keep draining until we see the expected score
+            }
+            other => panic!("Expected ScoreboardData or TimerTick, got {other:?}"),
+        }
+    }
+}
+
+#[tokio::test]
+async fn watcher_receives_update_on_numeric_auto_scoring() {
+    let server = TestServer::start().await;
+    let (mut host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
+
+    let mut team = TestClient::connect(&server.ws_url()).await;
+    team.join_game(&game_code, "Team1").await;
+    let _: ServerMessage = host.recv_json().await;
+
+    // Switch to numeric BEFORE the watcher connects to keep its inbox clean
+    host.send_json(&ClientMessage::Host(HostAction::UpdateQuestionSettings {
+        question_number: 1,
+        timer_duration: 30,
+        question_points: 50,
+        bonus_increment: 5,
+        question_type: QuestionKind::Numeric,
+        speed_bonus_enabled: false,
+    }))
+    .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+
+    let mut watcher = TestClient::connect(&server.ws_url()).await;
+    watcher.watch_game(&game_code).await;
+
+    host.send_json(&ClientMessage::Host(HostAction::StartTimer))
+        .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+    let _: ServerMessage = watcher.recv_json().await; // start-timer scoreboard
+
+    team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
+        team_name: "Team1".to_string(),
+        answer: AnswerSubmission::Single("42".to_string()),
+    }))
+    .await;
+    let _: ServerMessage = team.recv_json().await;
+    let _: ServerMessage = host.recv_json().await;
+
+    // Setting correct answer auto-scores AND broadcasts scoreboard to watchers
+    host.send_json(&ClientMessage::Host(HostAction::SetNumericCorrectAnswer {
+        question_number: 1,
+        correct_answer: Some(42.0),
+    }))
+    .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+
+    await_scoreboard_with_points(&mut watcher, "Team1", 50).await;
+}
+
+#[tokio::test]
+async fn watcher_receives_update_on_map_auto_scoring() {
+    let server = TestServer::start().await;
+    let (mut host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
+
+    let mut team = TestClient::connect(&server.ws_url()).await;
+    team.join_game(&game_code, "Team1").await;
+    let _: ServerMessage = host.recv_json().await;
+
+    host.send_json(&ClientMessage::Host(HostAction::UpdateQuestionSettings {
+        question_number: 1,
+        timer_duration: 30,
+        question_points: 50,
+        bonus_increment: 5,
+        question_type: QuestionKind::Map,
+        speed_bonus_enabled: false,
+    }))
+    .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+
+    let mut watcher = TestClient::connect(&server.ws_url()).await;
+    watcher.watch_game(&game_code).await;
+
+    host.send_json(&ClientMessage::Host(HostAction::StartTimer))
+        .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+    let _: ServerMessage = watcher.recv_json().await;
+
+    let target = (40.6892, -74.0445);
+    team.send_json(&ClientMessage::Team(TeamAction::SubmitAnswer {
+        team_name: "Team1".to_string(),
+        answer: AnswerSubmission::Coordinates {
+            lat: target.0,
+            lng: target.1,
+        },
+    }))
+    .await;
+    let _: ServerMessage = team.recv_json().await;
+    let _: ServerMessage = host.recv_json().await;
+
+    host.send_json(&ClientMessage::Host(HostAction::SetMapCorrectLocation {
+        question_number: 1,
+        correct_location: Some(target),
+    }))
+    .await;
+    let _: ServerMessage = host.recv_json().await;
+    let _: ServerMessage = team.recv_json().await;
+
+    await_scoreboard_with_points(&mut watcher, "Team1", 50).await;
 }
