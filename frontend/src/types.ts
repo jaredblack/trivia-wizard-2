@@ -76,12 +76,12 @@ export const defaultNumericConfig: NumericConfig = {
 
 export interface MapConfig {
   fullPointsDistanceKm: number;
-  zeroPointsDistanceKm: number;
+  onePointDistanceKm: number;
 }
 
 export const defaultMapConfig: MapConfig = {
   fullPointsDistanceKm: 0.025,
-  zeroPointsDistanceKm: 20000,
+  onePointDistanceKm: 10000,
 };
 
 // === Question Config (discriminated union by question kind) ===
@@ -114,7 +114,7 @@ export interface NumericQuestionConfig {
 export interface MapQuestionConfig {
   type: "map";
   fullPointsDistanceKm: number;
-  zeroPointsDistanceKm: number;
+  onePointDistanceKm: number;
 }
 
 export type QuestionConfig =

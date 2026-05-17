@@ -110,14 +110,14 @@ impl Default for NumericConfig {
 #[serde(rename_all = "camelCase")]
 pub struct MapConfig {
     pub full_points_distance_km: f64,
-    pub zero_points_distance_km: f64,
+    pub one_point_distance_km: f64,
 }
 
 impl Default for MapConfig {
     fn default() -> Self {
         Self {
-            full_points_distance_km: 0.025,   // 25 meters
-            zero_points_distance_km: 20000.0, // ~half Earth's circumference
+            full_points_distance_km: 0.025, // 25 meters
+            one_point_distance_km: 10000.0,
         }
     }
 }

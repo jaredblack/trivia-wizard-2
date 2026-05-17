@@ -144,15 +144,15 @@ function MapContent({
           />
         </div>
 
-        {/* Zero points distance */}
+        {/* One point distance */}
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-600 whitespace-nowrap">
-            Zero pts (km)
+            1 pt (km)
           </label>
           <AutoSubmitNumericInput
-            value={mapConfig.zeroPointsDistanceKm}
+            value={mapConfig.onePointDistanceKm}
             onSubmit={(v) =>
-              onMapConfigChange({ ...mapConfig, zeroPointsDistanceKm: Math.max(1, v) })
+              onMapConfigChange({ ...mapConfig, onePointDistanceKm: Math.max(1, v) })
             }
             step="any"
             min={1}

@@ -177,10 +177,10 @@
           "minimum": 0,
           "description": "[map] Within this distance of the correct location, full points are awarded."
         },
-        "zeroPointsDistanceKm": {
+        "onePointDistanceKm": {
           "type": "number",
           "minimum": 0,
-          "description": "[map] Beyond this distance, zero points are awarded."
+          "description": "[map] Distance at which a team scores exactly 1 point. Beyond this distance, scoring rounds to zero."
         }
       }
     },

@@ -179,14 +179,19 @@ fn haversine_distance_km(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
     EARTH_RADIUS_KM * c
 }
 
-/// Calculate score for a map question using GeoGuessr-style exponential decay.
-/// score = base_points * e^(-10 * distance / zero_points_distance)
+/// Calculate score for a map question using exponential decay.
+/// score = base_points * (1 / base_points)^(distance / one_point_distance_km)
+/// At distance = 0, score = base_points. At distance = one_point_distance_km, score = 1.
 /// Full points if within full_points_distance.
 fn calculate_map_score(distance_km: f64, base_points: u32, config: &MapConfig) -> i32 {
     if distance_km <= config.full_points_distance_km {
         return base_points as i32;
     }
-    let score = (base_points as f64) * (-10.0 * distance_km / config.zero_points_distance_km).exp();
+    if base_points <= 1 || config.one_point_distance_km <= 0.0 {
+        return 0;
+    }
+    let k = (base_points as f64).ln() / config.one_point_distance_km;
+    let score = (base_points as f64) * (-k * distance_km).exp();
     (score.floor() as i32).max(0)
 }
 
@@ -1756,25 +1761,24 @@ mod tests {
 
     #[test]
     fn test_map_score_moderate_distance() {
-        let config = MapConfig::default(); // zero_points_distance_km = 20000
-        // 100 km away: score = 1000 * e^(-10 * 100 / 20000) = 1000 * e^(-0.05) ≈ 951
+        let config = MapConfig::default(); // one_point_distance_km = 10000
+        // 100 km away: score = 1000 * (1/1000)^(100/10000) = 1000 * 1000^(-0.01) ≈ 933
         let score = calculate_map_score(100.0, 1000, &config);
-        assert!((score - 951).abs() <= 2, "Score was {score}");
+        assert!((score - 933).abs() <= 2, "Score was {score}");
     }
 
     #[test]
-    fn test_map_score_very_far() {
-        let config = MapConfig::default();
-        // 10000 km away: score = 1000 * e^(-10 * 10000 / 20000) = 1000 * e^(-5) ≈ 6
+    fn test_map_score_at_one_point_distance() {
+        let config = MapConfig::default(); // one_point_distance_km = 10000
+        // At one_point_distance: score = 1000 * (1/1000)^1 = 1
         let score = calculate_map_score(10000.0, 1000, &config);
-        assert!(score < 10, "Score was {score}");
-        assert!(score >= 0);
+        assert_eq!(score, 1);
     }
 
     #[test]
-    fn test_map_score_at_zero_distance() {
+    fn test_map_score_beyond_one_point_distance() {
         let config = MapConfig::default();
-        // At the zero_points_distance: score = 1000 * e^(-10) ≈ 0
+        // At 2x the one_point_distance: score = 1000 * (1/1000)^2 = 0.001 → floors to 0
         let score = calculate_map_score(20000.0, 1000, &config);
         assert_eq!(score, 0);
     }
@@ -1782,16 +1786,26 @@ mod tests {
     #[test]
     fn test_map_score_custom_config() {
         let config = MapConfig {
-            full_points_distance_km: 1.0,   // 1 km for full points
-            zero_points_distance_km: 100.0, // 100 km for zero
+            full_points_distance_km: 1.0,  // 1 km for full points
+            one_point_distance_km: 100.0,  // 1 point at 100 km
         };
         // Within threshold
         assert_eq!(calculate_map_score(0.5, 500, &config), 500);
         // At threshold edge
         assert_eq!(calculate_map_score(1.0, 500, &config), 500);
-        // Beyond threshold: 50 km away = 500 * e^(-10 * 50 / 100) = 500 * e^(-5) ≈ 3
+        // At one_point_distance: score = 500 * (1/500)^1 = 1
+        assert_eq!(calculate_map_score(100.0, 500, &config), 1);
+        // Halfway: score = 500 * (1/500)^0.5 = sqrt(500) ≈ 22
         let score = calculate_map_score(50.0, 500, &config);
-        assert!(score < 10, "Score was {score}");
+        assert!((score - 22).abs() <= 1, "Score was {score}");
+    }
+
+    #[test]
+    fn test_map_score_one_point_base_points() {
+        // Edge case: base_points = 1 means we can't compute ln meaningfully
+        let config = MapConfig::default();
+        assert_eq!(calculate_map_score(0.0, 1, &config), 1);
+        assert_eq!(calculate_map_score(100.0, 1, &config), 0);
     }
 
     #[test]
