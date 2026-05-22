@@ -394,7 +394,9 @@ export default function EventEditor() {
       etagRef.current = initial.etag;
 
       // Start auxiliary fetches in parallel — none block the editor mount.
-      const sharedManifestP = fetch("/cdn/images/manifest.json")
+      const sharedManifestP = fetch("/cdn/images/manifest.json", {
+        cache: "no-store",
+      })
         .then((r) => (r.ok ? (r.json() as Promise<string[]>) : []))
         .catch(() => [] as string[])
         .then((files) => {

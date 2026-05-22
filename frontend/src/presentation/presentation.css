@@ -161,6 +161,7 @@
   color: var(--text-primary);
   padding-left: 1.6em;
   margin: 0;
+  list-style-type: upper-alpha;
 }
 
 /* Matching columns */
@@ -179,6 +180,8 @@
   padding-left: 1.6em;
   margin: 0;
 }
+.presentation-root .matching-left  { list-style-type: decimal; }
+.presentation-root .matching-right { list-style-type: upper-alpha; }
 
 /* Images column — fills the right half and scales the image to fit */
 .presentation-root .question-images-col {

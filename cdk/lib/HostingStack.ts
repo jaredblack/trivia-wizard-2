@@ -64,6 +64,7 @@ export class HostingStack extends cdk.Stack {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(bucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
       },
       additionalBehaviors: {
         "/ws": {
@@ -94,7 +95,7 @@ export class HostingStack extends cdk.Stack {
           viewerProtocolPolicy:
             cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
-          cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+          cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
         },
         "/events/*": {
           origin: origins.S3BucketOrigin.withOriginAccessControl(
