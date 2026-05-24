@@ -300,6 +300,9 @@ export default function EventEditor() {
     ref: string
   ): { found: true; url: string } | { found: false; where: string } {
     const origin = window.location.origin;
+    if (/^https?:\/\//i.test(ref)) {
+      return { found: true, url: ref };
+    }
     if (ref.startsWith("./")) {
       const key = ref.slice(2).toLowerCase();
       const filename = eventImageMapRef.current.get(key);
