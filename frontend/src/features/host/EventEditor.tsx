@@ -742,6 +742,9 @@ export default function EventEditor() {
         setSaveState({ kind: "conflict" });
         return;
       }
+      // Surface the real exception — without this the cause is invisible:
+      // the message only reaches the UI as a hover tooltip on "error".
+      console.error("[editor] auto-save failed:", e);
       setSaveState({
         kind: "error",
         message: e instanceof Error ? e.message : String(e),

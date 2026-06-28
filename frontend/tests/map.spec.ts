@@ -69,6 +69,16 @@ async function setMapDistances(
 }
 
 /**
+ * Adjusts only the 1-pt distance threshold, leaving the full-points distance
+ * untouched. Used to vary that single knob both before and after a submission.
+ */
+async function setOnePointDistance(hostPage: Page, onePointKm: number): Promise<void> {
+  const oneInput = hostPage.getByText('1 pt (km)').locator('xpath=following-sibling::input');
+  await oneInput.fill(String(onePointKm));
+  await oneInput.press('Enter');
+}
+
+/**
  * Reads the question_points-only score (left-most large number) from a team's
  * answer card on the host page. Bonus and speed bonus are excluded by this
  * locator; the score span lives at the top of the card.
@@ -167,6 +177,43 @@ test.describe('Map question type', () => {
     await oneInput.fill('10000');
     await oneInput.press('Enter');
 
+    await expect(scoreFor(hostPage, 'Alpha')).toHaveText('40');
+
+    await team.context.close();
+    await hostContext.close();
+  });
+
+  test('adjusting the 1-pt threshold takes effect both before and after a submission', async ({
+    browser,
+  }) => {
+    // Isolates the 1-pt distance knob (full-points distance and pin held constant)
+    // to prove two things in one flow:
+    //   1. An adjustment made BEFORE the team submits is the value used to score
+    //      the pin (the last pre-submit value wins, not the initial one).
+    //   2. An adjustment made AFTER the team submits re-scores the existing answer.
+    // base_points = 50, full pts = 10 km, pin (0, 5) ≈ 555.97 km from (0, 0).
+    const hostContext = await browser.newContext();
+    const hostPage = await hostContext.newPage();
+    const gameCode = await createGame(hostPage);
+    await switchToMap(hostPage);
+    await setMapDistances(hostPage, 10, 100);
+    await setMapCorrectLocation(hostPage, 0, 0);
+
+    const team = await joinTeamHelper(browser, gameCode, 'Alpha', 'Alice', 'Orange');
+    await startTimer(hostPage);
+
+    // BEFORE submission: re-adjust the 1-pt distance from the initial 100 to 1000.
+    // No answers exist yet, so this just sets the value used at scoring time.
+    await setOnePointDistance(hostPage, 1000);
+
+    // (0, 5) ≈ 555.97 km. With onePoint=1000: floor(50 * (1/50)^0.556) ≈ 5.
+    // If the stale 100 km value had been used, decay would have driven this to 0.
+    await submitMapAnswer(team.page, 0, 5);
+    await expect(scoreFor(hostPage, 'Alpha')).toHaveText('5');
+
+    // AFTER submission: widen the 1-pt distance to 10000. Gentler decay →
+    // floor(50 * (1/50)^(555.97/10000)) = 40.
+    await setOnePointDistance(hostPage, 10000);
     await expect(scoreFor(hostPage, 'Alpha')).toHaveText('40');
 
     await team.context.close();
