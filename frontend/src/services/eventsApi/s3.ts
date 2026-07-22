@@ -16,7 +16,13 @@ async function client(): Promise<S3Client> {
   if (_client) return _client;
   _client = new S3Client({
     region: AWS_REGION,
-    credentials: await getCredentials(),
+    // Pass the provider *function*, not resolved credentials. The SDK memoizes
+    // the result and re-invokes the provider as the credentials near expiry, so
+    // each refresh re-runs fetchAuthSession + the identity-pool exchange and
+    // mints fresh STS creds. Resolving once here baked in a single ~1h
+    // credential, which is why long editor sessions started erroring on every
+    // save once it lapsed.
+    credentials: getCredentials,
   });
   return _client;
 }
