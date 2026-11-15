@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trivia Wizard — YAML Schema Guide</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --bg-elev: #171a21;
+    --bg-code: #11141a;
+    --panel: #1b1f29;
+    --border: #2a2f3a;
+    --text: #e6e9ef;
+    --muted: #9aa3b2;
+    --accent: #7aa2f7;
+    --accent-2: #9ece6a;
+    --warn: #e0af68;
+    --danger: #f7768e;
+    --key: #7dcfff;
+    --str: #9ece6a;
+    --com: #5c6370;
+    --num: #ff9e64;
+    --radius: 10px;
+    --maxw: 920px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .layout { display: flex; align-items: flex-start; gap: 0; }
+  nav.toc {
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    width: 260px; flex: 0 0 260px;
+    padding: 22px 16px 60px 22px;
+    border-right: 1px solid var(--border);
+    background: var(--bg-elev);
+  }
+  nav.toc h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; }
+  nav.toc a { display: block; color: var(--muted); text-decoration: none; padding: 3px 8px; border-radius: 6px; font-size: 14px; }
+  nav.toc a:hover { color: var(--text); background: var(--panel); }
+  nav.toc a.sub { padding-left: 20px; font-size: 13px; }
+  nav.toc .brand { font-weight: 700; font-size: 15px; color: var(--text); margin-bottom: 4px; }
+  nav.toc .brand small { display:block; font-weight: 400; color: var(--muted); font-size: 12px; }
+  main { flex: 1 1 auto; min-width: 0; padding: 40px 48px 120px; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; }
+  h1 { font-size: 30px; margin: 0 0 6px; }
+  .lede { color: var(--muted); font-size: 16px; margin: 0 0 8px; }
+  h2.section { font-size: 23px; margin: 56px 0 4px; padding-top: 12px; border-top: 1px solid var(--border); }
+  h3 { font-size: 18px; margin: 32px 0 6px; }
+  h4 { font-size: 15px; margin: 22px 0 4px; color: var(--text); }
+  p { margin: 10px 0; }
+  code {
+    font-family: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13.5px;
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 5px;
+    color: var(--key);
+  }
+  pre {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 12px 0;
+  }
+  pre code { background: none; border: none; padding: 0; color: var(--text); font-size: 13px; line-height: 1.65; }
+  /* token colors */
+  .k { color: var(--key); }     /* key */
+  .s { color: var(--str); }     /* string */
+  .n { color: var(--num); }     /* number/bool */
+  .c { color: var(--com); font-style: italic; } /* comment */
+  .p { color: var(--muted); }   /* punctuation/dash */
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  td code { font-size: 12.5px; white-space: nowrap; }
+  td.desc code { white-space: normal; }
+  .pill {
+    display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .03em;
+    padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border);
+    color: var(--muted); background: var(--panel); vertical-align: middle;
+  }
+  .pill.req { color: var(--danger); border-color: #4a2730; background: #2a1820; }
+  .pill.deck { color: var(--accent-2); border-color: #2f4327; background: #18220f; }
+  .pill.server { color: var(--accent); border-color: #29385a; background: #12182a; }
+  .note, .warn, .tip {
+    border: 1px solid var(--border); border-left-width: 4px;
+    border-radius: 8px; padding: 12px 16px; margin: 16px 0; background: var(--panel);
+  }
+  .note { border-left-color: var(--accent); }
+  .warn { border-left-color: var(--warn); }
+  .tip { border-left-color: var(--accent-2); }
+  .note .lbl, .warn .lbl, .tip .lbl { font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; display:block; margin-bottom: 3px; }
+  .note .lbl { color: var(--accent); }
+  .warn .lbl { color: var(--warn); }
+  .tip .lbl { color: var(--accent-2); }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 4px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 1000px) {
+    nav.toc { display: none; }
+    main { padding: 24px 18px 80px; }
+    .grid2 { grid-template-columns: 1fr; }
+  }
+  a.anchor { color: var(--accent); text-decoration: none; }
+  a.anchor:hover { text-decoration: underline; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  footer { color: var(--muted); font-size: 13px; margin-top: 60px; border-top: 1px solid var(--border); padding-top: 16px; }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc">
+  <div class="brand">Trivia Wizard<small>YAML Schema Guide</small></div>
+  <h2>Start here</h2>
+  <a href="#overview">Overview</a>
+  <a href="#mental-model">Two layers: deck vs server</a>
+  <a href="#top-level">Top-level document</a>
+  <h2>Slide types</h2>
+  <a href="#category" class="sub">category</a>
+  <a href="#question" class="sub">question</a>
+  <a href="#image" class="sub">image</a>
+  <a href="#custom" class="sub">custom</a>
+  <h2>Building blocks</h2>
+  <a href="#images">Images &amp; reveal timing</a>
+  <a href="#numbering">Question numbering &amp; IDs</a>
+  <a href="#config">Server config block</a>
+  <a href="#kinds">Question kinds</a>
+  <h2>Reference</h2>
+  <a href="#defaults">Defaults table</a>
+  <a href="#full-example">Full example deck</a>
+  <a href="#gotchas">Gotchas</a>
+</nav>
+
+<main>
+<div class="wrap">
+
+  <h1>Trivia Wizard — YAML Schema Guide</h1>
+  <p class="lede">Everything the trivia event YAML supports, what each field controls on the slides, and copy-paste examples.</p>
+  <p class="small muted">Generated from <code>frontend/src/features/host/trivia-schema.json</code> (authoritative schema), the presentation renderer <code>frontend/src/presentation/build.ts</code>, and type defaults in <code>frontend/src/types.ts</code>. Local reference — not deployed.</p>
+
+  <div class="legend">
+    <span class="pill req">required</span>
+    <span class="pill deck">slide-deck (visual)</span>
+    <span class="pill server">server config (gameplay)</span>
+  </div>
+
+  <!-- ===================== OVERVIEW ===================== -->
+  <h2 class="section" id="overview"><a class="anchor" href="#overview">#</a> Overview</h2>
+  <p>A trivia event is a single YAML document with a <code>title</code>, optional <code>subtitle</code>, and an ordered list of <code>slides</code>. Each slide has a <code>type</code> that selects how it renders and what fields it accepts.</p>
+
+<pre><code><span class="k">title</span><span class="p">:</span> <span class="s">Friday Night Trivia</span>
+<span class="k">subtitle</span><span class="p">:</span> <span class="s">Week 12</span>
+<span class="k">slides</span><span class="p">:</span>
+  <span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">category</span>      <span class="c"># section divider</span>
+    <span class="k">title</span><span class="p">:</span> <span class="s">Round 1 — Music</span>
+  <span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">question</span>      <span class="c"># a trivia question</span>
+    <span class="k">id</span><span class="p">:</span> <span class="s">mus</span>
+    <span class="k">question</span><span class="p">:</span> <span class="s">Who released "Thriller"?</span>
+    <span class="k">answer</span><span class="p">:</span> <span class="s">Michael Jackson</span>
+</code></pre>
+
+  <p>The four slide types are <code>category</code>, <code>question</code>, <code>image</code>, and <code>custom</code>. A <strong>title slide is auto-generated</strong> from the top-level <code>title</code>/<code>subtitle</code> and shown first — you don't add it yourself.</p>
+
+  <!-- ===================== MENTAL MODEL ===================== -->
+  <h2 class="section" id="mental-model"><a class="anchor" href="#mental-model">#</a> The one thing to understand: two layers</h2>
+  <p>Fields on a question fall into <strong>two independent layers</strong>. Keeping them straight explains almost every field in this guide.</p>
+  <div class="grid2">
+    <div class="tip">
+      <span class="lbl">Slide-deck layer (visual)</span>
+      What the audience sees on the projector. <code>question</code>, <code>answer</code>, <code>choices</code>, <code>matching</code>, <code>images</code>, <code>notes</code>, and the <code>category</code>/<code>image</code>/<code>custom</code> slides. <strong>Never sent to the server.</strong>
+    </div>
+    <div class="note">
+      <span class="lbl">Server config layer (gameplay)</span>
+      How Trivia Wizard scores the question: <code>questionKind</code>, <code>timerDuration</code>, <code>questionPoints</code>, <code>bonusIncrement</code>, <code>speedBonusEnabled</code>, and the <code>config</code> block. Sent <em>at question-creation time</em>.
+    </div>
+  </div>
+  <div class="warn">
+    <span class="lbl">Server fields are seed values, not locks</span>
+    Anything in the server-config layer is applied when the question is created, then <strong>host UI edits during the game always take precedence and are never reverted</strong>. Any omitted field falls back to the <em>current global default</em> at creation time. So YAML config sets the starting point; the host can override live.
+  </div>
+
+  <!-- ===================== TOP LEVEL ===================== -->
+  <h2 class="section" id="top-level"><a class="anchor" href="#top-level">#</a> Top-level document</h2>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Required</th><th class="desc">Controls</th></tr>
+    <tr><td><code>title</code></td><td>string</td><td><span class="pill req">yes</span></td><td class="desc">Big heading on the auto-generated title slide (first slide of the deck).</td></tr>
+    <tr><td><code>subtitle</code></td><td>string</td><td>no</td><td class="desc">Smaller line under the title on the title slide.</td></tr>
+    <tr><td><code>slides</code></td><td>array</td><td><span class="pill req">yes</span></td><td class="desc">Ordered list of slides. Rendered top-to-bottom after the title slide.</td></tr>
+  </table>
+  <p class="small muted">The document is strict: unknown top-level keys are rejected (<code>additionalProperties: false</code>). The same is true of every slide type — a typo'd field name is a validation error, not a silent no-op.</p>
+
+  <!-- ===================== CATEGORY ===================== -->
+  <h2 class="section" id="category"><a class="anchor" href="#category">#</a> <code>type: category</code> — section divider <span class="pill deck">visual</span></h2>
+  <p>A full-screen divider with a large centered title. Use it to announce rounds/categories. Purely visual; it is not a question and gets no number.</p>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Required</th><th class="desc">Controls</th></tr>
+    <tr><td><code>type</code></td><td><code>"category"</code></td><td><span class="pill req">yes</span></td><td class="desc">Selects this slide type.</td></tr>
+    <tr><td><code>title</code></td><td>string</td><td><span class="pill req">yes</span></td><td class="desc">Large centered category name.</td></tr>
+    <tr><td><code>subtitle</code></td><td>string</td><td>no</td><td class="desc">Smaller line below the title.</td></tr>
+    <tr><td><code>images</code></td><td>array of <a href="#images">imageRef</a></td><td>no</td><td class="desc">Decorative images shown in a row below the title. All shown immediately (no reveal logic on category slides).</td></tr>
+    <tr><td><code>notes</code></td><td>string</td><td>no</td><td class="desc">Speaker notes — visible only in the host/presenter view, never to the audience.</td></tr>
+  </table>
+<pre><code><span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">category</span>
+  <span class="k">title</span><span class="p">:</span> <span class="s">Round 2 — Geography</span>
+  <span class="k">subtitle</span><span class="p">:</span> <span class="s">Grab a map, it gets hard</span>
+  <span class="k">images</span><span class="p">:</span>
+    <span class="p">-</span> <span class="s">globe</span>            <span class="c"># shared image cdn/images/globe.*</span>
+    <span class="p">-</span> <span class="s">./compass</span>        <span class="c"># this event's images/compass.*</span>
+  <span class="k">notes</span><span class="p">:</span> <span class="s">Remind teams the tiebreaker is in this round.</span>
+</code></pre>
+
+  <!-- ===================== QUESTION ===================== -->
+  <h2 class="section" id="question"><a class="anchor" href="#question">#</a> <code>type: question</code> — a trivia question</h2>
+  <p>The workhorse slide. Top-level fields drive the on-screen layout; the <code>config</code> block plus a few peer fields configure scoring on the server. The renderer auto-picks a layout based on which fields are present.</p>
+
+  <h4>Slide-deck fields <span class="pill deck">visual</span></h4>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Required</th><th class="desc">Controls</th></tr>
+    <tr><td><code>type</code></td><td><code>"question"</code></td><td><span class="pill req">yes</span></td><td class="desc">Selects this slide type.</td></tr>
+    <tr><td><code>id</code></td><td>string, 3 letters</td><td><span class="pill req">yes</span></td><td class="desc">Stable ID matching <code>^[A-Za-z]{3}$</code>. Drives the displayed question number — see <a href="#numbering">numbering</a>.</td></tr>
+    <tr><td><code>question</code></td><td>string</td><td><span class="pill req">yes</span></td><td class="desc">Rendered as <code>Q: …</code> at the top of the slide.</td></tr>
+    <tr><td><code>answer</code></td><td>string</td><td>no</td><td class="desc">Rendered as <code>A: …</code> but hidden until you advance — appears as a reveal fragment. Slide-deck only; never sent to the server.</td></tr>
+    <tr><td><code>choices</code></td><td>array of string</td><td>no</td><td class="desc">Multiple-choice options rendered as an A/B/C… list. <strong>Also implies <code>questionKind: multipleChoice</code></strong> when kind is omitted (see note below).</td></tr>
+    <tr><td><code>matching</code></td><td><code>{left[], right[]}</code></td><td>no</td><td class="desc">Two-column matching exercise: numbered left column, lettered right column. Slide-deck only.</td></tr>
+    <tr><td><code>images</code></td><td>array of <a href="#images">imageRef</a></td><td>no</td><td class="desc">Question images with reveal timing &amp; position. See <a href="#images">Images</a>.</td></tr>
+    <tr><td><code>notes</code></td><td>string</td><td>no</td><td class="desc">Host-only speaker notes.</td></tr>
+  </table>
+
+  <h4>Server-config peer fields <span class="pill server">gameplay</span></h4>
+  <table>
+    <tr><th>Field</th><th>Type</th><th class="desc">Controls</th></tr>
+    <tr><td><code>questionKind</code></td><td><code>standard</code> · <code>multiAnswer</code> · <code>multipleChoice</code> · <code>numeric</code> · <code>map</code></td><td class="desc">How teams answer &amp; how it's scored. Omitted → current global default, <em>except</em> presence of <code>choices</code> implies <code>multipleChoice</code>.</td></tr>
+    <tr><td><code>timerDuration</code></td><td>integer ≥ 1</td><td class="desc">Per-question countdown in seconds. Omitted → global default.</td></tr>
+    <tr><td><code>questionPoints</code></td><td>integer ≥ 0</td><td class="desc">Points for a correct answer. Omitted → global default.</td></tr>
+    <tr><td><code>bonusIncrement</code></td><td>integer ≥ 0</td><td class="desc">Step size for the host's manual bonus +/− buttons. Omitted → global default.</td></tr>
+    <tr><td><code>speedBonusEnabled</code></td><td>boolean</td><td class="desc">Whether the speed bonus applies to this question. Omitted → global default.</td></tr>
+    <tr><td><code>config</code></td><td>object</td><td class="desc">Kind-specific scoring config — see <a href="#config">the config block</a>.</td></tr>
+  </table>
+
+  <div class="note">
+    <span class="lbl">choices is the one dual-purpose field</span>
+    <code>choices</code> does two jobs: it draws the A/B/C list on the slide <em>and</em>, when <code>questionKind</code> is omitted, it tells the server this is a <code>multipleChoice</code> question with <code>numOptions</code> = number of choices. Set <code>questionKind</code> explicitly if you want to show options on screen but score it as some other kind.
+  </div>
+
+  <h4>Minimal question</h4>
+<pre><code><span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">question</span>
+  <span class="k">id</span><span class="p">:</span> <span class="s">cap</span>
+  <span class="k">question</span><span class="p">:</span> <span class="s">What is the capital of Australia?</span>
+  <span class="k">answer</span><span class="p">:</span> <span class="s">Canberra</span>
+</code></pre>
+
+  <h4>Multiple choice (kind inferred from <code>choices</code>)</h4>
+<pre><code><span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">question</span>
+  <span class="k">id</span><span class="p">:</span> <span class="s">flm</span>
+  <span class="k">question</span><span class="p">:</span> <span class="s">Which film won Best Picture in 1994?</span>
+  <span class="k">choices</span><span class="p">:</span>
+    <span class="p">-</span> <span class="s">Pulp Fiction</span>
+    <span class="p">-</span> <span class="s">Forrest Gump</span>
+    <span class="p">-</span> <span class="s">The Shawshank Redemption</span>
+    <span class="p">-</span> <span class="s">The Lion King</span>
+  <span class="k">answer</span><span class="p">:</span> <span class="s">B — Forrest Gump</span>   <span class="c"># server gets multipleChoice, numOptions: 4</span>
+</code></pre>
+
+  <h4>Matching exercise</h4>
+<pre><code><span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">question</span>
+  <span class="k">id</span><span class="p">:</span> <span class="s">cty</span>
+  <span class="k">question</span><span class="p">:</span> <span class="s">Match the country to its capital.</span>
+  <span class="k">matching</span><span class="p">:</span>
+    <span class="k">left</span><span class="p">:</span>  <span class="p">[</span><span class="s">Japan</span><span class="p">,</span> <span class="s">Egypt</span><span class="p">,</span> <span class="s">Peru</span><span class="p">]</span>     <span class="c"># numbered 1,2,3</span>
+    <span class="k">right</span><span class="p">:</span> <span class="p">[</span><span class="s">Cairo</span><span class="p">,</span> <span class="s">Lima</span><span class="p">,</span> <span class="s">Tokyo</span><span class="p">]</span>     <span class="c"># lettered A,B,C</span>
+  <span class="k">answer</span><span class="p">:</span> <span class="s">1-C, 2-A, 3-B</span>
+</code></pre>
+
+  <h4>Question with kind + scoring config</h4>
+<pre><code><span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">question</span>
+  <span class="k">id</span><span class="p">:</span> <span class="s">pop</span>
+  <span class="k">question</span><span class="p">:</span> <span class="s">What's the population of Iceland (2024)?</span>
+  <span class="k">answer</span><span class="p">:</span> <span class="s">~393,000</span>
+  <span class="k">questionKind</span><span class="p">:</span> <span class="s">numeric</span>
+  <span class="k">timerDuration</span><span class="p">:</span> <span class="n">45</span>
+  <span class="k">questionPoints</span><span class="p">:</span> <span class="n">10</span>
+  <span class="k">speedBonusEnabled</span><span class="p">:</span> <span class="n">false</span>
+  <span class="k">config</span><span class="p">:</span>
+    <span class="k">scoringMode</span><span class="p">:</span> <span class="s">closestGuess</span>
+</code></pre>
+
+  <!-- ===================== IMAGE SLIDE ===================== -->
+  <h2 class="section" id="image"><a class="anchor" href="#image">#</a> <code>type: image</code> — title + one centered image <span class="pill deck">visual</span></h2>
+  <p>A slide with optional title text and a single centered image. The canonical use is the join-the-game QR code.</p>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Required</th><th class="desc">Controls</th></tr>
+    <tr><td><code>type</code></td><td><code>"image"</code></td><td><span class="pill req">yes</span></td><td class="desc">Selects this slide type.</td></tr>
+    <tr><td><code>title</code></td><td>string</td><td>no</td><td class="desc">Heading above the image. Use YAML <code>|</code> for multi-line text.</td></tr>
+    <tr><td><code>image</code></td><td>string (an image ref)</td><td>no</td><td class="desc">The centered image. Same resolution rules as elsewhere, but <strong>string form only</strong> — no reveal/position object here.</td></tr>
+    <tr><td><code>notes</code></td><td>string</td><td>no</td><td class="desc">Host-only speaker notes.</td></tr>
+  </table>
+<pre><code><span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">image</span>
+  <span class="k">title</span><span class="p">:</span> <span class="p">|</span>
+    <span class="s">One person from each team:</span>
+    <span class="s">Join the game on Trivia Wizard</span>
+    <span class="s">Game code: ABCD</span>
+  <span class="k">image</span><span class="p">:</span> <span class="s">trivia-wizard-join-qr</span>
+</code></pre>
+
+  <!-- ===================== CUSTOM SLIDE ===================== -->
+  <h2 class="section" id="custom"><a class="anchor" href="#custom">#</a> <code>type: custom</code> — raw HTML escape hatch <span class="pill deck">visual</span></h2>
+  <p>When the built-in slide types aren't enough, drop in your own HTML — either inline or from a file. The content is injected directly into a slide <code>&lt;section&gt;</code>.</p>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Required</th><th class="desc">Controls</th></tr>
+    <tr><td><code>type</code></td><td><code>"custom"</code></td><td><span class="pill req">yes</span></td><td class="desc">Selects this slide type.</td></tr>
+    <tr><td><code>html</code></td><td>string</td><td>no*</td><td class="desc">Inline HTML rendered as-is inside the slide.</td></tr>
+    <tr><td><code>file</code></td><td>string (path)</td><td>no*</td><td class="desc">Path to an HTML file, fetched and injected. <code>./slides/foo.html</code> → this event's folder; a bare path → the shared CDN; <code>/path</code> → passthrough.</td></tr>
+    <tr><td><code>notes</code></td><td>string</td><td>no</td><td class="desc">Host-only speaker notes.</td></tr>
+  </table>
+  <p class="small muted">*Provide one of <code>html</code> or <code>file</code>. For <code>file</code>: <code>http(s)://</code> URLs are rejected, and <code>..</code> path segments are rejected (they'd escape the bucket boundary).</p>
+<pre><code><span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">custom</span>
+  <span class="k">html</span><span class="p">:</span> <span class="s">'&lt;h1&gt;Intermission&lt;/h1&gt;&lt;p&gt;Back in 10 minutes&lt;/p&gt;'</span>
+<span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">custom</span>
+  <span class="k">file</span><span class="p">:</span> <span class="s">./slides/halftime.html</span>
+</code></pre>
+
+  <!-- ===================== IMAGES ===================== -->
+  <h2 class="section" id="images"><a class="anchor" href="#images">#</a> Images: references, reveal timing &amp; position</h2>
+
+  <h3>How an image reference resolves</h3>
+  <p>Anywhere an image is accepted, the string is resolved like this (matched by filename stem, minus extension, case-insensitive):</p>
+  <table>
+    <tr><th>You write</th><th class="desc">Resolves to</th></tr>
+    <tr><td><code>kfr</code></td><td class="desc">Shared CDN image: <code>cdn/images/kfr.&lt;ext&gt;</code>.</td></tr>
+    <tr><td><code>./kfr</code></td><td class="desc">This event's folder: <code>&lt;event&gt;/images/kfr.&lt;ext&gt;</code>.</td></tr>
+    <tr><td><code>/path/to/x.png</code></td><td class="desc">Absolute path — passthrough, unchanged.</td></tr>
+    <tr><td><code>https://…</code></td><td class="desc">Remote URL — passthrough, unchanged.</td></tr>
+  </table>
+  <div class="warn">
+    <span class="lbl">Resolution is strict</span>
+    If a bare/<code>./</code> name matches <strong>zero</strong> files in the manifest, or <strong>more than one</strong> (e.g. both <code>kfr.png</code> and <code>kfr.jpg</code>), the build throws an error. Keep stems unique.
+  </div>
+  <div class="tip">
+    <span class="lbl">Background convention</span>
+    The deck background is resolved from a shared image named <code>bg</code> (<code>cdn/images/bg.&lt;ext&gt;</code>). You don't reference it in YAML — just make sure a <code>bg</code> image exists.
+  </div>
+
+  <h3>Object form: <code>reveal</code> and <code>position</code> (question slides)</h3>
+  <p>On question slides, each image can be a string <em>or</em> an object with two knobs:</p>
+  <table>
+    <tr><th>Field</th><th>Values</th><th class="desc">Controls</th></tr>
+    <tr><td><code>url</code></td><td>image ref <span class="pill req">required</span></td><td class="desc">The image, using the resolution rules above.</td></tr>
+    <tr><td><code>reveal</code></td><td><code>question</code> · <code>answer</code></td><td class="desc"><code>question</code> = visible immediately. <code>answer</code> = appears with the answer reveal fragment.</td></tr>
+    <tr><td><code>position</code></td><td><code>side</code> · <code>center</code></td><td class="desc"><code>side</code> = right column beside the text (default). <code>center</code> = hero image filling the available space.</td></tr>
+  </table>
+
+  <div class="warn">
+    <span class="lbl">⚠ Schema vs. renderer: the <code>reveal</code> default differs</span>
+    The JSON schema's description says <code>reveal</code> defaults to <code>answer</code>, but the actual presentation renderer (<code>build.ts</code>) treats a <strong>missing <code>reveal</code> as <code>question</code></strong> — i.e. an image with no <code>reveal</code> shows immediately, not on the answer. To avoid ambiguity, <strong>set <code>reveal</code> explicitly</strong> whenever timing matters. (<code>position</code> defaults to <code>side</code> in both places — consistent.)
+  </div>
+
+  <h3>The "swap" behavior</h3>
+  <p>Within a position group (side or center), if you provide <strong>both</strong> a <code>question</code>-reveal image and an <code>answer</code>-reveal image, the renderer cross-fades them: the question image fades <em>out</em> and the answer image fades <em>in</em> when you advance. If you provide only an <code>answer</code> image, it simply appears alongside the answer.</p>
+<pre><code><span class="c"># Show a mystery photo, then swap to the labeled photo on reveal</span>
+<span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">question</span>
+  <span class="k">id</span><span class="p">:</span> <span class="s">act</span>
+  <span class="k">question</span><span class="p">:</span> <span class="s">Name this actor.</span>
+  <span class="k">answer</span><span class="p">:</span> <span class="s">Keanu Reeves</span>
+  <span class="k">images</span><span class="p">:</span>
+    <span class="p">-</span> <span class="k">url</span><span class="p">:</span> <span class="s">mystery-actor</span>
+      <span class="k">reveal</span><span class="p">:</span> <span class="s">question</span>
+      <span class="k">position</span><span class="p">:</span> <span class="s">center</span>
+    <span class="p">-</span> <span class="k">url</span><span class="p">:</span> <span class="s">actor-labeled</span>
+      <span class="k">reveal</span><span class="p">:</span> <span class="s">answer</span>
+      <span class="k">position</span><span class="p">:</span> <span class="s">center</span>
+</code></pre>
+
+  <!-- ===================== NUMBERING ===================== -->
+  <h2 class="section" id="numbering"><a class="anchor" href="#numbering">#</a> Question numbering &amp; the <code>id</code> field</h2>
+  <p>Displayed question numbers are <strong>not</strong> taken from <code>id</code> directly. Instead:</p>
+  <ul>
+    <li>Numbers are assigned <strong>by order of first appearance</strong> of each unique <code>id</code> (case-insensitive). The first distinct id seen is "Question 1", the next new id is "Question 2", and so on.</li>
+    <li>Two slides that <strong>share the same <code>id</code> share the same number</strong> — handy for a follow-up/context slide that belongs to the same question.</li>
+    <li>When several slides share an id but carry settings, the <strong>first occurrence's <code>config</code> and server overrides win.</strong></li>
+  </ul>
+<pre><code><span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">question</span>
+  <span class="k">id</span><span class="p">:</span> <span class="s">art</span>        <span class="c"># → Question 1</span>
+  <span class="k">question</span><span class="p">:</span> <span class="s">Who painted this?</span>
+  <span class="k">images</span><span class="p">:</span> <span class="p">[{</span> <span class="k">url</span><span class="p">:</span> <span class="s">painting</span><span class="p">,</span> <span class="k">reveal</span><span class="p">:</span> <span class="s">question</span><span class="p">,</span> <span class="k">position</span><span class="p">:</span> <span class="s">center</span> <span class="p">}]</span>
+<span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">question</span>
+  <span class="k">id</span><span class="p">:</span> <span class="s">art</span>        <span class="c"># → still Question 1 (same id), e.g. the answer reveal slide</span>
+  <span class="k">question</span><span class="p">:</span> <span class="s">Who painted this?</span>
+  <span class="k">answer</span><span class="p">:</span> <span class="s">Johannes Vermeer — Girl with a Pearl Earring</span>
+<span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">question</span>
+  <span class="k">id</span><span class="p">:</span> <span class="s">geo</span>        <span class="c"># → Question 2</span>
+  <span class="k">question</span><span class="p">:</span> <span class="s">…</span>
+</code></pre>
+
+  <!-- ===================== CONFIG ===================== -->
+  <h2 class="section" id="config"><a class="anchor" href="#config">#</a> The <code>config</code> block <span class="pill server">gameplay</span></h2>
+  <p>Server-side scoring configuration sent to Trivia Wizard when the question is created. Fields are interpreted <strong>according to <code>questionKind</code></strong>; settings that don't match the kind are ignored. Every field is optional and falls back to the current global default.</p>
+  <table>
+    <tr><th>Field</th><th>Applies to</th><th>Type</th><th class="desc">Controls</th></tr>
+    <tr><td><code>numAnswers</code></td><td><code>multiAnswer</code></td><td>int ≥ 1</td><td class="desc">Number of answer slots teams fill in.</td></tr>
+    <tr><td><code>optionType</code></td><td><code>multipleChoice</code></td><td><code>letters</code> · <code>numbers</code> · <code>yesNo</code> · <code>trueFalse</code> · <code>other</code></td><td class="desc">Label format teams pick from.</td></tr>
+    <tr><td><code>numOptions</code></td><td><code>multipleChoice</code></td><td>int ≥ 2</td><td class="desc">Number of options. Defaults to <code>choices.length</code> if <code>choices</code> is set, else the global default.</td></tr>
+    <tr><td><code>scoringMode</code></td><td><code>numeric</code></td><td><code>exactOnly</code> · <code>range</code> · <code>closestGuess</code></td><td class="desc">How submitted numbers are scored.</td></tr>
+    <tr><td><code>fullPointsDistanceKm</code></td><td><code>map</code></td><td>number ≥ 0</td><td class="desc">Within this distance of the target, full points.</td></tr>
+    <tr><td><code>onePointDistanceKm</code></td><td><code>map</code></td><td>number ≥ 0</td><td class="desc">Distance at which a guess scores exactly 1 point; beyond it, rounds to zero.</td></tr>
+  </table>
+  <div class="note">
+    <span class="lbl">Numeric: only scoringMode is settable from YAML</span>
+    For numeric questions, the remaining knobs (<code>rangeType</code>, <code>rangeValue</code>, <code>numWinners</code>, <code>rangeScoringType</code>) are <strong>not</strong> in the YAML schema — they stay host-adjusted at game time. YAML only seeds <code>scoringMode</code>.
+  </div>
+
+  <!-- ===================== KINDS ===================== -->
+  <h2 class="section" id="kinds"><a class="anchor" href="#kinds">#</a> Question kinds at a glance</h2>
+  <table>
+    <tr><th>Kind</th><th class="desc">How teams answer</th><th>Relevant config</th></tr>
+    <tr><td><code>standard</code></td><td class="desc">Free-text answer.</td><td>—</td></tr>
+    <tr><td><code>multipleChoice</code></td><td class="desc">Pick one labeled option. Inferred when <code>choices</code> is present.</td><td><code>optionType</code>, <code>numOptions</code></td></tr>
+    <tr><td><code>multiAnswer</code></td><td class="desc">Fill several answer slots (e.g. "name 3 …").</td><td><code>numAnswers</code></td></tr>
+    <tr><td><code>numeric</code></td><td class="desc">Submit a number; scored by distance/exactness.</td><td><code>scoringMode</code></td></tr>
+    <tr><td><code>map</code></td><td class="desc">Drop a pin on a map; scored by distance to target.</td><td><code>fullPointsDistanceKm</code>, <code>onePointDistanceKm</code></td></tr>
+  </table>
+
+  <h4>multiAnswer</h4>
+<pre><code><span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">question</span>
+  <span class="k">id</span><span class="p">:</span> <span class="s">grt</span>
+  <span class="k">question</span><span class="p">:</span> <span class="s">Name 3 of the Great Lakes.</span>
+  <span class="k">answer</span><span class="p">:</span> <span class="s">Any 3 of: Superior, Michigan, Huron, Erie, Ontario</span>
+  <span class="k">questionKind</span><span class="p">:</span> <span class="s">multiAnswer</span>
+  <span class="k">questionPoints</span><span class="p">:</span> <span class="n">9</span>
+  <span class="k">config</span><span class="p">:</span>
+    <span class="k">numAnswers</span><span class="p">:</span> <span class="n">3</span>      <span class="c"># 9 pts / 3 slots = 3 pts each</span>
+</code></pre>
+
+  <h4>multipleChoice with True/False labels</h4>
+<pre><code><span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">question</span>
+  <span class="k">id</span><span class="p">:</span> <span class="s">tfq</span>
+  <span class="k">question</span><span class="p">:</span> <span class="s">A tomato is botanically a fruit.</span>
+  <span class="k">answer</span><span class="p">:</span> <span class="s">True</span>
+  <span class="k">questionKind</span><span class="p">:</span> <span class="s">multipleChoice</span>
+  <span class="k">config</span><span class="p">:</span>
+    <span class="k">optionType</span><span class="p">:</span> <span class="s">trueFalse</span>
+</code></pre>
+
+  <h4>map</h4>
+<pre><code><span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">question</span>
+  <span class="k">id</span><span class="p">:</span> <span class="s">pin</span>
+  <span class="k">question</span><span class="p">:</span> <span class="s">Drop a pin on Machu Picchu.</span>
+  <span class="k">questionKind</span><span class="p">:</span> <span class="s">map</span>
+  <span class="k">config</span><span class="p">:</span>
+    <span class="k">fullPointsDistanceKm</span><span class="p">:</span> <span class="n">25</span>
+    <span class="k">onePointDistanceKm</span><span class="p">:</span> <span class="n">2000</span>
+</code></pre>
+
+  <!-- ===================== DEFAULTS ===================== -->
+  <h2 class="section" id="defaults"><a class="anchor" href="#defaults">#</a> Built-in defaults</h2>
+  <p>These are the config defaults baked into the app (<code>frontend/src/types.ts</code>). They apply when a field is omitted <em>and</em> the host hasn't changed the corresponding global default in Settings.</p>
+  <table>
+    <tr><th>Kind</th><th>Field</th><th>Default</th></tr>
+    <tr><td><code>multipleChoice</code></td><td><code>optionType</code></td><td><code>letters</code></td></tr>
+    <tr><td><code>multipleChoice</code></td><td><code>numOptions</code></td><td><code>4</code> (or <code>choices.length</code>)</td></tr>
+    <tr><td><code>multiAnswer</code></td><td><code>numAnswers</code></td><td><code>3</code></td></tr>
+    <tr><td><code>numeric</code></td><td><code>scoringMode</code></td><td><code>exactOnly</code></td></tr>
+    <tr><td><code>map</code></td><td><code>fullPointsDistanceKm</code></td><td><code>0.025</code></td></tr>
+    <tr><td><code>map</code></td><td><code>onePointDistanceKm</code></td><td><code>10000</code></td></tr>
+  </table>
+  <p class="small muted">Timer duration, question points, bonus increment, and speed-bonus enablement default to whatever the host has set as the global default in the Settings panel; there's no fixed YAML default for those.</p>
+
+  <!-- ===================== FULL EXAMPLE ===================== -->
+  <h2 class="section" id="full-example"><a class="anchor" href="#full-example">#</a> Full example deck</h2>
+  <p>A complete, valid event exercising most features:</p>
+<pre><code><span class="k">title</span><span class="p">:</span> <span class="s">Friday Night Trivia</span>
+<span class="k">subtitle</span><span class="p">:</span> <span class="s">Week 12 — the hard one</span>
+<span class="k">slides</span><span class="p">:</span>
+  <span class="c"># Join slide</span>
+  <span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">image</span>
+    <span class="k">title</span><span class="p">:</span> <span class="p">|</span>
+      <span class="s">One person per team:</span>
+      <span class="s">Join on Trivia Wizard — code ABCD</span>
+    <span class="k">image</span><span class="p">:</span> <span class="s">trivia-wizard-join-qr</span>
+
+  <span class="c"># Round 1</span>
+  <span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">category</span>
+    <span class="k">title</span><span class="p">:</span> <span class="s">Round 1 — Movies</span>
+    <span class="k">subtitle</span><span class="p">:</span> <span class="s">Lights, camera, guessing</span>
+
+  <span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">question</span>
+    <span class="k">id</span><span class="p">:</span> <span class="s">flm</span>
+    <span class="k">question</span><span class="p">:</span> <span class="s">Which film won Best Picture in 1994?</span>
+    <span class="k">choices</span><span class="p">:</span> <span class="p">[</span><span class="s">Pulp Fiction</span><span class="p">,</span> <span class="s">Forrest Gump</span><span class="p">,</span> <span class="s">Shawshank</span><span class="p">,</span> <span class="s">The Lion King</span><span class="p">]</span>
+    <span class="k">answer</span><span class="p">:</span> <span class="s">B — Forrest Gump</span>
+    <span class="k">notes</span><span class="p">:</span> <span class="s">Common wrong answer is Shawshank.</span>
+
+  <span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">question</span>
+    <span class="k">id</span><span class="p">:</span> <span class="s">act</span>
+    <span class="k">question</span><span class="p">:</span> <span class="s">Name this actor.</span>
+    <span class="k">answer</span><span class="p">:</span> <span class="s">Keanu Reeves</span>
+    <span class="k">images</span><span class="p">:</span>
+      <span class="p">-</span> <span class="p">{</span> <span class="k">url</span><span class="p">:</span> <span class="s">mystery-actor</span><span class="p">,</span> <span class="k">reveal</span><span class="p">:</span> <span class="s">question</span><span class="p">,</span> <span class="k">position</span><span class="p">:</span> <span class="s">center</span> <span class="p">}</span>
+      <span class="p">-</span> <span class="p">{</span> <span class="k">url</span><span class="p">:</span> <span class="s">actor-named</span><span class="p">,</span>   <span class="k">reveal</span><span class="p">:</span> <span class="s">answer</span><span class="p">,</span>   <span class="k">position</span><span class="p">:</span> <span class="s">center</span> <span class="p">}</span>
+
+  <span class="c"># Round 2</span>
+  <span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">category</span>
+    <span class="k">title</span><span class="p">:</span> <span class="s">Round 2 — Geography</span>
+
+  <span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">question</span>
+    <span class="k">id</span><span class="p">:</span> <span class="s">pin</span>
+    <span class="k">question</span><span class="p">:</span> <span class="s">Drop a pin on Reykjavík.</span>
+    <span class="k">questionKind</span><span class="p">:</span> <span class="s">map</span>
+    <span class="k">timerDuration</span><span class="p">:</span> <span class="n">60</span>
+    <span class="k">config</span><span class="p">:</span>
+      <span class="k">fullPointsDistanceKm</span><span class="p">:</span> <span class="n">25</span>
+      <span class="k">onePointDistanceKm</span><span class="p">:</span> <span class="n">3000</span>
+
+  <span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">question</span>
+    <span class="k">id</span><span class="p">:</span> <span class="s">pop</span>
+    <span class="k">question</span><span class="p">:</span> <span class="s">Population of Iceland (2024)?</span>
+    <span class="k">answer</span><span class="p">:</span> <span class="s">~393,000</span>
+    <span class="k">questionKind</span><span class="p">:</span> <span class="s">numeric</span>
+    <span class="k">config</span><span class="p">:</span> <span class="p">{</span> <span class="k">scoringMode</span><span class="p">:</span> <span class="s">closestGuess</span> <span class="p">}</span>
+
+  <span class="c"># Wrap-up</span>
+  <span class="p">-</span> <span class="k">type</span><span class="p">:</span> <span class="s">custom</span>
+    <span class="k">html</span><span class="p">:</span> <span class="s">'&lt;h1&gt;Thanks for playing!&lt;/h1&gt;'</span>
+</code></pre>
+
+  <!-- ===================== GOTCHAS ===================== -->
+  <h2 class="section" id="gotchas"><a class="anchor" href="#gotchas">#</a> Gotchas &amp; tips</h2>
+  <ul>
+    <li><strong>Strict objects.</strong> Every level rejects unknown keys — a misspelled field name fails validation rather than being ignored.</li>
+    <li><strong>3-letter IDs only.</strong> <code>id</code> must match <code>^[A-Za-z]{3}$</code>. They don't need to be meaningful, just unique per distinct question.</li>
+    <li><strong><code>reveal</code> default is ambiguous.</strong> The renderer treats missing <code>reveal</code> as <code>question</code> (shown immediately); the schema text says <code>answer</code>. Set it explicitly. (See <a href="#images">Images</a>.)</li>
+    <li><strong>Image stems must be unique.</strong> <code>kfr.png</code> + <code>kfr.jpg</code> both matching <code>kfr</code> is a build error.</li>
+    <li><strong><code>answer</code>, <code>matching</code>, and <code>choices</code> labels are deck-only.</strong> They never reach the server — the server scores teams' submitted answers against what the host marks correct in the UI.</li>
+    <li><strong>Server config is a starting point.</strong> Live host edits during a game always win and are never reverted by the YAML.</li>
+    <li><strong>Repeat an <code>id</code></strong> to give a question a context/answer-reveal companion slide that shares its number. First occurrence's config wins.</li>
+  </ul>
+
+  <footer>
+    Trivia Wizard YAML schema reference · sources: <code>frontend/src/features/host/trivia-schema.json</code>, <code>frontend/src/presentation/build.ts</code>, <code>frontend/src/types.ts</code>. Open this file directly in a browser — no server or network needed.
+  </footer>
+
+</div>
+</main>
+</div>
+</body>
+</html>

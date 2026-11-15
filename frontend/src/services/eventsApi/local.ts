@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 import { ConflictError, type EventsBackend, type EventSummary } from "./types";
 import { scaffoldYaml } from "./scaffold";
 

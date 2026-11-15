@@ -43,9 +43,9 @@
 .presentation-root .title-slide .subtitle {
   font-family: 'EB Garamond', serif;
   font-optical-sizing: auto;
-  font-size: 1.6em;
+  font-size: 3em;
   color: #444;
-  margin-top: 0.4em;
+  margin-top: 0.2em;
 }
 
 /* ── Category Slide ───────────────────────────────────────── */
@@ -108,6 +108,13 @@
 }
 
 /* ── Question Slide ───────────────────────────────────────── */
+/* --q-fit scales the question text down when it would otherwise overflow the
+   slide; fit.ts sets it on slide entry. It stays 1 for text that already fits,
+   which is the common case. */
+.presentation-root .question-slide {
+  --q-fit: 1;
+}
+
 .presentation-root .question-number {
   font-family: 'Shrikhand', serif;
   font-weight: 400;
@@ -127,6 +134,7 @@
 .presentation-root .question-content {
   flex: 1 1 0%;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -144,20 +152,39 @@
   color: var(--text-primary);
   line-height: 1.35;
   margin: 0 0 0.4em;
+  /* long unbroken tokens (URLs, IDs) shouldn't spill out of the column */
+  overflow-wrap: break-word;
+}
+
+/* Multi-paragraph question text: one <p> per source paragraph */
+.presentation-root .question-text > p {
+  margin: 0 0 0.5em;
+}
+.presentation-root .question-text > p:last-child {
+  margin-bottom: 0;
 }
 
 /* Size text based on layout */
-.presentation-root .layout-freeresponse .question-text  { font-size: 5em; }
-.presentation-root .layout-multichoice .question-text   { font-size: 3.5em; }
-.presentation-root .layout-matching .question-text      { font-size: 2.65em; }
+.presentation-root .layout-freeresponse .question-text  { font-size: calc(5em * var(--q-fit)); }
+.presentation-root .layout-multichoice .question-text   { font-size: calc(3.5em * var(--q-fit)); }
+.presentation-root .layout-matching .question-text      { font-size: calc(2.65em * var(--q-fit)); }
+
+/* Shrunken text is dense text — pull the leading in with it */
+.presentation-root .question-slide.q-tight .question-text {
+  line-height: 1.2;
+}
+.presentation-root .question-slide.q-tight .question-text > p {
+  margin-bottom: 0.35em;
+}
 
 /* Multiple choice */
 .presentation-root .choices {
   font-family: 'EB Garamond', serif;
   font-optical-sizing: auto;
   font-weight: 400;
-  font-size: 3em;
+  font-size: calc(3em * var(--q-fit));
   line-height: 1.7;
+  overflow-wrap: break-word;
   color: var(--text-primary);
   padding-left: 1.6em;
   margin: 0;
@@ -174,7 +201,7 @@
 .presentation-root .matching-right {
   font-family: 'EB Garamond', serif;
   font-optical-sizing: auto;
-  font-size: 1.25em;
+  font-size: calc(1.25em * var(--q-fit));
   line-height: 1.8;
   color: var(--text-primary);
   padding-left: 1.6em;
@@ -243,9 +270,12 @@
   inset: 0;
 }
 
-/* When hero image is present, shrink question body so image gets the space */
+/* When hero image is present, shrink question body so image gets the space.
+   The cap keeps a long question from squeezing the image out entirely; the
+   text is then fitted into that box instead. */
 .presentation-root .has-hero-image .question-body {
   flex: 0 0 auto;
+  max-height: 45%;
 }
 
 /* Answer */

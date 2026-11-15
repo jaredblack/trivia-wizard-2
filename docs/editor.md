@@ -20,6 +20,3 @@ Snippet selector - should be a keyboard shortcut that brings up a snippet select
 
 ## slider
 - the subtitle is really small on the title page
-
-## triv wiz
-- updating map scoring didnt seem to work. the km input thing seems to be completely broke

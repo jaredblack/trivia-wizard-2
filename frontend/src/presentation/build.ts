@@ -184,6 +184,25 @@ function renderCategory(
       </section>`;
 }
 
+// Question text keeps its source line structure: a blank line starts a new
+// paragraph, a single newline is a hard break. Inline markup in the source is
+// passed through unescaped, as it always has been.
+function renderQuestionText(raw: string): string {
+  const paragraphs = raw
+    .trim()
+    .split(/\n[ \t]*\n+/)
+    .map((p) => p.trim().replace(/\n/g, '<br>'))
+    .filter(Boolean);
+
+  if (paragraphs.length <= 1) {
+    return `<p class="question-text">Q: ${paragraphs[0] ?? ''}</p>`;
+  }
+  const [first, ...rest] = paragraphs;
+  return `<div class="question-text"><p>Q: ${first}</p>${rest
+    .map((p) => `<p>${p}</p>`)
+    .join('')}</div>`;
+}
+
 // — Question slide —
 function renderQuestion(
   slide: QuestionSlide,
@@ -208,7 +227,7 @@ function renderQuestion(
   if (hasSideImages) layout += ' has-images';
   if (hasCenterImages) layout += ' has-hero-image';
 
-  let content = `<p class="question-text">Q: ${slide.question.trim()}</p>`;
+  let content = renderQuestionText(slide.question);
 
   if (hasChoices && slide.choices) {
     content += `<ol class="choices" type="A">${slide.choices

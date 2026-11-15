@@ -12,7 +12,7 @@ use crate::{
 };
 use futures_util::{SinkExt, StreamExt};
 use log::*;
-use rand::Rng;
+use rand::RngExt;
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},

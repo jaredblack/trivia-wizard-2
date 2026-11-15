@@ -4,13 +4,16 @@
 # bucket. Mirrors slider/paste.sh's naming REPL, but compresses each paste to a
 # web-friendly JPG and uploads it — plus the regenerated manifest.json — to S3.
 #
+# The clipboard can hold either image data (screenshot, "Copy Image") or a file
+# copied in Finder (Cmd+C on a file); the latter uploads the file from disk.
+#
 #   Mode 1  shared images  ->  cdn/images/<qid>-<n>.jpg          (bare-name refs)
 #   Mode 2  event images   ->  events/<uuid>/images/<name>.jpg   (./name refs)
 #
 # Editor/presentation match image refs by stem (filename minus extension), so
 # the .jpg conversion is transparent to existing `kfr` / `./kfr` references.
 #
-# Requires: pngpaste, ImageMagick (magick), awscli v2, jq.
+# Requires: pngpaste, ImageMagick (magick), awscli v2, jq (+ macOS sips/osascript).
 
 set -e
 
@@ -36,7 +39,7 @@ LISTING=()
 # ── Preflight ────────────────────────────────────────────────
 require_tools() {
   local missing=0 t
-  for t in pngpaste magick aws jq; do
+  for t in pngpaste magick aws jq sips osascript; do
     command -v "$t" >/dev/null 2>&1 || { echo "Missing required tool: $t"; missing=1; }
   done
   [ "$missing" -eq 0 ] || exit 1
@@ -78,6 +81,40 @@ upload_manifest() {
 }
 
 # ── Paste → compress → upload ────────────────────────────────
+# Paths of files copied in Finder, one per line (empty if the clipboard holds
+# none). pngpaste would only see the generic file-type icon for these.
+clipboard_files() {
+  osascript -l JavaScript -e '
+    ObjC.import("AppKit");
+    const urls = $.NSPasteboard.generalPasteboard.readObjectsForClassesOptions(
+      $([$.NSURL]), $({ NSPasteboardURLReadingFileURLsOnlyKey: true }));
+    const out = [];
+    if (urls) for (let i = 0; i < urls.count; i++) out.push(urls.objectAtIndex(i).path.js);
+    out.join("\n");' 2>/dev/null
+}
+
+# Write the clipboard's image to $1 as PNG — from a Finder-copied file if there
+# is one, else from raw image data. sips decodes formats Homebrew's magick may
+# lack (HEIC/HEIF) and reads only the first frame/page.
+grab_clipboard() {
+  local out="$1" files n
+  files="$(clipboard_files)"
+  if [ -n "$files" ]; then
+    n=$(printf '%s\n' "$files" | wc -l | tr -d ' ')
+    if [ "$n" -gt 1 ]; then
+      echo "Clipboard holds $n files — copy one at a time."
+      return 1
+    fi
+    echo "Using file: $files"
+    sips -s format png "$files" --out "$out" >/dev/null 2>&1 || {
+      echo "Couldn't read $files as an image."
+      return 1
+    }
+    return 0
+  fi
+  pngpaste "$out" 2>/dev/null || { echo "No image in clipboard — try copying again."; return 1; }
+}
+
 compress_image() {
   local src="$1" dst="$2"
   # -flatten over white removes the alpha JPG can't carry (transparent -> white).
@@ -98,10 +135,7 @@ paste_one() {
   fi
 
   rm -f "$png"
-  if ! pngpaste "$png" 2>/dev/null; then
-    echo "No image in clipboard — try copying again."
-    return 1
-  fi
+  grab_clipboard "$png" || return 1
 
   compress_image "$png" "$jpg"
   local bytes kb

@@ -1,0 +1,463 @@
+title: Trivia Night!
+subtitle: 'July 25, 2026'
+slides:
+  - type: image
+    title: |
+      One person from each team:
+      Join the game on Trivia Wizard
+      Game code: BAGK
+    image: trivia-wizard-join-qr
+
+  - type: category
+    title: Current Events
+  - type: question
+    id: GQX
+    question: Spain became the men’s World Cup champion by triumphing over Argentina with a win on Sunday. What was the score?
+    answer: "1-0"
+  - type: question
+    id: WYN
+    question: The British runner Josh Kerr broke a 27-year-old world mile record in London Stadium on Saturday. What was his time?
+    answer: "3:42.66"
+    choices:
+      - "1:42.66"    
+      - "2:42.66"    
+      - "3:42.66"    
+      - "4:42.66"    
+      - "5:42.66"
+  - type: question
+    id: DSP
+    question: What is this guy's name?
+    answer: Jimothy
+    images:
+      - url: https://static01.nyt.com/images/2026/07/23/multimedia/jul-news-quiz-jimothy-jkgw/jul-news-quiz-jimothy-jkgw-jumbo.jpg
+        reveal: question
+  - type: question
+    id: ARS
+    question: After large public protests in Ukraine, President Volodymyr Zelensky did which of the following this week?
+    answer: Fired his top general
+    choices:
+      - Announced plans for peace talks
+      - Called for national elections
+      - Fired his chief of staff
+      - Fired his top general
+      - Raised the draft eligibility age
+  - type: question
+    id: LRI
+    question: If you have a baby tomorrow and open a "Trump Account", how much free starting money will your child get in that account?
+    answer: $1000
+    choices:
+      - $500
+      - $1000
+      - $2000
+      - $2500
+
+
+  - type: category
+    title: Date Your 2010s Meme 
+    subtitle: For each meme, tell me what year it peaked in popularity. Full points if you get it exactly, half points for +/- 1 year.
+  - type: question
+    id: XDV
+    question: This fellow, Antoine Dodson, instructed locals to "hide yo' kids, hide yo' wife" on a TV news story about a so-called "Bed Intruder". What year?
+    answer: "2010"
+    images:
+      - url: https://i.kym-cdn.com/entries/icons/original/000/003/386/Bed_Intruder_Banner.png
+        reveal: question
+  - type: question
+    id: STC
+    question: Long before 6 7, a Vine went viral when a boy said 9 + 10 = 21. In what year did this meme initially peak in popularity?
+    answer: "2014"
+    images:
+      - url: "https://i.kym-cdn.com/entries/icons/mobile/000/016/998/You_stupid_vine_(what's_9_10)_0-2_screenshot.jpg"
+        reveal: question
+  - type: question
+    id: CBM
+    question: "'The Dress' was an online viral phenomenon in which year?"
+    answer: "2015"
+    images:
+      - url: https://upload.wikimedia.org/wikipedia/en/2/21/The_dress_blueblackwhitegold.jpg
+        reveal: question
+  - type: image
+    image: "cbm-1"
+    title: Quick! Take the survey
+  - type: question
+    id: CTW
+    question: What % saw blue & black?
+    answer: "check results"
+  - type: question
+    id: ZFS
+    question: Shia LaBeouf instructed us to "just do it" in which year?
+    answer: "2015"
+    images:
+      - url: "https://i.kym-cdn.com/entries/icons/mobile/000/018/147/Shia_LaBeouf__Just_Do_It__Motivational_Speech_(Original_Video_by_LaBeouf__R%C3%B6nkk%C3%B6___Turner)_0-4_screenshot.jpg"
+        reveal: question
+  - type: question
+    id: XCK
+    question: In which year did "they did surgery on a grape" peak in popularity?
+    answer: "2018"
+    images:
+      - url: https://i.kym-cdn.com/entries/icons/original/000/027/702/Screen_Shot_2018-11-26_at_10.02.57_AM.png
+        reveal: question
+
+
+  - type: category
+    title: Name That Pizza
+    subtitle: Chicago, New York, Neapolitan, Detroit, New Haven, Roman, California
+  - type: question
+    id: KHN
+    question: Which style of pizza is this?
+    answer: California
+    images:
+      - url: https://www.pamperedchef.com/iceberg/com/recipe/1684007-lg.jpg
+        reveal: question
+  - type: question
+    id: IDV
+    question: Which style of pizza is this?
+    answer: New Haven      
+    images:
+      - url: https://upload.wikimedia.org/wikipedia/commons/4/4c/Sally%27s_apizza_half_tomato_half_with_cheese_%2872126%29.jpg
+        reveal: question    
+  - type: question
+    id: IDC
+    question: Which style of pizza is this?
+    answer: New York      
+    images:
+      - url: https://upload.wikimedia.org/wikipedia/commons/6/64/NYPizzaPie.jpg
+        reveal: question    
+  - type: question
+    id: IDC
+    question: Which style of pizza is this?
+    answer: Detroit      
+    images:
+      - url: https://www.kingarthurbaking.com/sites/default/files/2026-01/11041_FINAL_0110.png
+        reveal: question
+  - type: question
+    id: IOC
+    question: Which style of pizza is this?
+    answer: Roman      
+    images:
+      - url: https://us.gozney.com/cdn/shop/articles/Roman_Style_Pizza_Danielle_Uditi_-_Large2_b808a66b-16e6-440b-97c3-4f27b9b4f0e9.jpg?v=1743510968
+        reveal: question
+
+
+
+# 4. Glass or Plastic Bottle?
+# - need to take photos when I go to the store Thurs or Fri
+
+  - type: category
+    title: Which vehicle is the most popular in this state?
+    subtitle: I'll give you options don't worry
+  - type: question
+    id: ECX
+    question: Which vehicle is the most popular in California?
+    answer: Toyota Rav4
+    choices:
+      - Toyota Rav4
+      - Ford F-150
+      - Chevrolet Silverado 1500
+      - Honda CR-V
+  - type: question
+    id: ECU
+    question: Which vehicle is the most popular in Arizona?
+    answer: Toyota Rav4
+    choices:
+      - Toyota Rav4
+      - Ford F-150
+      - Chevrolet Silverado 1500
+      - Honda CR-V
+  - type: question
+    id: RCU
+    question: Which vehicle is the most popular in Texas?
+    answer: Ford F-150
+    choices:
+      - Toyota Rav4
+      - Ford F-150
+      - Chevrolet Silverado 1500
+      - Honda CR-V
+  - type: question
+    id: OCU
+    question: Which vehicle is the most popular in Wisconsin?
+    answer: Chevrolet Silverado 1500
+    choices:
+      - Toyota Rav4
+      - Ford F-150
+      - Chevrolet Silverado 1500
+      - Honda CR-V
+  - type: question
+    id: ICU
+    question: Which vehicle is the most popular in Massachussetts?
+    answer: Toyota Rav4
+    choices:
+      - Toyota Rav4
+      - Ford F-150
+      - Chevrolet Silverado 1500
+      - Honda CR-V
+    images:
+      - url: icu-1
+        reveal: answer
+# 6. Location... Sports Arenas
+  - type: category
+    title: Where's that?
+    subtitle: Sports Arena Edition
+  - type: question
+    id: LEQ
+    question: Where is this sports arena?
+    answer: Los Angeles
+    images:
+      - url: https://upload.wikimedia.org/wikipedia/commons/f/fd/Crypto.com_Arena_exterior_2023.jpg
+        reveal: question
+  - type: question
+    id: ENZ
+    question: Where is this sports arena?
+    answer: New Orleans
+    images:
+      - url: https://upload.wikimedia.org/wikipedia/commons/8/8b/DHS_Agencies_Support_Super_Bowl_LIX_Security_February_2025_-_108.jpg
+        reveal: question
+  - type: question
+    id: ENT
+    question: Where is this sports arena?
+    answer: Boston
+    images:
+      - url: https://upload.wikimedia.org/wikipedia/commons/4/4f/131023-F-PR861-033_Hanscom_participates_in_World_Series_pregame_events.jpg
+        reveal: question
+  - type: question
+    id: ENT
+    question: Where is this sports arena?
+    answer: Montreal
+    images:
+      - url: https://upload.wikimedia.org/wikipedia/commons/8/80/CentreBell.jpg
+        reveal: question
+  - type: question
+    id: BYJ
+    question: Where is this sports arena?
+    answer: Queens, New York
+    images:
+      - url: https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Arthur_Ashe_Stadium_with_the_roof_closed_%2832938595438%29.jpg/1920px-Arthur_Ashe_Stadium_with_the_roof_closed_%2832938595438%29.jpg     
+        reveal: question
+
+
+
+  - type: category
+    title: "?"
+  - type: question
+    id: XKO
+    question: The word "brunch" is an example of what term for a linguistic blend of two words?
+    answer: Portmanteau
+  - type: category
+    title: Portmanteaus 
+  - type: question
+    id: CJI
+    question: What two words make up the portmanteau "sitcom"?
+    answer: Situation Comedy
+  - type: question
+    id: PXC
+    question: What two words make up the portmanteau "cosplay"?
+    answer: Costume roleplay
+  - type: question
+    id: UMS
+    question: What portmanteau is created from combining the two words "picture element"?
+    answer: Pixel
+  - type: question
+    id: CLC
+    question: 'The word "podcast" was coined as a portmanteau of ______ broadcast. (hint: what was really popular in 2004?)'
+    answer: iPod
+  - type: question
+    id: YHS
+    question: Which European political event, voted on in 2016 and enacted in 2020, was most commonly referred to with a portmanteau name?
+    answer: Brexit
+    
+
+  - type: category
+    title: Before & After
+    subtitle: "Example: Adult animated show about Hank and Bobby Hill visiting the ‘Whopper’ food chain -> Burger King of the Hill"
+  - type: question
+    id: OZZ
+    question: 2006 family Ben Stiller film is set in a pay-to-enter exhibition in DC started by the founder of Hobby Lobby
+    answer: Night at the Museum of the Bible
+  - type: question
+    id: QPY
+    question: "'Stronger' rapper cleans up his act and is asked to star in another remake of Sondheim's Romeo & Juliet retelling set in the Upper West Side"
+    answer: Kanye West Side Story
+  - type: question
+    id: OVK
+    question: Night time banter is broadcast over-the-air in a format predating podcasting
+    answer: Pillow talk radio
+  - type: question
+    id: OVK
+    question: The "Double Double" restaurant scores a sponsorship segment on the 4th track of 1989
+    answer: In-n-Out of the Woods
+  - type: question
+    id: VRR
+    question: Mnemonic for a fire safety procedure taught to kids is rendered less effective by adding a facial expression of disbelief. 
+    answer: Stop drop and roll your eyes    
+
+
+
+  - type: category
+    title: "Goodreads: The Sequel"
+    subtitle: "I'll show you a review. Give me the exact name of the book for full points or the name of the series for half points."
+  - type: question
+    id: MPJ
+    question: "[redacted] has a completely different tone than [redacted]. [redacted] was filled with adventure and hope, the entire group working, willing to die, to transform the environment. Further, [redacted] had a bunch of very strong female characters. In contrast, [redacted] is more political and emotional. Also, the depiction of women is just horrible. Alia is boy crazy, and Irulan and [redacted] are only focused on [redacted] and producing an heir."
+    answer: Dune Messiah, 4 stars
+  - type: question
+    id: IVN
+    question: question text
+    answer: answer text    
+  - type: question
+    id: UYM
+    question: |
+      *plot point occurs*
+
+      "Wow!" said Elend, "I can't believe that plot point just occured! That means these four explicit things: 1, 2, 3, and 4!"
+
+      That means 1, 2, 3, and 4 won't be far behind, Vin thought uneasily. She smiled at Elend and felt wishy-washy about her feelings toward him.
+
+      Ham nodded. Breeze grinned. 
+
+      "1, 2, 3, and 4 won't be easy," said Sazed. "Do you remember when X, Y, and Z happened? That explains why 4 will follow 3."
+
+      Vin wasn't sure if she wanted to wear a dress or pants. It was a big deal to her.
+    answer: The Well of Ascension (Mistborn). 1 star. 
+  - type: question
+    id: TVV
+    question: I probably judge [redacted] unfairly because, well, it's just not [redacted]. I think I was expecting to much of it. I was also upset by, and this is silly, the fact that Jo turned down Teddy's proposal which then led me to view Jo's and the professor's relationship negatively.
+    answer: Little Men (Little Women)
+  - type: question
+    id: KQI
+    question: Why I didn't like it? The protagonist never learned a lesson of any sort whatsoever. Throughout the book, it was hinted at that his elder brother (Rodrick) had a horrific secret held over his head. I was honestly eagerly waiting for Rodrick to let that cat out of the bag, because as odious as Rodrick was depicted to be, the protagonist himself was even more of a jerk.
+    answer: Rodrick Rules (Diary of a Wimpy Kid), 1 star    
+  - type: question
+    id: DTK
+    question: Nie oceniłam pierwszego tomu, ale obok tego nie przejdę obojętnie. Romantyzowanie myśli samobójczych nie jest właściwie, tak jak budowanie relacji na toksycznych motywach. Pomijam, że cała książka jest pisana na kolanie.
+    answer: not yet
+  - type: question
+    id: DTK
+    question: I didn’t rate the first volume, but I can’t simply overlook this one. Romanticizing suicidal thoughts is wrong, just as building a relationship on toxic foundations is. Not to mention that the entire book feels hastily thrown together.
+    answer: New Moon (Twilight)
+
+  - type: category
+    title: Astrology
+  - type: question
+    id: NIK
+    question: In Olivia Rodrigo's song "Drop Dead", she says "Pisces and a _______ but I think we might go really nice together"
+    answer: Gemini
+  - type: question
+    id: SOP
+    question: My Zodiac sign, Cancer, is represented by what creature?
+    answer: Crab 🦀🦀🦀
+    images:
+      - url: https://upload.wikimedia.org/wikipedia/commons/8/82/Cancer_Astrological_Sign_at_the_Wisconsin_State_Capitol.jpg
+        reveal: answer
+  - type: question
+    id: UBI
+    question: What is the zodiac sign for someone born on December 25?
+    answer: Capricorn
+    choices:
+      - Pisces
+      - Aquarius
+      - Sagittarius
+      - Capricorn
+  - type: question
+    id: GYY
+    question: Which astrology sign is described as "the soul of your identity, the subconscious part of yourself that you might keep hidden from others (unlike your outward facing ___ sign) and it makes up a big part of your emotional side."
+    answer: Moon sign      
+  - type: question
+    id: XAY
+    question: Which planetary optical illusion, according to astrologers, "causes our communication systems to go haywire," causing missed connections and misunderstandings?
+    answer: Mercury in retrograde
+
+  - type: category
+    title: Name that Very Specific Part of That Thing
+  - type: question
+    id: AAD
+    question: What is this called?
+    answer: Derailleur
+    images:
+      - url: aad-2
+        position: center
+        reveal: question
+  - type: question
+    id: AAO
+    question: What is this called?
+    answer: Catalytic Converter
+    choices:
+      - Catalytic Converter
+      - Manifold
+      - Flex Pipe
+      - Carburetor
+    images:
+      - url: https://upload.wikimedia.org/wikipedia/commons/1/1d/DodgeCatCon.jpg
+        position: center
+        reveal: question
+  - type: question
+    id: ADO
+    question: What is this called?
+    answer: Tweeter
+    choices:
+      - Tweeter
+      - Boomer
+      - Woofer
+      - Diaphragm
+    images:
+      - url: ado-1
+        position: center
+        reveal: question
+  - type: question
+    id: AEO
+    question: What is this called?
+    answer: Captcha
+    images:
+      - url: https://upload.wikimedia.org/wikipedia/commons/9/9d/FancyCaptcha_screenshot.png
+        position: center
+        reveal: question
+# - have grace come up with a couple of girl ones
+
+  - type: category
+    title: Rank 'em
+    subtitle: The Final Round - 2x points, all or nothing scoring
+  - type: question
+    id: SFH
+    question: Rank the following states by total GDP
+    choices:
+      - Vermont
+      - Wyoming
+      - Utah
+      - Alabama
+  - type: question
+    id: SFH
+    question: Rank the following states by total GDP
+    choices:
+      - 1. Alabama ($341B)
+      - 2. Utah ($316B)
+      - 3. North Dakota ($80B)
+      - 4. Vermont ($46B)
+  - type: question
+    id: SFJ
+    question: Rank the following presidents by approval rating when they left office
+    choices:
+      - Bill Clinton 
+      - Jimmy Carter
+      - Richard Nixon
+      - George Bush
+  - type: question
+    id: SFJ
+    question: Rank the following presidents by approval rating when they left office
+    choices:
+      - Bill Clinton (66%)
+      - George Bush (56%)
+      - Jimmy Carter (34%)
+      - Richard Nixon (24%)
+  - type: question
+    id: NDI
+    question: Rank the Netflix original TV shows by total views across the whole season
+    choices:
+      - Bridgerton (Season 1) 
+      - Squid Game (Season 1)
+      - Stranger Things (Season 4)
+  - type: question
+    id: NDI
+    question: Rank the Netflix original TV shows by total views across the whole season
+    choices:
+      - Squid Game (Season 1) (265 million)
+      - Stranger Things (Season 5) (134 million)
+      - Bridgerton (Season 1) (113 million)

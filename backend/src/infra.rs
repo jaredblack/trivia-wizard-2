@@ -187,7 +187,7 @@ pub async fn shutdown_server() -> Result<()> {
         let ecs_client = EcsClient::new(&config);
         let retry_strategy = ExponentialBackoff::from_millis(1000).map(jitter).take(5);
 
-        Retry::spawn(retry_strategy, || async {
+        Retry::start(retry_strategy, || async {
             ecs_client
                 .update_service()
                 .cluster("TriviaWizardServer")

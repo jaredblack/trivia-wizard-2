@@ -4,8 +4,10 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": [
-      "es2022"
+      "es2022",
+      "esnext.disposable"
     ],
+    "types": ["node", "jest"],
     "declaration": true,
     "strict": true,
     "noImplicitAny": true,

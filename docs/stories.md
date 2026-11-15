@@ -27,7 +27,7 @@
 - Getting "team name already in use" for some reason even though it's the same phone :( could somehow have to do with "Other" multiple choice? (2026-02-11)
    - Potential root cause: local development - hot reload causes state to be cleared while WS stays active. Should watch to see if this pops up in production
 - Joe got kicked out with an "Already validated" once (2026-01-24)
-- BYU WiFi refusing to connect to backend?! (2026-01-30)
+
 
 # Other
 

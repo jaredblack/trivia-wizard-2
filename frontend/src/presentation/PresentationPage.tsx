@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import yaml from 'js-yaml';
+import * as yaml from 'js-yaml';
 import Reveal from 'reveal.js';
 import 'reveal.js/reveal.css';
 import './presentation.css';
@@ -11,6 +11,7 @@ import {
   type BuildContext,
   type PresentationData,
 } from './build';
+import { fitQuestionSlide } from './fit';
 
 const CDN_BASE = '/cdn';
 
@@ -116,8 +117,25 @@ export default function PresentationPage() {
       height: 1080,
       margin: 0,
     });
+    // Shrink an over-long question to fit its slide. Only the current slide can
+    // be measured — reveal.js keeps the others display:none, where every box is
+    // zero-sized — so fit on entry to each slide, and again once the webfonts
+    // land since metrics shift when EB Garamond swaps in.
+    let cancelled = false;
+    const fitCurrent = () => {
+      if (cancelled) return;
+      const current = deck.getCurrentSlide();
+      if (current instanceof HTMLElement) fitQuestionSlide(current);
+    };
+    deck.on('ready', fitCurrent);
+    deck.on('slidechanged', fitCurrent);
     deck.initialize();
+    document.fonts?.ready.then(fitCurrent);
+
     return () => {
+      cancelled = true;
+      deck.off('ready', fitCurrent);
+      deck.off('slidechanged', fitCurrent);
       deck.destroy();
     };
   }, [render]);

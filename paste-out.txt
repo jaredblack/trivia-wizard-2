@@ -1,0 +1,67 @@
+2) Event images   (events/<uuid>/images/, monotonic counter default)
+Mode [1]: 1
+Target: s3://triviaapphostingstack-assetsbucket5cb76180-ezkgozrxjix4/cdn/images/
+Shared-image REPL — Ctrl+C to quit
+
+Question ID (3 letters): fda
+Suffix [1]:
+Compressed -> fda-1.jpg (21 KB)
+Uploaded s3://triviaapphostingstack-assetsbucket5cb76180-ezkgozrxjix4/cdn/images/fda-1.jpg
+Updated cdn/images/manifest.json (91 images)
+
+Question ID (3 letters): qkc
+Suffix [1]:
+Compressed -> qkc-1.jpg (21 KB)
+Uploaded s3://triviaapphostingstack-assetsbucket5cb76180-ezkgozrxjix4/cdn/images/qkc-1.jpg
+Updated cdn/images/manifest.json (92 images)
+
+Question ID (3 letters): prc
+Suffix [1]:
+Compressed -> prc-1.jpg (20 KB)
+Uploaded s3://triviaapphostingstack-assetsbucket5cb76180-ezkgozrxjix4/cdn/images/prc-1.jpg
+Updated cdn/images/manifest.json (93 images)
+
+Question ID (3 letters): nlk
+Suffix [1]:
+Compressed -> nlk-1.jpg (21 KB)
+Uploaded s3://triviaapphostingstack-assetsbucket5cb76180-ezkgozrxjix4/cdn/images/nlk-1.jpg
+Updated cdn/images/manifest.json (94 images)
+
+Question ID (3 letters): mon
+Suffix [1]:
+Compressed -> mon-1.jpg (21 KB)
+Uploaded s3://triviaapphostingstack-assetsbucket5cb76180-ezkgozrxjix4/cdn/images/mon-1.jpg
+Updated cdn/images/manifest.json (95 images)
+
+Question ID (3 letters):  yuy
+Suffix [1]:
+Compressed -> yuy-1.jpg (21 KB)
+Uploaded s3://triviaapphostingstack-assetsbucket5cb76180-ezkgozrxjix4/cdn/images/yuy-1.jpg
+Updated cdn/images/manifest.json (96 images)
+
+Question ID (3 letters): wpa
+Suffix [1]:
+Compressed -> wpa-1.jpg (22 KB)
+Uploaded s3://triviaapphostingstack-assetsbucket5cb76180-ezkgozrxjix4/cdn/images/wpa-1.jpg
+Updated cdn/images/manifest.json (97 images)
+
+Question ID (3 letters): din
+Suffix [1]:
+Compressed -> din-1.jpg (22 KB)
+Uploaded s3://triviaapphostingstack-assetsbucket5cb76180-ezkgozrxjix4/cdn/images/din-1.jpg
+/Users/jared/Downloads/IMG_0256.jpegUpdated cdn/images/manifest.json (98 images)
+
+Question ID (3 letters): din
+Question ID must be exactly 3 letters.
+
+Question ID (3 letters): din
+Suffix [2]:
+Compressed -> din-2.jpg (22 KB)
+Uploaded s3://triviaapphostingstack-assetsbucket5cb76180-ezkgozrxjix4/cdn/images/din-2.jpg
+Updated cdn/images/manifest.json (99 images)
+
+Question ID (3 letters): din
+Suffix [3]:
+Compressed -> din-3.jpg (22 KB)
+Uploaded s3://triviaapphostingstack-assetsbucket5cb76180-ezkgozrxjix4/cdn/images/din-3.jpg
+Updated cdn/images/manifest.json (100 images)

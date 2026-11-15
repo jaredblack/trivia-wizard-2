@@ -66,7 +66,7 @@ configureMonacoYaml(monaco, {
   hover: true,
   completion: true,
   validate: true,
-  format: false,
+  format: { enable: false },
   schemas: [
     {
       fileMatch: ["*"],

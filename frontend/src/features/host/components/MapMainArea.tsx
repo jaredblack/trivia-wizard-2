@@ -20,6 +20,45 @@ interface MapMainAreaProps {
   onMapConfigChange: (config: MapConfig) => void;
 }
 
+/**
+ * Builds map-config updates from the config the host last *sent*, not just the
+ * server-echoed prop. `updateTypeSpecificSettings` replaces the whole config,
+ * and the `mapConfig` prop only reflects an edit after the server round trip.
+ * Two quick edits (e.g. full-pts then 1-pt) would otherwise send the second one
+ * with the stale first value and silently revert it.
+ */
+function useMapConfigUpdater(
+  questionNumber: number,
+  mapConfig: MapConfig,
+  onMapConfigChange: (config: MapConfig) => void,
+) {
+  const pending = useRef<{ questionNumber: number; config: MapConfig } | null>(null);
+
+  // Drop the pending config once the server has caught up with it.
+  useEffect(() => {
+    const p = pending.current;
+    if (
+      p &&
+      p.questionNumber === questionNumber &&
+      p.config.fullPointsDistanceKm === mapConfig.fullPointsDistanceKm &&
+      p.config.onePointDistanceKm === mapConfig.onePointDistanceKm
+    ) {
+      pending.current = null;
+    }
+  }, [questionNumber, mapConfig]);
+
+  return useCallback(
+    (patch: Partial<MapConfig>) => {
+      const p = pending.current;
+      const base = p && p.questionNumber === questionNumber ? p.config : mapConfig;
+      const config = { ...base, ...patch };
+      pending.current = { questionNumber, config };
+      onMapConfigChange(config);
+    },
+    [questionNumber, mapConfig, onMapConfigChange],
+  );
+}
+
 function PlacesSearchInput({
   onPlaceSelected,
 }: {
@@ -71,6 +110,7 @@ function MapContent({
   onSetCorrectLocation,
   onMapConfigChange,
 }: MapMainAreaProps) {
+  const updateMapConfig = useMapConfigUpdater(questionNumber, mapConfig, onMapConfigChange);
   const map = useMap(MAP_ID);
   const correctLocation = question.mapCorrectLocation ?? null;
 
@@ -138,7 +178,7 @@ function MapContent({
           <AutoSubmitNumericInput
             value={mapConfig.fullPointsDistanceKm}
             onSubmit={(v) =>
-              onMapConfigChange({ ...mapConfig, fullPointsDistanceKm: Math.max(0, v) })
+              updateMapConfig({ fullPointsDistanceKm: Math.max(0, v) })
             }
             step="any"
             min={0}
@@ -154,7 +194,7 @@ function MapContent({
           <AutoSubmitNumericInput
             value={mapConfig.onePointDistanceKm}
             onSubmit={(v) =>
-              onMapConfigChange({ ...mapConfig, onePointDistanceKm: Math.max(1, v) })
+              updateMapConfig({ onePointDistanceKm: Math.max(1, v) })
             }
             step="any"
             min={1}
@@ -218,6 +258,7 @@ function MapTestModeArea({
   onSetCorrectLocation,
   onMapConfigChange,
 }: MapMainAreaProps) {
+  const updateMapConfig = useMapConfigUpdater(questionNumber, mapConfig, onMapConfigChange);
   const correctLocation = question.mapCorrectLocation ?? null;
   const [latInput, setLatInput] = useState("");
   const [lngInput, setLngInput] = useState("");
@@ -278,7 +319,7 @@ function MapTestModeArea({
           <AutoSubmitNumericInput
             value={mapConfig.fullPointsDistanceKm}
             onSubmit={(v) =>
-              onMapConfigChange({ ...mapConfig, fullPointsDistanceKm: Math.max(0, v) })
+              updateMapConfig({ fullPointsDistanceKm: Math.max(0, v) })
             }
             step="any"
             min={0}
@@ -293,7 +334,7 @@ function MapTestModeArea({
           <AutoSubmitNumericInput
             value={mapConfig.onePointDistanceKm}
             onSubmit={(v) =>
-              onMapConfigChange({ ...mapConfig, onePointDistanceKm: Math.max(1, v) })
+              updateMapConfig({ onePointDistanceKm: Math.max(1, v) })
             }
             step="any"
             min={1}

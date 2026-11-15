@@ -6,7 +6,7 @@ import {
   ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { nanoid } from "nanoid";
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 import { ASSETS_BUCKET, AWS_REGION, getCredentials } from "../../aws";
 import { ConflictError, type EventsBackend, type EventSummary } from "./types";
 import { scaffoldYaml } from "./scaffold";
