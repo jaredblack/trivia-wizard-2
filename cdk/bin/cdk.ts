@@ -3,6 +3,7 @@ import * as cdk from 'aws-cdk-lib';
 import { HostingStack } from '../lib/HostingStack';
 import { AuthStack } from '../lib/AuthStack';
 import { ServerStack } from '../lib/ServerStack';
+import { GitHubDeployStack } from '../lib/GitHubDeployStack';
 
 const env = {
     account: process.env.CDK_DEFAULT_ACCOUNT,
@@ -24,3 +25,5 @@ new ServerStack(app, 'TriviaAppServerStack', {
   env: env,
   authStack: authStack,
 });
+
+new GitHubDeployStack(app, 'TriviaAppGitHubDeployStack', { env });

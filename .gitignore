@@ -1,7 +1,6 @@
 # Rust/Cargo specific
 /backend/target/
 **/*.rs.bk
-Cargo.lock
 
 # IDE specific
 .idea/

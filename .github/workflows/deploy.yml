@@ -1,0 +1,124 @@
+name: Test and deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never run two deploys at once; let an in-flight deploy finish rather than
+# cancelling it halfway through a CloudFormation update.
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: "24"
+
+jobs:
+  rust:
+    name: Rust tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - name: cargo test
+        working-directory: backend
+        run: cargo test
+
+  e2e:
+    name: Playwright (${{ matrix.project }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+      # Build the backend before Playwright starts it, so compile time doesn't
+      # count against the webServer startup timeout.
+      - name: Build backend
+        working-directory: backend
+        run: cargo build
+      - name: Install Playwright browser
+        working-directory: frontend
+        run: npx playwright install --with-deps ${{ matrix.project }}
+      - name: Unit tests
+        if: matrix.project == 'chromium'
+        working-directory: frontend
+        run: npm run test:unit
+      - name: Playwright tests
+        working-directory: frontend
+        run: npx playwright test --project=${{ matrix.project }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-${{ matrix.project }}
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 7
+
+  deploy:
+    name: CDK deploy
+    needs: [rust, e2e]
+    # Native ARM runner: ServerStack builds a LINUX_ARM64 image.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            cdk/package-lock.json
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+        run: |
+          npm ci
+          npm run build
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Install CDK deps
+        working-directory: cdk
+        run: npm ci
+      # App stacks only. TriviaAppGitHubDeployStack is deployed by hand so CI
+      # can't change its own permissions.
+      # `npm run cdk`, not `npx cdk`: inside cdk/, npx resolves this package's
+      # own "bin": {"cdk": ...} entry (the app) instead of the aws-cdk CLI.
+      - name: cdk deploy
+        working-directory: cdk
+        run: >
+          npm run cdk -- deploy
+          TriviaAppHostingStack TriviaAppAuthStack TriviaAppServerStack
+          --require-approval never
+          --progress events
