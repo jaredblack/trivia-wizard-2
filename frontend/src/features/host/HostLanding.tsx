@@ -299,7 +299,7 @@ export default function HostLanding() {
       </main>
 
       {/* Footer */}
-      <footer className="p-4">
+      <footer className="p-4 flex items-center justify-between">
         <a
           href="https://jarbla.com"
           target="_blank"
@@ -308,6 +308,14 @@ export default function HostLanding() {
         >
           Jarbla Home
         </a>
+        {isHost && (
+          <Link
+            to="/host/events"
+            className="text-sm text-gray-600 hover:text-gray-900"
+          >
+            Manage events
+          </Link>
+        )}
       </footer>
     </div>
   );
