@@ -15,6 +15,7 @@ import { convertLegacyDeck } from "../../deck/legacy";
 import { addToList, setKey, type EditTarget, type LineEdit } from "../../deck/edit";
 import { questionBadge } from "../../deck/summary";
 import Inspector from "./editor/Inspector";
+import InspectorPanel from "./editor/InspectorPanel";
 import { applyLineEdit } from "./editor/applyLineEdit";
 import { compressImage, imageFromTransfer, newImageName } from "./editor/imageUpload";
 import {
@@ -811,14 +812,16 @@ export default function EventEditor() {
           <div ref={containerRef} className="absolute inset-0" data-testid="deck-editor" />
         </div>
         {!loadError && (
-          <Inspector
-            deck={deck}
-            cursorLine={cursorLine}
-            imageCtx={imageCtx}
-            runEdit={runEdit}
-            attachFile={attachFile}
-            jumpToLine={jumpToLine}
-          />
+          <InspectorPanel>
+            <Inspector
+              deck={deck}
+              cursorLine={cursorLine}
+              imageCtx={imageCtx}
+              runEdit={runEdit}
+              attachFile={attachFile}
+              jumpToLine={jumpToLine}
+            />
+          </InspectorPanel>
         )}
       </div>
     </div>

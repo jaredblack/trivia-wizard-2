@@ -189,17 +189,27 @@ function renderQuestion(slide: QuestionSlide, img: ImgTag): string {
   let content = renderQuestionText(slide.text);
 
   if (hasChoices && slide.choices) {
-    const list = (items: string[], cls: string, attrs = "") =>
-      `<ol class="${cls}"${attrs}>${items.map((c) => `<li>${esc(c)}</li>`).join("")}</ol>`;
+    const labels = slide.choiceLabels;
+    const choiceList = (cls: string, attrs = "") =>
+      `<ol class="${cls}"${attrs}>${slide.choices!
+        .map((c, i) => {
+          const label = labels?.[i];
+          const marker = label
+            ? ` style="list-style-type: '${esc(label.replace(/['\\]/g, ""))}. '"`
+            : "";
+          return `<li${marker}>${esc(c)}</li>`;
+        })
+        .join("")}</ol>`;
     if (slide.answerList) {
       // Ranking: the ordered answer takes the place of the choices on reveal.
-      content += `<div class="choices-swap">${list(
-        slide.choices,
+      content += `<div class="choices-swap">${choiceList(
         "choices fragment fade-out",
-        ' type="A" data-fragment-index="1"'
-      )}${list(slide.answerList, "choices answer-list fragment", ' data-fragment-index="1"')}</div>`;
+        ' data-fragment-index="1"'
+      )}<ol class="choices answer-list fragment" data-fragment-index="1">${slide.answerList
+        .map((c) => `<li>${esc(c)}</li>`)
+        .join("")}</ol></div>`;
     } else {
-      content += list(slide.choices, "choices", ' type="A"');
+      content += choiceList("choices");
     }
   }
 

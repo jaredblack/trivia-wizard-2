@@ -18,6 +18,15 @@ export function optionLabels(optionType: string, numOptions: number): string[] {
   }
 }
 
+/**
+ * The label shown beside each of `count` choices on the slide. Follows the
+ * option labels when there is one for every choice, letters otherwise.
+ */
+export function choiceLabels(optionType: string, count: number): string[] {
+  const labels = optionLabels(optionType, count);
+  return labels.length >= count ? labels.slice(0, count) : optionLabels("letters", count);
+}
+
 /** "A–D", "1–4", "Yes or No": the options as a phrase, for messages. */
 export function describeOptions(labels: string[]): string {
   if (labels.length === 2 && /^[A-Z][a-z]/.test(labels[0])) return `${labels[0]} or ${labels[1]}`;

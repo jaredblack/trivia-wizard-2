@@ -66,6 +66,12 @@
   border-top: 1px solid rgba(139, 115, 85, 0.18);
   font-size: 0.85rem;
 }
+.inspector-note {
+  grid-column: 2 / -1;
+  margin: -0.15rem 0 0;
+  font-size: 0.75rem;
+  color: #8b7355;
+}
 .inspector-row label {
   color: #6b5a47;
 }
@@ -129,4 +135,53 @@
   color: #8b7355;
   font-style: italic;
   opacity: 0.85;
+}
+
+/* ── Resizable / collapsible panel ─────────────────────────────────────── */
+.inspector-resizer {
+  width: 6px;
+  margin-right: -3px;
+  position: relative;
+  z-index: 10;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+  transition: background-color 120ms;
+}
+.inspector-resizer:hover,
+.inspector-resizer:focus-visible,
+.inspector-resizer.active {
+  background: rgba(139, 115, 85, 0.35);
+  outline: none;
+}
+.inspector-rail {
+  width: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 8px;
+}
+.inspector-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  color: #8b7355;
+  cursor: pointer;
+}
+.inspector-toggle:hover {
+  background: rgba(139, 115, 85, 0.15);
+  color: #3a2f25;
+}
+.inspector-toggle-floating {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+}
+/* Keep the panel's first row clear of the floating hide button. */
+.inspector-panel .inspector > :first-child {
+  padding-right: 28px;
 }

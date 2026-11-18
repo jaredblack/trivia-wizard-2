@@ -112,7 +112,8 @@ export const SETTINGS: SettingDef[] = [
   {
     key: "num-answers",
     label: "Answer boxes",
-    description: "How many answers each team fills in.",
+    description:
+      "How many answers each team fills in. Follows the number of accepted answers when `a:` is a list.",
     value: { type: "integer", min: 1 },
     builtin: 3,
     kinds: ["multi-answer"],

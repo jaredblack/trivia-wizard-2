@@ -1,5 +1,6 @@
 import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { matchChoice, slideIndexAtLine } from "../../../deck/compile";
+import { choiceLabels } from "../../../deck/choices";
 import {
   addToList,
   removeFromList,
@@ -227,6 +228,7 @@ export default function Inspector(props: InspectorProps) {
               level={level}
               onChange={(value) => runEdit((text) => setKey(text, target, key, value))}
               onReset={() => runEdit((text) => setKey(text, target, key, undefined))}
+              note={key === "points" && kind === "multi-answer" ? perAnswerNote(values) : undefined}
             />
           ))}
           {question && (
@@ -298,7 +300,7 @@ export default function Inspector(props: InspectorProps) {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <aside
-      className="inspector w-[400px] shrink-0 overflow-y-auto p-3"
+      className="inspector flex-1 min-w-0 overflow-y-auto p-3"
       data-testid="inspector"
       aria-label="Inspector"
     >
@@ -312,16 +314,20 @@ function SourcePill({
   level,
   onReset,
   label,
+  settingKey,
 }: {
   source: SettingSource;
   level: Level;
+  settingKey?: SettingKey;
   onReset?: () => void;
   label: string;
 }) {
   const own = source === level;
   return (
     <span className={`inspector-source ${own ? "own" : ""}`}>
-      {SOURCE_LABEL[level][source]}
+      {source === "implied" && settingKey === "num-answers"
+        ? "from answers"
+        : SOURCE_LABEL[level][source]}
       {own && onReset && (
         <button type="button" onClick={onReset} aria-label={`Reset ${label}`} title="Remove this line">
           ×
@@ -331,18 +337,36 @@ function SourcePill({
   );
 }
 
+/**
+ * What each correct box of a multi-answer question is worth. The game scores
+ * floor(points / boxes) per correct answer, so an uneven split loses the
+ * remainder.
+ */
+function perAnswerNote(values: Partial<Record<SettingKey, SettingValue>>): string | undefined {
+  const points = Number(values.points);
+  const boxes = Number(values["num-answers"]);
+  if (!Number.isFinite(points) || !Number.isFinite(boxes) || boxes < 1) return undefined;
+  const each = Math.floor(points / boxes);
+  const unit = each === 1 ? "point" : "points";
+  const base = `${each} ${unit} per answer (${boxes} box${boxes === 1 ? "" : "es"})`;
+  return each * boxes === points ? base : `${base}, ${each * boxes} max`;
+}
+
 function SettingRow({
   def,
   resolved,
   level,
   onChange,
   onReset,
+  note,
 }: {
   def: SettingDef;
   resolved: ResolvedSetting;
   level: Level;
   onChange: (value: EditValue) => void;
   onReset: () => void;
+  /** A line of derived info shown under the control. */
+  note?: string;
 }) {
   const id = `inspector-${def.key}`;
   const t = def.value;
@@ -401,7 +425,8 @@ function SettingRow({
     <div className="inspector-row" title={def.description}>
       <label htmlFor={id}>{def.label}</label>
       {control}
-      <SourcePill source={resolved.source} level={level} onReset={onReset} label={def.label} />
+      <SourcePill source={resolved.source} level={level} onReset={onReset} label={def.label} settingKey={def.key} />
+      {note && <p className="inspector-note" data-testid={`${id}-note`}>{note}</p>}
     </div>
   );
 }
@@ -459,6 +484,7 @@ function AnswerRow({
     answer === undefined ? "" : Array.isArray(answer) ? answer.join(", ") : String(answer);
   if (choices && !Array.isArray(answer)) {
     const idx = matchChoice(answer, choices, optionType);
+    const labels = choiceLabels(optionType, choices.length);
     return (
       <div className="inspector-row">
         <label htmlFor="inspector-answer">Answer</label>
@@ -473,7 +499,7 @@ function AnswerRow({
           <option value="">{shown ? `${shown} (not a choice)` : "Not set"}</option>
           {choices.map((c, i) => (
             <option key={i} value={i}>
-              {String.fromCharCode(65 + i)}. {c}
+              {labels[i].toLowerCase() === c.trim().toLowerCase() ? c : `${labels[i]}. ${c}`}
             </option>
           ))}
         </select>

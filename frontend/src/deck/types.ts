@@ -81,6 +81,8 @@ export interface QuestionSlide extends SlideBase {
   /** Replaces the choices list on reveal (ranking questions). */
   answerList?: string[];
   choices?: string[];
+  /** Label beside each choice ("A", "1", "Yes"), from the option labels setting. */
+  choiceLabels?: string[];
   matching?: { left: string[]; right: string[] };
   images: string[];
   answerImages: string[];

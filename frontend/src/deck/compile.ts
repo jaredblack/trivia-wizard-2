@@ -22,6 +22,7 @@ import {
 } from "./settings";
 import { convertLegacyDeck, isLegacyDeck } from "./legacy";
 import {
+  choiceLabels as labelChoices,
   correctOptionLabel,
   describeOptions,
   matchChoice,
@@ -537,6 +538,11 @@ function resolveSettings(
   if (out["num-options"].source === "builtin" && choices.length >= 2) {
     out["num-options"] = { value: choices.length, source: "implied" };
   }
+  // "Name the five Great Lakes": one box per accepted answer, unless the deck
+  // says otherwise ("name any three").
+  if (out["num-answers"].source === "builtin" && Array.isArray(answer) && answer.length >= 1) {
+    out["num-answers"] = { value: answer.length, source: "implied" };
+  }
   if (out.scoring.source === "builtin" && out.within.source !== "builtin") {
     out.scoring = { value: "range", source: out.within.source };
   }
@@ -553,6 +559,9 @@ function questionSlide(
 ): QuestionSlide {
   const choices = strList(v.choices);
   const answer = normalizeAnswer(v.a);
+  const optionType =
+    question.kind === "multiple-choice" ? String(question.settings.options.value) : "letters";
+  const choiceLabels = choices.length ? labelChoices(optionType, choices.length) : undefined;
   let answerText: string | undefined;
   let answerList: string[] | undefined;
   if (Array.isArray(answer)) {
@@ -562,6 +571,14 @@ function questionSlide(
     else answerText = answer.join(", ");
   } else if (answer !== undefined) {
     answerText = String(answer);
+    // An answer naming one of the choices reads as "C. Cookies".
+    const idx = choiceLabels ? matchChoice(answer, choices, optionType) : -1;
+    if (choiceLabels && idx !== -1) {
+      const label = choiceLabels[idx];
+      const text = choices[idx];
+      answerText =
+        label.toLowerCase() === text.trim().toLowerCase() ? text : `${label}. ${text}`;
+    }
   }
 
   let matching: QuestionSlide["matching"];
@@ -578,6 +595,7 @@ function questionSlide(
     answerText,
     answerList,
     choices: choices.length ? choices : undefined,
+    choiceLabels,
     matching,
     images: imgs.images,
     answerImages: imgs.answerImages,

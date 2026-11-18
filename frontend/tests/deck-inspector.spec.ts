@@ -153,6 +153,27 @@ test.describe('Inspector', () => {
     await expect.poll(() => storedYaml(page, 'deck0001')).toContain('defaults:\n  timer: 60\n  bonus: 10\nslides:');
   });
 
+  test('shows what each answer is worth on a multi-answer question', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await seedDecks(page, {
+      deck0001: `title: t
+slides:
+- q: Name the five great lakes
+  kind: multi-answer
+  a: [Ontario, Erie, Michigan, Superior, Huron]
+`,
+    });
+    await page.goto('/host/events/deck0001');
+    await lines(page).getByText('Name the five').click();
+    const note = inspector(page).getByTestId('inspector-points-note');
+    await expect(note).toHaveText('10 points per answer (5 boxes)');
+    await expect(sourceOf(page, 'Answer boxes')).toHaveText('from answers');
+
+    await inspector(page).getByLabel('Answer boxes', { exact: true }).fill('3');
+    await inspector(page).getByLabel('Answer boxes', { exact: true }).press('Enter');
+    await expect(note).toHaveText('16 points per answer (3 boxes), 48 max');
+  });
+
   test('rejects a value the setting cannot take', async ({ page }) => {
     await open(page);
     await lines(page).getByText('a: 2015').click();
@@ -236,5 +257,35 @@ test.describe('Inspector', () => {
     await open(page);
     const badges = page.locator('[data-testid="deck-editor"] .q-badge');
     await expect(badges).toHaveText(['numeric ±1 · 45s', 'multiple choice', 'numeric ±1', 'map']);
+  });
+  test('resizes by dragging its edge and collapses to a rail', async ({ page }) => {
+    await open(page);
+    const resizer = page.getByRole('separator', { name: 'Resize inspector' });
+    const width = async () => (await inspector(page).boundingBox())!.width;
+    expect(Math.round(await width())).toBe(400);
+
+    const box = (await resizer.boundingBox())!;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(box.x + 3, y);
+    await page.mouse.down();
+    await page.mouse.move(box.x - 150, y, { steps: 5 });
+    await page.mouse.up();
+    expect(Math.round(await width())).toBeGreaterThan(530);
+
+    // Width survives a reload.
+    await page.reload();
+    await expect(lines(page)).toContainText('The Dress');
+    expect(Math.round(await width())).toBeGreaterThan(530);
+
+    await page.getByRole('button', { name: 'Hide inspector' }).click();
+    await expect(inspector(page)).toHaveCount(0);
+    await expect(page.getByTestId('inspector-rail')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Show inspector' }).click();
+    expect(Math.round(await width())).toBeGreaterThan(530);
+
+    // Double-clicking the edge resets to the default width.
+    await resizer.dblclick();
+    expect(Math.round(await width())).toBe(400);
   });
 });

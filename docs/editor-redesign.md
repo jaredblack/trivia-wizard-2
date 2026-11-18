@@ -210,7 +210,7 @@ Settings, usable in `defaults:`, on a category and on a question. Defined once i
 | `bonus` | step of the bonus buttons | 5 | all |
 | `speed-bonus` | `true` / `false` | `false` | all |
 | `layout` | `side`, `hero` | `side` | slides with images |
-| `num-answers` | whole number | 3 | multi-answer |
+| `num-answers` | whole number | 3 (or the length of an `a:` list) | multi-answer |
 | `options` | `letters`, `numbers`, `yes-no`, `true-false` | `letters` | multiple-choice |
 | `num-options` | whole number | 4, or the number of `choices` | multiple-choice |
 | `scoring` | `exact`, `range`, `closest` | `exact`; `range` when `within` is declared | numeric |

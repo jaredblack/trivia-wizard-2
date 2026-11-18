@@ -7,6 +7,7 @@ import { buildDeckSchema } from "../../src/deck/schema";
 import { resolveImage } from "../../src/deck/images";
 import { SETTINGS } from "../../src/deck/settings";
 import type { QuestionSlide } from "../../src/deck/types";
+import { renderSlide } from "../../src/presentation/render";
 
 const DECK = `title: Trivia Night!
 subtitle: July 25, 2026
@@ -112,9 +113,41 @@ slides:
   assert.deepEqual(deck.questions[0].settings.kind, { value: "multiple-choice", source: "implied" });
   assert.equal(deck.questions[1].kind, "standard");
   const slides = deck.slides.filter((s): s is QuestionSlide => s.type === "question");
-  assert.equal(slides[0].answerText, "B");
+  assert.equal(slides[0].answerText, "B. y");
   assert.deepEqual(slides[1].answerList, ["y", "x"]);
   assert.equal(slides[1].answerText, undefined);
+});
+
+test("choices are labelled by the option labels setting, and a matching answer shows its choice", () => {
+  const deck = compileDeck(`title: t
+slides:
+- q: Snack
+  a: Cookies
+  choices: [Chips, Pretzels, Cookies]
+- q: Count
+  a: 2
+  options: numbers
+  choices: [ten, twenty, thirty]
+- q: Really?
+  a: Yes
+  options: yes-no
+  choices: ["Yes", "No"]
+- q: Unmatched
+  a: Brownies
+  choices: [Chips, Pretzels]
+`);
+  const slides = deck.slides.filter((s): s is QuestionSlide => s.type === "question");
+  assert.deepEqual(slides[0].choiceLabels, ["A", "B", "C"]);
+  assert.equal(slides[0].answerText, "C. Cookies");
+  assert.deepEqual(slides[1].choiceLabels, ["1", "2", "3"]);
+  assert.equal(slides[1].answerText, "2. twenty");
+  assert.deepEqual(slides[2].choiceLabels, ["Yes", "No"]);
+  assert.equal(slides[2].answerText, "Yes");
+  assert.equal(slides[3].answerText, "Brownies");
+
+  const html = renderSlide(slides[1], { customSlides: new Map(), cdnBase: "", eventBase: "", eventImages: [] } as never);
+  assert.match(html, /<li style="list-style-type: '2\. '">twenty<\/li>/);
+  assert.match(html, /A: 2\. twenty/);
 });
 
 test("image keys say when the image appears", () => {
@@ -538,10 +571,19 @@ test("multi-answer questions need an accepted answer per box", () => {
   ]);
   assert.deepEqual(messages(deck("[Mars, Venus]", "  num-answers: 2\n")), []);
   // More accepted answers than boxes is normal: "name three of the eight".
+  assert.deepEqual(messages(deck("[Mercury, Venus, Earth, Mars, Jupiter]", "  num-answers: 3\n")), []);
   assert.deepEqual(messages(deck("[Mercury, Venus, Earth, Mars, Jupiter]")), []);
-  assert.deepEqual(messages(deck("[Mars, Venus]")), [
+  assert.deepEqual(messages(deck("[Mars, Venus]", "  num-answers: 3\n")), [
     "Question 1 has 2 accepted answers for 3 answer boxes, so no team can get full points from the deck's answers alone.",
   ]);
+});
+
+test("answer boxes follow the accepted answers unless declared", () => {
+  const q = (extra = "") =>
+    compileDeck(`title: t\nslides:\n- q: Name the lakes\n  kind: multi-answer\n${extra}  a: [Ontario, Erie, Michigan, Superior, Huron]\n`)
+      .questions[0].settings["num-answers"];
+  assert.deepEqual(q(), { value: 5, source: "implied" });
+  assert.deepEqual(q("  num-answers: 3\n"), { value: 3, source: "question" });
 });
 
 test("multiple-choice answers must be an option teams can pick", () => {
