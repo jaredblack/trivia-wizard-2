@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { webSocketService } from "../services/websocket";
 import type {
+  DeckState,
   GameState,
   GameSettings,
   Question,
@@ -17,8 +18,13 @@ interface HostStore {
   gameSettings: GameSettings | null;
   questions: Question[];
   teams: TeamData[];
+  /** The deck the server has attached to this game. */
+  deck: DeckState | null;
+  /** Event chosen when creating the game, waiting to be attached. */
+  pendingDeckUuid: string | null;
 
   // Actions
+  setPendingDeckUuid: (uuid: string | null) => void;
   setGameState: (state: GameState) => void;
   setTimerSecondsRemaining: (seconds: number) => void;
   clearGame: () => void;
@@ -33,10 +39,15 @@ export const useHostStore = create<HostStore>((set) => ({
   gameSettings: null,
   questions: [],
   teams: [],
+  deck: null,
+  pendingDeckUuid: null,
 
   // Actions
+  setPendingDeckUuid: (uuid) => set({ pendingDeckUuid: uuid }),
+
   setGameState: (state: GameState) =>
     set({
+      deck: state.deck ?? null,
       gameCode: state.gameCode,
       currentQuestionNumber: state.currentQuestionNumber,
       timerRunning: state.timerRunning,
@@ -60,6 +71,8 @@ export const useHostStore = create<HostStore>((set) => ({
       gameSettings: null,
       questions: [],
       teams: [],
+      deck: null,
+      pendingDeckUuid: null,
     }),
 }));
 

@@ -1,9 +1,11 @@
 use crate::game_timer::pause_timer;
 use crate::model::server_message::{GameState, ServerMessage, TeamGameState, send_msg};
 use crate::model::types::{
-    Answer, AnswerContent, AnswerSubmission, GameSettings, MapConfig, McConfig, MultiAnswerConfig,
-    NumericConfig, NumericRangeType, NumericScoringMode, Question, QuestionConfig, QuestionKind,
-    RangeScoringType, ScoreData, ScoreboardData, TeamColor, TeamData,
+    DeckCursor,
+    Answer, AnswerContent, AnswerSubmission, DeckState, GameSettings, MapConfig, McConfig,
+    McOptionType, MultiAnswerConfig, NumericConfig, NumericRangeType, NumericScoringMode,
+    Question, QuestionConfig, QuestionKind, QuestionPreset, RangeScoringType, ScoreData,
+    ScoreboardData, TeamColor, TeamData, normalize_answer_key,
 };
 use crate::server::Tx;
 use anyhow::{Result, anyhow};
@@ -195,6 +197,113 @@ fn calculate_map_score(distance_km: f64, base_points: u32, config: &MapConfig) -
     (score.floor() as i32).max(0)
 }
 
+/// Lay a deck preset over a freshly created question.
+fn apply_preset(question: &mut Question, preset: &QuestionPreset, settings: &GameSettings) {
+    if let Some(v) = preset.timer_duration {
+        question.timer_duration = v.max(1);
+    }
+    if let Some(v) = preset.question_points {
+        question.question_points = v;
+    }
+    if let Some(v) = preset.bonus_increment {
+        question.bonus_increment = v;
+    }
+    if let Some(v) = preset.speed_bonus_enabled {
+        question.speed_bonus_enabled = v;
+    }
+
+    // A different kind starts from that kind's game defaults.
+    if let Some(kind) = preset.kind {
+        if kind != question.question_config.kind() {
+            question.question_config = settings.config_for_kind(kind);
+        }
+    }
+
+    match &mut question.question_config {
+        QuestionConfig::Standard => {}
+        QuestionConfig::MultiAnswer { config } => {
+            if let Some(v) = preset.num_answers {
+                config.num_answers = v.max(1);
+            }
+        }
+        QuestionConfig::MultipleChoice { config } => {
+            if let Some(v) = preset.option_type {
+                config.option_type = v;
+            }
+            if let Some(v) = preset.num_options {
+                config.num_options = v.max(2);
+            }
+            if matches!(
+                config.option_type,
+                McOptionType::YesNo | McOptionType::TrueFalse
+            ) {
+                config.num_options = 2;
+            }
+        }
+        QuestionConfig::Numeric { config } => {
+            if let Some(v) = preset.scoring_mode {
+                config.scoring_mode = v;
+            }
+            if let Some(v) = preset.range_type {
+                config.range_type = v;
+            }
+            if let Some(v) = preset.range_value.filter(|v| v.is_finite() && *v >= 0.0) {
+                config.range_value = v;
+            }
+            if let Some(v) = preset.num_winners {
+                config.num_winners = v.max(1);
+            }
+            if let Some(v) = preset.range_scoring_type {
+                config.range_scoring_type = v;
+            }
+        }
+        QuestionConfig::Map { config } => {
+            if let Some(v) = preset
+                .full_points_distance_km
+                .filter(|v| v.is_finite() && *v >= 0.0)
+            {
+                config.full_points_distance_km = v;
+            }
+            if let Some(v) = preset
+                .one_point_distance_km
+                .filter(|v| v.is_finite() && *v >= 0.0)
+            {
+                config.one_point_distance_km = v;
+            }
+        }
+    }
+
+    // Answer keys, stored in the form submissions are compared in.
+    match question.question_config.kind() {
+        QuestionKind::Standard | QuestionKind::MultipleChoice => {
+            question.answer_key = preset
+                .answer_key
+                .iter()
+                .map(|k| normalize_answer_key(k))
+                .filter(|k| !k.is_empty())
+                .collect();
+        }
+        QuestionKind::MultiAnswer => {
+            question.multi_answer_correct_set = preset
+                .multi_answer_correct_set
+                .iter()
+                .map(|k| normalize_multi_answer(k))
+                .filter(|k| !k.is_empty())
+                .collect();
+        }
+        QuestionKind::Numeric => {
+            question.numeric_correct_answer =
+                preset.numeric_correct_answer.filter(|v| v.is_finite());
+        }
+        QuestionKind::Map => {
+            question.map_correct_location =
+                preset.map_correct_location.filter(|(lat, lng)| {
+                    (-90.0..=90.0).contains(lat) && (-180.0..=180.0).contains(lng)
+                });
+        }
+    }
+}
+
 /// Hardcoded game settings for this iteration
 const DEFAULT_TIMER_DURATION: u32 = 30;
 const DEFAULT_QUESTION_POINTS: u32 = 50;
@@ -218,6 +327,9 @@ pub struct Game {
     pub teams: Vec<TeamData>,
     pub questions: Vec<Question>,
     pub game_settings: GameSettings,
+    /// The deck attached to this game, if any. Without one, questions are
+    /// created purely from `game_settings`.
+    pub deck: Option<DeckState>,
 
     // Timer task handle for cancellation
     pub timer_abort_handle: Option<AbortHandle>,
@@ -250,6 +362,7 @@ impl Game {
             multi_answer_correct_set: vec![],
             numeric_correct_answer: None,
             map_correct_location: None,
+            answer_key: vec![],
         };
 
         Self {
@@ -264,6 +377,7 @@ impl Game {
             teams: vec![],
             questions: vec![initial_question],
             game_settings,
+            deck: None,
             timer_abort_handle: None,
         }
     }
@@ -299,6 +413,7 @@ impl Game {
             teams,
             questions: state.questions,
             game_settings: state.game_settings,
+            deck: state.deck,
             timer_abort_handle: None,
         }
     }
@@ -397,6 +512,7 @@ impl Game {
             teams: self.teams.clone(),
             questions: self.questions.clone(),
             game_settings: self.game_settings.clone(),
+            deck: self.deck.clone(),
         }
     }
 
@@ -425,6 +541,14 @@ impl Game {
             teams: self.teams.clone(),
             timer_running: self.timer_running,
             timer_seconds_remaining: self.timer_seconds_remaining,
+            current_question_number: self.current_question_number,
+            answers_received: self.current_question().answers.len(),
+            deck: self.deck.as_ref().map(|deck| DeckCursor {
+                uuid: deck.uuid.clone(),
+                slide_index: deck.slide_index,
+                revealed: deck.revealed,
+                version: deck.version,
+            }),
         }
     }
 
@@ -442,7 +566,95 @@ impl Game {
             multi_answer_correct_set: vec![],
             numeric_correct_answer: None,
             map_correct_location: None,
+            answer_key: vec![],
         }
+    }
+
+    /// Create question `number` (1-based): game settings first, then whatever
+    /// the attached deck declares for it. Without a deck, or past the end of
+    /// one, this is exactly `create_question_from_settings`.
+    fn create_question(&self, number: usize) -> Question {
+        let mut question = self.create_question_from_settings();
+        let preset = self
+            .deck
+            .as_ref()
+            .and_then(|deck| deck.presets.get(number.wrapping_sub(1)));
+        if let Some(preset) = preset {
+            apply_preset(&mut question, preset, &self.game_settings);
+        }
+        question
+    }
+
+    /// Attach a deck, or replace the attached one (a reload).
+    ///
+    /// Presets only shape questions as they are created, so questions that
+    /// already exist keep their live settings. The one exception is the very
+    /// first attach: with `apply_to_current` on a game that still has only its
+    /// untouched first question, that question takes the first preset.
+    pub fn set_deck(
+        &mut self,
+        uuid: String,
+        presets: Vec<QuestionPreset>,
+        apply_to_current: bool,
+    ) -> Result<()> {
+        anyhow::ensure!(!uuid.is_empty() && uuid.len() <= 64, "Invalid deck id");
+        anyhow::ensure!(presets.len() <= 1000, "Deck has too many questions");
+        // A reload of the same deck keeps the slides where they are.
+        let (slide_index, revealed, version) = match &self.deck {
+            Some(deck) if deck.uuid == uuid => {
+                (deck.slide_index, deck.revealed, deck.version.wrapping_add(1))
+            }
+            _ => (0, false, 1),
+        };
+        self.deck = Some(DeckState {
+            uuid,
+            presets,
+            slide_index,
+            revealed,
+            version,
+        });
+
+        let untouched =
+            self.questions.len() == 1 && !self.questions[0].has_answers() && !self.timer_running;
+        if apply_to_current && untouched {
+            self.questions[0] = self.create_question(1);
+            self.timer_seconds_remaining = Some(self.questions[0].timer_duration);
+        }
+        Ok(())
+    }
+
+    /// Move the slides. The scoring view decides where; the server only
+    /// remembers it and tells watchers.
+    ///
+    /// `question_number`, when given, moves the game to that question in the
+    /// same step, so nobody ever sees the slides and the game disagree. It can
+    /// reach at most one question past those that exist. Returns whether the
+    /// current question changed.
+    pub fn set_deck_cursor(
+        &mut self,
+        slide_index: usize,
+        revealed: bool,
+        question_number: Option<usize>,
+    ) -> Result<bool> {
+        anyhow::ensure!(self.deck.is_some(), "No deck is attached to this game");
+        let before = self.current_question_number;
+        if let Some(target) = question_number {
+            anyhow::ensure!(
+                target >= 1 && target <= self.questions.len() + 1,
+                "Question {target} can't be opened yet"
+            );
+            while self.current_question_number < target {
+                self.next_question();
+            }
+            while self.current_question_number > target {
+                self.prev_question()?;
+            }
+        }
+        if let Some(deck) = self.deck.as_mut() {
+            deck.slide_index = slide_index;
+            deck.revealed = revealed;
+        }
+        Ok(self.current_question_number != before)
     }
 
     /// Stop the timer if running
@@ -463,7 +675,7 @@ impl Game {
 
         // Create new question if it doesn't exist
         if self.current_question_number > self.questions.len() {
-            let new_question = self.create_question_from_settings();
+            let new_question = self.create_question(self.current_question_number);
             self.questions.push(new_question);
         }
 
@@ -663,6 +875,13 @@ impl Game {
                         }
                     }
                     None
+                });
+
+                // Otherwise, an answer on the deck's answer key is correct too.
+                let auto_score = auto_score.or_else(|| {
+                    let key = normalize_answer_key(&answer_text);
+                    (!key.is_empty() && question.answer_key.contains(&key))
+                        .then_some((question_base_points, 0))
                 });
 
                 let mut new_score = ScoreData::new();
@@ -1257,26 +1476,18 @@ impl Game {
     pub fn update_game_settings(&mut self, settings: GameSettings) {
         self.game_settings = settings.clone();
 
-        let default_question_config = self.game_settings.default_question_config();
-
-        // Update all questions that don't have answers yet
-        for question in &mut self.questions {
-            if !question.has_answers() {
-                question.timer_duration = settings.default_timer_duration;
-                question.question_points = settings.default_question_points;
-                question.bonus_increment = settings.default_bonus_increment;
-                question.question_config = default_question_config.clone();
-                question.speed_bonus_enabled = settings.speed_bonus_enabled;
-                question.multi_answer_correct_set.clear();
-                question.numeric_correct_answer = None;
-                question.map_correct_location = None;
+        // Rebuild all questions that don't have answers yet: the new defaults,
+        // with the attached deck's presets (if any) on top.
+        for idx in 0..self.questions.len() {
+            if !self.questions[idx].has_answers() {
+                self.questions[idx] = self.create_question(idx + 1);
             }
         }
 
         // Update timer display if on unanswered question and timer not running
         let current_q = &self.questions[self.current_question_number - 1];
         if !current_q.has_answers() && !self.timer_running {
-            self.timer_seconds_remaining = Some(settings.default_timer_duration);
+            self.timer_seconds_remaining = Some(current_q.timer_duration);
         }
     }
 
@@ -1362,6 +1573,7 @@ impl Game {
             question.multi_answer_correct_set.clear();
             question.numeric_correct_answer = None;
             question.map_correct_location = None;
+            question.answer_key.clear();
         }
 
         // If speed bonus was toggled on a question with answers, recalculate
@@ -1445,6 +1657,77 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_normalize_answer_key() {
+        assert_eq!(normalize_answer_key("  St. Louis!  "), "st louis");
+        assert_eq!(normalize_answer_key("In-n-Out"), "in n out");
+        assert_eq!(normalize_answer_key("3:42.66"), "3 42 66");
+        assert_eq!(normalize_answer_key("É   clair"), "é clair");
+        assert_eq!(normalize_answer_key("?!"), "");
+    }
+
+    #[test]
+    fn test_apply_preset_ignores_settings_for_other_kinds() {
+        let settings = GameSettings {
+            default_timer_duration: 30,
+            default_question_points: 50,
+            default_bonus_increment: 5,
+            default_question_type: QuestionKind::Standard,
+            default_mc_config: McConfig::default(),
+            default_multi_answer_config: MultiAnswerConfig::default(),
+            default_numeric_config: NumericConfig::default(),
+            default_map_config: MapConfig::default(),
+            speed_bonus_enabled: false,
+            speed_bonus_num_teams: 2,
+            speed_bonus_first_place_points: 10,
+        };
+        let mut question = Question {
+            timer_duration: 30,
+            question_points: 50,
+            bonus_increment: 5,
+            question_config: QuestionConfig::Standard,
+            answers: vec![],
+            speed_bonus_enabled: false,
+            multi_answer_correct_set: vec![],
+            numeric_correct_answer: None,
+            map_correct_location: None,
+            answer_key: vec![],
+        };
+        // A standard question: numeric and map values in the preset don't apply.
+        let preset = QuestionPreset {
+            range_value: Some(3.0),
+            numeric_correct_answer: Some(7.0),
+            map_correct_location: Some((1.0, 2.0)),
+            answer_key: vec!["Paris".to_string(), " ".to_string()],
+            ..Default::default()
+        };
+        apply_preset(&mut question, &preset, &settings);
+        assert!(matches!(question.question_config, QuestionConfig::Standard));
+        assert_eq!(question.numeric_correct_answer, None);
+        assert_eq!(question.map_correct_location, None);
+        assert_eq!(question.answer_key, vec!["paris".to_string()]);
+
+        // Yes/no questions always have two options; bad coordinates are dropped.
+        let preset = QuestionPreset {
+            kind: Some(QuestionKind::MultipleChoice),
+            option_type: Some(McOptionType::YesNo),
+            num_options: Some(5),
+            ..Default::default()
+        };
+        apply_preset(&mut question, &preset, &settings);
+        match &question.question_config {
+            QuestionConfig::MultipleChoice { config } => assert_eq!(config.num_options, 2),
+            other => panic!("unexpected config {other:?}"),
+        }
+        let preset = QuestionPreset {
+            kind: Some(QuestionKind::Map),
+            map_correct_location: Some((123.0, 0.0)),
+            ..Default::default()
+        };
+        apply_preset(&mut question, &preset, &settings);
+        assert_eq!(question.map_correct_location, None);
+    }
 
     #[test]
     fn test_calculate_speed_bonus_3_teams_10_points() {

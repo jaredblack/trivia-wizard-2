@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import * as yaml from "js-yaml";
+import { parse as parseYaml } from "yaml";
 import { ConflictError, type EventsBackend, type EventSummary } from "./types";
 import { scaffoldYaml } from "./scaffold";
 
@@ -19,6 +19,15 @@ interface EventEntry {
 
 interface Store {
   events: Record<string, EventEntry>;
+}
+
+// A deck with a syntax error still needs to appear in the list.
+function safeParse(text: string): unknown {
+  try {
+    return parseYaml(text);
+  } catch {
+    return null;
+  }
 }
 
 function readStore(): Store {
@@ -58,18 +67,12 @@ function seedIfEmpty(): void {
     yaml: `title: Seed Event
 subtitle: Local dev sample
 slides:
-  - type: image
-    title: |
-      One person from each team:
-      Join the game on Trivia Wizard
-      Game code: TODO
-    image: trivia-wizard-join-qr
-  - type: category
-    title: Sample Category
-  - type: question
-    id: AAA
-    question: What's the capital of France?
-    answer: Paris
+- join
+
+- category: Sample Category
+
+- q: What's the capital of France?
+  a: Paris
 `,
     etag: "1",
     lastModified: new Date().toISOString(),
@@ -129,10 +132,73 @@ async function putImagesManifest(
   writeStore(s);
 }
 
+// Image bytes go in IndexedDB: localStorage is too small for more than a
+// couple of photos.
+const IMAGE_DB = "tw-events-images";
+const IMAGE_STORE = "images";
+
+function imageDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IMAGE_DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(IMAGE_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function idb<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+const imageKey = (uuid: string, filename: string) => `${uuid}/${filename}`;
+const objectUrls = new Map<string, string>();
+
+async function uploadEventImage(
+  uuid: string,
+  filename: string,
+  data: Blob
+): Promise<void> {
+  const db = await imageDb();
+  await idb(
+    db.transaction(IMAGE_STORE, "readwrite").objectStore(IMAGE_STORE).put(data, imageKey(uuid, filename))
+  );
+  const stale = objectUrls.get(imageKey(uuid, filename));
+  if (stale) {
+    URL.revokeObjectURL(stale);
+    objectUrls.delete(imageKey(uuid, filename));
+  }
+  const files = await listEventImages(uuid);
+  if (!files.includes(filename)) await putImagesManifest(uuid, [...files, filename]);
+}
+
+async function eventImageUrls(uuid: string): Promise<Record<string, string>> {
+  const files = await listEventImages(uuid);
+  if (files.length === 0) return {};
+  const db = await imageDb();
+  const out: Record<string, string> = {};
+  for (const filename of files) {
+    const key = imageKey(uuid, filename);
+    let url = objectUrls.get(key);
+    if (!url) {
+      const blob = await idb<Blob | undefined>(
+        db.transaction(IMAGE_STORE).objectStore(IMAGE_STORE).get(key)
+      );
+      if (!blob) continue;
+      url = URL.createObjectURL(blob);
+      objectUrls.set(key, url);
+    }
+    out[filename] = url;
+  }
+  return out;
+}
+
 async function listEvents(): Promise<EventSummary[]> {
   const s = readStore();
   const rows: EventSummary[] = Object.entries(s.events).map(([uuid, entry]) => {
-    const parsed = yaml.load(entry.yaml) as
+    const parsed = safeParse(entry.yaml) as
       | { title?: string; subtitle?: string }
       | null;
     return {
@@ -161,5 +227,7 @@ export const localBackend: EventsBackend = {
   putYaml,
   listEventImages,
   putImagesManifest,
+  uploadEventImage,
+  eventImageUrls,
   mintEvent,
 };

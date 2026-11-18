@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::model::types::{
-    MapConfig, McConfig, MultiAnswerConfig, NumericConfig, QuestionConfig, QuestionKind, ScoreData,
+    MapConfig, McConfig, MultiAnswerConfig, NumericConfig, QuestionConfig, QuestionKind,
+    QuestionPreset, ScoreData,
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -84,6 +85,27 @@ pub enum HostAction {
     UpdateTypeSpecificSettings {
         question_number: usize,
         question_config: QuestionConfig,
+    },
+
+    /// Attach a deck (or replace the attached one). Presets apply to questions
+    /// as they are created. `apply_to_current` also applies the first preset to
+    /// question 1, and is honoured only while the game is still untouched.
+    #[serde(rename_all = "camelCase")]
+    SetDeck {
+        uuid: String,
+        presets: Vec<QuestionPreset>,
+        #[serde(default)]
+        apply_to_current: bool,
+    },
+
+    /// Move the slides of the attached deck, and optionally the game's current
+    /// question with them.
+    #[serde(rename_all = "camelCase")]
+    SetDeckCursor {
+        slide_index: usize,
+        revealed: bool,
+        #[serde(default)]
+        question_number: Option<usize>,
     },
 }
 

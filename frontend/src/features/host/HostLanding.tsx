@@ -162,12 +162,14 @@ export default function HostLanding() {
       );
     }
 
+    // The scoring view attaches the chosen deck once the game exists.
+    useHostStore.getState().setPendingDeckUuid(selectedUuid || null);
+
     try {
       const msg: HostClientMessage = {
         host: {
           type: "createGame",
           gameCode: useCustomCode ? customGameCode : undefined,
-          uuid: selectedUuid || undefined,
         },
       };
       await connectAndSend(msg);

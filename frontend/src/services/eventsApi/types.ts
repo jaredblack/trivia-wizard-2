@@ -23,5 +23,13 @@ export interface EventsBackend {
   ): Promise<{ etag: string }>;
   listEventImages(uuid: string): Promise<string[]>;
   putImagesManifest(uuid: string, files: string[]): Promise<void>;
+  /** Store one image in the event's folder and republish its manifest. */
+  uploadEventImage(uuid: string, filename: string, data: Blob): Promise<void>;
+  /**
+   * URLs for event images that are not served from /events/<uuid>/images/,
+   * keyed by filename. Empty in production; in local mode uploads live in the
+   * browser and are only reachable this way.
+   */
+  eventImageUrls(uuid: string): Promise<Record<string, string>>;
   mintEvent(): Promise<string>;
 }

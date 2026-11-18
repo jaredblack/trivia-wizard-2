@@ -264,6 +264,119 @@ pub struct Question {
     pub numeric_correct_answer: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub map_correct_location: Option<(f64, f64)>,
+    /// Accepted answers for Standard / MultipleChoice questions, normalized with
+    /// `normalize_answer_key`. A submission that matches one is scored correct on
+    /// arrival. Comes from the attached deck; empty otherwise.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub answer_key: Vec<String>,
+}
+
+/// Normalize text for comparison against a question's answer key: lowercase,
+/// punctuation dropped, whitespace collapsed. "St. Louis!" and "st louis" match.
+pub fn normalize_answer_key(s: &str) -> String {
+    s.to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { ' ' })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+// === Deck presets ===
+
+/// What an attached deck says about one question. Every field is optional:
+/// anything left out falls back to the game's defaults when the question is
+/// created, exactly as if no deck were attached.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct QuestionPreset {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timer_duration: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub question_points: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bonus_increment: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speed_bonus_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<QuestionKind>,
+
+    // Type-specific settings; only those matching the question's kind are used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub num_answers: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub option_type: Option<McOptionType>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub num_options: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scoring_mode: Option<NumericScoringMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range_type: Option<NumericRangeType>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range_value: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub num_winners: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range_scoring_type: Option<RangeScoringType>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub full_points_distance_km: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub one_point_distance_km: Option<f64>,
+
+    // Answer keys.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub answer_key: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub multi_answer_correct_set: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub numeric_correct_answer: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub map_correct_location: Option<(f64, f64)>,
+}
+
+/// The deck attached to a game: which event it is, and one preset per question
+/// in deck order.
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeckState {
+    pub uuid: String,
+    #[serde(default)]
+    pub presets: Vec<QuestionPreset>,
+    /// Which slide the projector shows: an index into the deck's slides, with
+    /// the generated title slide at 0.
+    #[serde(default)]
+    pub slide_index: usize,
+    /// Whether that slide's answer has been revealed.
+    #[serde(default)]
+    pub revealed: bool,
+    /// Goes up each time the deck is (re)loaded, so displays know to re-read it.
+    #[serde(default)]
+    pub version: u32,
+}
+
+// Every outgoing message is logged with `{:?}`; a deck's presets (answer keys
+// included) would be repeated in full each time, so only their count is shown.
+impl std::fmt::Debug for DeckState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DeckState")
+            .field("uuid", &self.uuid)
+            .field("presets", &format_args!("[{} presets]", self.presets.len()))
+            .field("slide_index", &self.slide_index)
+            .field("revealed", &self.revealed)
+            .field("version", &self.version)
+            .finish()
+    }
+}
+
+/// Where the slides are, as told to watchers (the slides window is one).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeckCursor {
+    pub uuid: String,
+    pub slide_index: usize,
+    pub revealed: bool,
+    pub version: u32,
 }
 
 impl Question {
@@ -326,7 +439,12 @@ pub struct GameSettings {
 impl GameSettings {
     /// Build the QuestionConfig corresponding to the current default question type.
     pub fn default_question_config(&self) -> QuestionConfig {
-        match self.default_question_type {
+        self.config_for_kind(self.default_question_type)
+    }
+
+    /// Build the default QuestionConfig for a given kind.
+    pub fn config_for_kind(&self, kind: QuestionKind) -> QuestionConfig {
+        match kind {
             QuestionKind::Standard => QuestionConfig::Standard,
             QuestionKind::MultiAnswer => QuestionConfig::MultiAnswer {
                 config: self.default_multi_answer_config.clone(),
@@ -371,4 +489,12 @@ pub struct ScoreboardData {
     pub teams: Vec<TeamData>,
     pub timer_running: bool,
     pub timer_seconds_remaining: Option<u32>,
+    #[serde(default)]
+    pub current_question_number: usize,
+    /// How many teams have answered the current question.
+    #[serde(default)]
+    pub answers_received: usize,
+    /// Present only when a deck is attached.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deck: Option<DeckCursor>,
 }

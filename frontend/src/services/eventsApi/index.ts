@@ -13,4 +13,6 @@ export const getYaml = backend.getYaml.bind(backend);
 export const putYaml = backend.putYaml.bind(backend);
 export const listEventImages = backend.listEventImages.bind(backend);
 export const putImagesManifest = backend.putImagesManifest.bind(backend);
+export const uploadEventImage = backend.uploadEventImage.bind(backend);
+export const eventImageUrls = backend.eventImageUrls.bind(backend);
 export const mintEvent = backend.mintEvent.bind(backend);

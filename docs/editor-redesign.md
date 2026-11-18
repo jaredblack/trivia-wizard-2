@@ -1,6 +1,6 @@
 # Editor and presentation redesign
 
-Product-level design, 2026-11-14. Status: proposal, nothing built yet.
+Product-level design, 2026-11-14. Status: all five slices built on 2026-11-14 and 15; see "As built" at the end for the exact field names and where the build differs from this design.
 
 ## Summary
 
@@ -160,7 +160,7 @@ The deck becomes a run sheet: an ordered list of steps, where each question cont
 - **One key walks the question.** The scoring view's primary button always names the next step: `Show Q14`, `Start timer`, `Reveal answer`, `Next: Q15`. The slides window follows and never needs focus.
 - **Opening a question applies its settings.** Type, timer, points, type options and the answer key arrive pre-set. Deck values are starting points: anything changed live still wins and is never reverted.
 - **Question and expected answer** appear above the submissions in the scoring view.
-- **Auto-scoring.** Multiple choice, numeric, map and multi-answer score from the key. Standard questions pre-mark exact matches, ignoring case and punctuation, and leave the rest to the host. The host can always override.
+- **Auto-scoring.** Multiple choice, numeric, map and multi-answer score from the key. Standard questions pre-mark exact matches, ignoring case and punctuation, and leave the rest to the host. The host can always override. An auto-score behaves exactly like a manual one: it applies as the answer arrives and teams see it right away.
 - **Reveal** warns if answers are still unscored, since scoring comes first, and closes submissions.
 - **The slide shows** the countdown and how many teams have answered.
 - **Category, image and join slides do not advance the game question**, so scoring Q14 can continue while the next category title is up.
@@ -187,15 +187,80 @@ The suite says nothing about the linked path. Slices 4 and 5 need new specs for 
 
 Slices 3 and 4 can swap if game-night housekeeping hurts more than editor legibility.
 
-## Open decisions
+## Decisions
 
-- **When teams see auto-scored points.** Proposed: hold them until submissions close. Publishing as answers arrive leaks correctness through the scoreboard while the timer is running.
-- **`q` / `a` or `question` / `answer`.** Proposed: the short keys. They are typed about 60 times a deck and match the slide's "Q:" and "A:".
-- **Uploaded image names.** Proposed: opaque auto names such as `img-7f3a`, with thumbnails in the gutter and inspector. Prompting for a name on each paste would read better but is slower.
-- **Timer auto-start.** Assumed: showing a question does not start the timer, so it can be read aloud first.
+Settled 2026-11-14.
+
+- **Auto-scoring is instant and treated like regular scoring.** Scores apply as answers arrive and reach teams the same way a manual score does today. This keeps the current behaviour and the current tests intact.
+- **`q` / `a`** are the keys, not `question` / `answer`.
+- **Uploaded images get opaque auto names** such as `img-7f3a`, with thumbnails in the gutter and inspector.
+- **Showing a question does not start the timer**, so it can be read aloud first.
+
+## As built
+
+### Field reference
+
+Settings, usable in `defaults:`, on a category and on a question. Defined once in `frontend/src/deck/settings.ts`; the editor's schema and hover text are generated from that table.
+
+| Key | Values | Built-in | Applies to |
+| --- | --- | --- | --- |
+| `kind` | `standard`, `multi-answer`, `multiple-choice`, `numeric`, `map` | `standard` | all |
+| `timer` | seconds | 30 | all |
+| `points` | whole number | 50 | all |
+| `bonus` | step of the bonus buttons | 5 | all |
+| `speed-bonus` | `true` / `false` | `false` | all |
+| `layout` | `side`, `hero` | `side` | slides with images |
+| `num-answers` | whole number | 3 | multi-answer |
+| `options` | `letters`, `numbers`, `yes-no`, `true-false` | `letters` | multiple-choice |
+| `num-options` | whole number | 4, or the number of `choices` | multiple-choice |
+| `scoring` | `exact`, `range`, `closest` | `exact`; `range` when `within` is declared | numeric |
+| `within` | a number, or a percentage such as `10%` | 5 | numeric, range |
+| `range-scoring` | `linear`, `flat` | `linear` | numeric, range |
+| `winners` | whole number | 3 | numeric, closest |
+| `full-points-km` | kilometres | 0.025 | map |
+| `one-point-km` | kilometres | 10000 | map |
+
+"Built-in" is the game's own default. A setting the deck never declares is not sent to the game at all, so it follows whatever the game's defaults are at the time, including changes made in the settings dialog mid-game.
+
+Slide keys: `q`, `then`, `category` (+ `subtitle`), `image` (+ `title`) for an image slide, `html` / `file` for a custom slide, and the bare word `join`. On questions and follow-ups: `a`, `choices`, `matching`, `image`, `answer-image`, `notes`. On questions only: `location: [lat, lng]` for map questions.
+
+### Where things live
+
+- `frontend/src/deck/`: the format. `compile.ts` (YAML to model, problems), `legacy.ts` (old-format conversion), `edit.ts` (one-line edits), `summary.ts` (badges, inspector rows), `game.ts` (deck to game presets), `runsheet.ts` (steps and the primary action), `schema.ts`, `images.ts`.
+- `frontend/src/features/host/editor/`: inspector, slide preview, image upload.
+- `frontend/src/presentation/`: `render.ts` (replaces `build.ts`), `loadDeck.ts`, follower logic in `PresentationPage.tsx`.
+- `frontend/src/features/host/`: `useGameDeck.ts`, `useDeckRemote.ts`, `components/DeckBar.tsx`.
+- Backend: `QuestionPreset`, `DeckState` and `answer_key` in `model/types.rs`; `set_deck`, `set_deck_cursor` and `apply_preset` in `model/game.rs`; host actions `setDeck` and `setDeckCursor`.
+
+### Differences from the design above
+
+- **Reveal warning.** The game does not record whether an answer has been looked at, so "unscored" cannot be detected exactly. The button asks for a second press only when answers are in and not one has any points.
+- **Map location.** The inspector has a coordinates field that accepts a pasted "lat, lng". A "Pick on a map" control exists when a Google Maps key is configured, but it has not been exercised against the real Maps API.
+- **Old-format decks** are not rewritten in storage. The slides and the game convert them in memory; the editor shows a "Convert deck" button that rewrites the text as one undoable edit. A repeated id becomes `then:` with a comment naming the id, since the converter cannot tell a deliberate follow-up from a copy-paste slip.
+- **Ranking questions** (`choices` with a list answer) are shown and revealed, not scored automatically. They stay `standard` unless a kind is declared.
+- **Standard questions** match the answer key ignoring case, punctuation and extra spaces. There is no list of alternative accepted answers yet.
+- **The header's question arrows still work** with a deck attached, and take the slides to that question. Moving slides and question happens in one server step, so they never disagree.
+- **The slides window finds its game** from a scoring view in the same browser, or from `?game=CODE` in its address (the "Open slides" link includes it). While following, its own keyboard is off.
+- **Watchers are told about each answer only in games with a deck.** Games without one keep the previous behaviour, where watchers hear on host actions.
+- **Uploaded images** always go to the event's folder as JPEGs. `paste.sh` is still in the repository for shared images such as the background.
+
+### Checks
+
+- `npm run test:unit` in `frontend/`: the deck format, edits, presets and run sheet.
+- `npx playwright test --project=chromium --project=firefox` in `frontend/`: the existing 76 specs unchanged, plus `tests/deck*.spec.ts`.
+- `cargo test` in `backend/`: includes `tests/integ/deck_test.rs`.
+- WebKit: 75 of the 76 existing specs already failed before this work started, because Playwright's WebKit never completes a click in this app on this machine (pages load and WebSockets work). The one spec that needs no click, the stale-rejoin test in `rejoin.spec.ts`, passes on its own but reads storage once without waiting, so it can miss in a fully loaded run. WebKit was not used as a gate.
+
+### Not verified
+
+- Image upload against the real S3 bucket. It is tested against the local, in-browser backend only.
+- The Google Maps picker.
+- Deployment. The backend and frontend need to go out together: an older backend rejects `setDeck`, which leaves games without a deck working and deck features failing.
+- `docs/yaml-schema-guide.html` describes the old format and is now out of date.
 
 ## Later
 
+- Hold scores back from teams until the answer is revealed on screen. Deferred on purpose: it changes when teams see scores, which breaks the current tests, and it needs the reveal step from slice 5 to exist first.
 - A `scoreboard` slide that shows live standings on the projector.
 - Importing a web URL into the bucket.
 - A phone upload page for photos taken away from the laptop.

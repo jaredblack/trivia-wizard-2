@@ -6,7 +6,7 @@ import {
   ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { nanoid } from "nanoid";
-import * as yaml from "js-yaml";
+import { parse as parseYaml } from "yaml";
 import { ASSETS_BUCKET, AWS_REGION, getCredentials } from "../../aws";
 import { ConflictError, type EventsBackend, type EventSummary } from "./types";
 import { scaffoldYaml } from "./scaffold";
@@ -128,6 +128,28 @@ async function putImagesManifest(
   );
 }
 
+async function uploadEventImage(
+  uuid: string,
+  filename: string,
+  data: Blob
+): Promise<void> {
+  const c = await client();
+  await c.send(
+    new PutObjectCommand({
+      Bucket: ASSETS_BUCKET,
+      Key: `events/${uuid}/images/${filename}`,
+      Body: new Uint8Array(await data.arrayBuffer()),
+      ContentType: data.type || "image/jpeg",
+    })
+  );
+  // The slides read the manifest, not the bucket listing, so republish it.
+  await putImagesManifest(uuid, await listEventImages(uuid));
+}
+
+async function eventImageUrls(): Promise<Record<string, string>> {
+  return {};
+}
+
 async function listEvents(): Promise<EventSummary[]> {
   const c = await client();
   const uuids = await listEventUuids();
@@ -139,9 +161,13 @@ async function listEvents(): Promise<EventSummary[]> {
         c.send(new GetObjectCommand({ Bucket: ASSETS_BUCKET, Key: key })),
       ]);
       const text = await get.Body!.transformToString();
-      const parsed = yaml.load(text) as
-        | { title?: string; subtitle?: string }
-        | null;
+      // A deck with a syntax error still needs to appear in the list.
+      let parsed: { title?: string; subtitle?: string } | null;
+      try {
+        parsed = parseYaml(text) as { title?: string; subtitle?: string } | null;
+      } catch {
+        parsed = null;
+      }
       return {
         uuid,
         title: parsed?.title ?? "(untitled)",
@@ -175,5 +201,7 @@ export const s3Backend: EventsBackend = {
   putYaml,
   listEventImages,
   putImagesManifest,
+  uploadEventImage,
+  eventImageUrls,
   mintEvent,
 };

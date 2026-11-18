@@ -223,6 +223,53 @@ export interface Question {
   multiAnswerCorrectSet?: string[];
   numericCorrectAnswer?: number | null;
   mapCorrectLocation?: [number, number] | null;
+  /** Accepted answers from the attached deck (Standard / Multiple Choice). */
+  answerKey?: string[];
+}
+
+// === Deck presets ===
+// What an attached deck declares for one question. Anything left out falls back
+// to the game's defaults when the server creates the question.
+
+export interface QuestionPreset {
+  timerDuration?: number;
+  questionPoints?: number;
+  bonusIncrement?: number;
+  speedBonusEnabled?: boolean;
+  kind?: QuestionKind;
+  numAnswers?: number;
+  optionType?: McOptionType;
+  numOptions?: number;
+  scoringMode?: NumericScoringMode;
+  rangeType?: NumericRangeType;
+  rangeValue?: number;
+  numWinners?: number;
+  rangeScoringType?: RangeScoringType;
+  fullPointsDistanceKm?: number;
+  onePointDistanceKm?: number;
+  answerKey?: string[];
+  multiAnswerCorrectSet?: string[];
+  numericCorrectAnswer?: number;
+  mapCorrectLocation?: [number, number];
+}
+
+export interface DeckState {
+  uuid: string;
+  presets: QuestionPreset[];
+  /** Which slide the projector shows; the generated title slide is 0. */
+  slideIndex: number;
+  /** Whether that slide's answer has been revealed. */
+  revealed: boolean;
+  /** Goes up each time the deck is (re)loaded. */
+  version: number;
+}
+
+/** Where the slides are, as told to watchers. */
+export interface DeckCursor {
+  uuid: string;
+  slideIndex: number;
+  revealed: boolean;
+  version: number;
 }
 
 // === Game Settings ===
@@ -266,6 +313,8 @@ export interface GameState {
   teams: TeamData[];
   questions: Question[];
   gameSettings: GameSettings;
+  /** The deck attached to this game, if any. */
+  deck?: DeckState;
 }
 
 // === TeamGameState (Server → Team) ===
@@ -312,6 +361,11 @@ export interface ScoreboardData {
   teams: TeamData[];
   timerRunning: boolean;
   timerSecondsRemaining: number | null;
+  currentQuestionNumber?: number;
+  /** How many teams have answered the current question. */
+  answersReceived?: number;
+  /** Present only when a deck is attached to the game. */
+  deck?: DeckCursor;
 }
 
 export interface ScoreboardDataMessage {
@@ -332,7 +386,6 @@ export type ServerMessage =
 export interface CreateGameAction {
   type: "createGame";
   gameCode?: string;
-  uuid?: string;
 }
 
 export interface StartTimerAction {
@@ -419,8 +472,26 @@ export interface SetMapCorrectLocationAction {
   correctLocation: [number, number] | null;
 }
 
+export interface SetDeckAction {
+  type: "setDeck";
+  uuid: string;
+  presets: QuestionPreset[];
+  /** Also apply the first preset to question 1; honoured only on an untouched game. */
+  applyToCurrent: boolean;
+}
+
+export interface SetDeckCursorAction {
+  type: "setDeckCursor";
+  slideIndex: number;
+  revealed: boolean;
+  /** Move the game to this question in the same step. */
+  questionNumber?: number;
+}
+
 export type HostAction =
   | CreateGameAction
+  | SetDeckAction
+  | SetDeckCursorAction
   | StartTimerAction
   | PauseTimerAction
   | ResetTimerAction

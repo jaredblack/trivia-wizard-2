@@ -2,7 +2,9 @@ use log::{error, info};
 use serde::{Deserialize, Serialize};
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::model::types::{GameSettings, Question, ScoreboardData, TeamData, TeamQuestion};
+use crate::model::types::{
+    DeckState, GameSettings, Question, ScoreboardData, TeamData, TeamQuestion,
+};
 use crate::server::Tx;
 
 // === GameState (Server → Host) ===
@@ -19,6 +21,9 @@ pub struct GameState {
     pub teams: Vec<TeamData>,
     pub questions: Vec<Question>,
     pub game_settings: GameSettings,
+    /// The deck attached to this game, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deck: Option<DeckState>,
 }
 
 // === TeamGameState (Server → Team) ===

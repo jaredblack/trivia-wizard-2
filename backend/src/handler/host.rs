@@ -242,6 +242,22 @@ fn process_host_action(
             game.update_type_specific_settings(question_number, question_config)?;
             Ok(false)
         }
+        HostAction::SetDeck {
+            uuid,
+            presets,
+            apply_to_current,
+        } => {
+            game.set_deck(uuid, presets, apply_to_current)?;
+            Ok(true)
+        }
+        HostAction::SetDeckCursor {
+            slide_index,
+            revealed,
+            question_number,
+        } => {
+            // Persist on the same occasions plain navigation does.
+            game.set_deck_cursor(slide_index, revealed, question_number)
+        }
     }
 }
 

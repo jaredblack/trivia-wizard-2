@@ -8,7 +8,8 @@
     "dev:prod": "vite --mode production",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:unit": "node --import tsx --test tests/unit/*.unit.ts"
   },
   "dependencies": {
     "@aws-amplify/ui-react": "^6.15.7",
@@ -19,7 +20,6 @@
     "@tailwindcss/vite": "^4.3.5",
     "@vis.gl/react-google-maps": "^1.10.2",
     "aws-amplify": "^6.22.2",
-    "js-yaml": "^5.5.0",
     "lucide-react": "^1.73.0",
     "monaco-editor": "^0.52.2",
     "monaco-yaml": "^5.5.1",
@@ -29,6 +29,7 @@
     "react-router-dom": "^7.18.5",
     "reveal.js": "^6.0.2",
     "tailwindcss": "^4.1.18",
+    "yaml": "^2.9.1",
     "zustand": "^5.1.0"
   },
   "devDependencies": {

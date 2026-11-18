@@ -3,6 +3,7 @@ mod authentication_test;
 mod auto_pause_test;
 mod auto_scoring_test;
 mod connection_and_game_creation_test;
+mod deck_test;
 mod game_timer_test;
 mod host_reconnection_test;
 mod map_scoring_test;

@@ -1,0 +1,132 @@
+/* ── Slide preview ─────────────────────────────────────────────────────────
+   A 1920x1080 slide laid out at full size and scaled to the panel's width, so
+   it uses exactly the projector's CSS. reveal.js isn't running, so its layout
+   rules for .slides and sections are replaced with fixed geometry here. */
+.slide-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 6px;
+  border: 1px solid rgba(139, 115, 85, 0.35);
+}
+.slide-preview.presentation-root .reveal {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px !important;
+  height: 1080px !important;
+  transform-origin: top left;
+  transform: scale(var(--preview-scale));
+  font-size: 16px;
+}
+.slide-preview.presentation-root .reveal .slides {
+  position: absolute;
+  inset: 0;
+  width: 1920px;
+  height: 1080px;
+  margin: 0;
+  pointer-events: none;
+}
+.slide-preview.presentation-root .reveal .slides > section {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 1;
+  visibility: visible;
+  transition: none;
+}
+.slide-preview .reveal .fragment {
+  transition: none;
+}
+
+/* ── Inspector panel ───────────────────────────────────────────────────── */
+.inspector {
+  background: rgb(240, 231, 223);
+  border-left: 1px solid rgba(139, 115, 85, 0.25);
+  color: #3a2f25;
+}
+.inspector h2 {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.inspector h3 {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8b7355;
+}
+.inspector-row {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  border-top: 1px solid rgba(139, 115, 85, 0.18);
+  font-size: 0.85rem;
+}
+.inspector-row label {
+  color: #6b5a47;
+}
+.inspector-control {
+  width: 100%;
+  min-width: 0;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid rgba(139, 115, 85, 0.4);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+}
+.inspector-control:focus {
+  outline: 2px solid rgba(107, 28, 28, 0.35);
+  outline-offset: 0;
+}
+.inspector-control.invalid {
+  border-color: #b91c1c;
+}
+.inspector-source {
+  font-size: 0.7rem;
+  white-space: nowrap;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(139, 115, 85, 0.16);
+  color: #6b5a47;
+}
+.inspector-source.own {
+  background: rgba(107, 28, 28, 0.14);
+  color: #6b1c1c;
+}
+.inspector-source button {
+  margin-left: 0.3rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+.inspector-dropzone {
+  border: 1px dashed rgba(139, 115, 85, 0.6);
+  border-radius: 6px;
+  padding: 0.5rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: #6b5a47;
+}
+.inspector-dropzone.over {
+  background: rgba(107, 28, 28, 0.08);
+  border-color: #6b1c1c;
+}
+.inspector-thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: rgba(139, 115, 85, 0.2);
+  flex: none;
+}
+
+/* Dim note after a question that differs from the deck's defaults. */
+.q-badge {
+  margin-left: 2.5em;
+  color: #8b7355;
+  font-style: italic;
+  opacity: 0.85;
+}

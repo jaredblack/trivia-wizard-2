@@ -141,6 +141,13 @@ fn process_team_action(action: TeamAction, game: &mut Game, team_name: &str) -> 
                 )
             });
 
+            // With a deck attached, the slides show how many teams have
+            // answered, so watchers are told about each answer. Games without a
+            // deck keep the existing behaviour: watchers hear on host actions.
+            if game.deck.is_some() {
+                game.broadcast_scoreboard_data();
+            }
+
             TeamActionResult { team_msg, host_msg }
         }
     }

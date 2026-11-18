@@ -14,6 +14,9 @@ import MapMainArea from "./components/MapMainArea";
 import Scoreboard from "./components/Scoreboard";
 import PerQuestionSettings from "./components/PerQuestionSettings";
 import SettingsModal from "./components/SettingsModal";
+import DeckBar from "./components/DeckBar";
+import { useGameDeck } from "./useGameDeck";
+import { useDeckRemote } from "./useDeckRemote";
 import type {
   QuestionKind,
   ClientMessage,
@@ -46,6 +49,8 @@ export default function HostGame() {
     clearGame,
   } = useHostStore();
   const { connectionState, send, connectAndSend, disconnect } = useWebSocket();
+  const deck = useGameDeck(send);
+  const remote = useDeckRemote(deck, send);
   // Get current question from questions array (0-indexed)
   const currentQuestion = questions[currentQuestionNumber - 1] ?? null;
 
@@ -192,6 +197,14 @@ export default function HostGame() {
           });
         }}
         onExit={handleExit}
+      />
+
+      <DeckBar
+        deck={deck}
+        remote={remote}
+        questionNumber={currentQuestionNumber}
+        gameCode={gameCode}
+        shortcutsEnabled={!isSettingsOpen}
       />
 
       {/* Main content area */}
