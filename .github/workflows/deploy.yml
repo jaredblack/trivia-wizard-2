@@ -30,6 +30,8 @@ jobs:
           workspaces: backend
       - name: cargo test
         working-directory: backend
+        env:
+          IS_LOCAL_MAC: "true"
         run: cargo test
 
   e2e:
