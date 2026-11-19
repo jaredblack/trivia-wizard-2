@@ -222,6 +222,7 @@ async fn answer_key_is_never_sent_to_teams() {
     team.send_json(&ClientMessage::Team(TeamAction::ValidateJoin {
         team_name: "Team1".to_string(),
         game_code: code.clone(),
+        rejoin: false,
     }))
     .await;
     let _: ServerMessage = team.recv_json().await;

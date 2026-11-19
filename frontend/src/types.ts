@@ -510,6 +510,13 @@ export type HostAction =
 export interface ValidateJoinData {
   teamName: string;
   gameCode: string;
+  /**
+   * Set when a client that already joined as this team reconnects. The server
+   * then hands the team to this connection even if it still holds an older one
+   * that dropped silently. Fresh joins leave it unset, so a name in use is
+   * refused.
+   */
+  rejoin?: boolean;
 }
 
 export interface JoinGameData {

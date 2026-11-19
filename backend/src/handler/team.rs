@@ -1,12 +1,12 @@
 use crate::{
-    heartbeat::{HeartbeatState, PING_INTERVAL},
+    heartbeat::HeartbeatState,
     model::{
         client_message::{ClientMessage, TeamAction},
         game::Game,
         server_message::{ServerMessage, send_msg},
         types::TeamColor,
     },
-    server::{AppState, Rx, Tx},
+    server::{AppState, Rx, Tx, send_replaced},
 };
 use futures_util::{SinkExt, StreamExt};
 use log::*;
@@ -73,7 +73,12 @@ pub async fn rejoin_game(
     let mut games_map = app_state.games.lock().await;
     if let Some(game) = games_map.get_mut(&game_code) {
         info!("Team {team_name} rejoining game {game_code}");
+        let replaced = game.team_tx(&team_name).cloned();
         game.rejoin_team(&team_name, tx.clone());
+        if let Some(old_tx) = replaced {
+            info!("Team {team_name}'s new connection replaces an older one");
+            send_replaced(&old_tx);
+        }
 
         // TeamGameState already sent in ValidateJoin response, don't send again
 
@@ -212,14 +217,16 @@ async fn handle_team(
     team_name: String,
 ) {
     let (mut ws_write, mut ws_read) = ws_stream.split();
-    let mut heartbeat = HeartbeatState::new();
-    let mut ping_interval = tokio::time::interval(PING_INTERVAL);
+    let mut heartbeat = HeartbeatState::new(&app_state.heartbeat);
+    let mut ping_interval = tokio::time::interval(app_state.heartbeat.ping_interval);
 
     loop {
         tokio::select! {
             // Outgoing messages from channel
             Some(msg) = rx.recv() => {
-                if ws_write.send(msg).await.is_err() {
+                // A close frame here means a newer connection replaced this one.
+                let replaced = msg.is_close();
+                if ws_write.send(msg).await.is_err() || replaced {
                     break;
                 }
             }
@@ -262,8 +269,10 @@ async fn handle_team(
     let host_tx = {
         let mut games_map = app_state.games.lock().await;
         if let Some(game) = games_map.get_mut(&game_code) {
-            game.set_team_connected(&team_name, false);
-            game.clear_team_tx(&team_name);
+            if !game.disconnect_team_if_current(&team_name, &team_tx) {
+                info!("Team {team_name}'s old connection closed; a newer one is active");
+                return;
+            }
             game.host_tx.clone().map(|tx| {
                 (
                     tx,

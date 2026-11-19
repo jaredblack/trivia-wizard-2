@@ -1,4 +1,8 @@
-use crate::{TestClient, TestServer, create_host_token};
+use std::time::Duration;
+
+use crate::{TestClient, TestServer, create_host_token, create_test_jwt};
+
+use backend::server::REPLACED_CLOSE_CODE;
 
 use backend::model::client_message::{AnswerSubmission, ClientMessage, HostAction, TeamAction};
 use backend::model::server_message::ServerMessage;
@@ -129,13 +133,33 @@ async fn team_can_submit_and_be_scored_after_host_reconnect() {
     let _: ServerMessage = team.recv_json().await;
 }
 
+/// The same host opening the game again (a second tab, or after a network
+/// change) takes over. The old connection is closed with the "replaced" code
+/// so the client knows not to reconnect.
 #[tokio::test]
-async fn cannot_reclaim_game_with_active_host() {
+async fn same_host_reclaiming_takes_over_from_active_connection() {
     let server = TestServer::start().await;
-    let (host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
+    let (mut old_host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
 
-    // Try to reclaim the game while the original host is still connected
-    let token = create_host_token();
+    let (_new_host, reply) = TestClient::reclaim_game_at(&server.ws_url(), &game_code).await;
+    assert!(
+        matches!(reply, ServerMessage::GameState { .. }),
+        "same host should take over, got {reply:?}"
+    );
+
+    assert_eq!(
+        old_host.close_within(Duration::from_secs(1)).await,
+        Some(Some(REPLACED_CLOSE_CODE)),
+        "old host connection should be closed as replaced"
+    );
+}
+
+#[tokio::test]
+async fn different_host_cannot_reclaim_game() {
+    let server = TestServer::start().await;
+    let (_host, game_code) = TestClient::connect_as_host_and_create_game(&server).await;
+
+    let token = create_test_jwt("another-host-user", &["Trivia-Hosts"], false);
     let mut intruder = TestClient::connect_with_token(&server.ws_url(), Some(&token)).await;
     intruder
         .send_json(&ClientMessage::Host(HostAction::CreateGame {
@@ -143,18 +167,9 @@ async fn cannot_reclaim_game_with_active_host() {
         }))
         .await;
 
-    // Should receive an error
     let response: ServerMessage = intruder.recv_json().await;
-    match response {
-        ServerMessage::Error { message, .. } => {
-            assert!(
-                message.contains("already has an active host"),
-                "Error should mention active host, got: {message}"
-            );
-        }
-        other => panic!("Expected Error message for game with active host, got {other:?}"),
-    }
-
-    // Original host should still be connected (not dropped)
-    drop(host);
+    assert!(
+        matches!(&response, ServerMessage::Error { message, .. } if message.contains("already exists")),
+        "a different host must not take over, got {response:?}"
+    );
 }

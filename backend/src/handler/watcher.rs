@@ -1,5 +1,5 @@
 use crate::{
-    heartbeat::{HeartbeatState, PING_INTERVAL},
+    heartbeat::HeartbeatState,
     model::server_message::{ServerMessage, send_msg},
     server::{AppState, Rx, Tx},
 };
@@ -57,8 +57,8 @@ async fn handle_watcher(
     game_code: String,
 ) {
     let (mut ws_write, mut ws_read) = ws_stream.split();
-    let mut heartbeat = HeartbeatState::new();
-    let mut ping_interval = tokio::time::interval(PING_INTERVAL);
+    let mut heartbeat = HeartbeatState::new(&app_state.heartbeat);
+    let mut ping_interval = tokio::time::interval(app_state.heartbeat.ping_interval);
 
     loop {
         tokio::select! {

@@ -1,13 +1,13 @@
 use crate::{
     game_timer::{pause_timer, reset_timer, start_timer},
-    heartbeat::{HeartbeatState, PING_INTERVAL},
+    heartbeat::HeartbeatState,
     model::{
         client_message::{ClientMessage, HostAction},
         game::Game,
         server_message::{ServerMessage, send_msg},
         types::GameSettings,
     },
-    server::{AppState, Rx, Tx},
+    server::{AppState, Rx, Tx, send_replaced},
 };
 use futures_util::{SinkExt, StreamExt};
 use log::*;
@@ -34,18 +34,7 @@ pub async fn create_game(
 
     // Check if game exists in memory
     if let Some(existing_game) = games_map.get_mut(&game_code) {
-        // If game has a host, return error
-        if existing_game.host_tx.is_some() {
-            info!("Cannot create/reclaim game {game_code}: host already connected");
-            let error_msg =
-                ServerMessage::error(format!("Game '{}' already has an active host", game_code));
-            let msg = serde_json::to_string(&error_msg).unwrap();
-            drop(games_map);
-            let _ = ws_stream.send(Message::text(msg)).await;
-            return;
-        }
-
-        // Game exists but host disconnected - check ownership before reclaiming
+        // Only the host who created the game can reclaim it
         if existing_game.host_user_id != user_id {
             info!(
                 "User {user_id} cannot reclaim game {game_code}: owned by {}",
@@ -59,6 +48,13 @@ pub async fn create_game(
             return;
         }
 
+        // The same host may still hold an older connection: one that dropped
+        // silently and hasn't timed out yet, or another tab. The newest
+        // connection takes over and the old one is closed.
+        if let Some(old_tx) = existing_game.host_tx.take() {
+            info!("Host's new connection to {game_code} replaces an older one");
+            send_replaced(&old_tx);
+        }
         info!("Host reclaiming existing game: {game_code}");
         existing_game.set_host_tx(tx.clone());
         let msg = ServerMessage::GameState {
@@ -350,14 +346,16 @@ async fn handle_host(
     user_id: String,
 ) {
     let (mut ws_write, mut ws_read) = ws_stream.split();
-    let mut heartbeat = HeartbeatState::new();
-    let mut ping_interval = tokio::time::interval(PING_INTERVAL);
+    let mut heartbeat = HeartbeatState::new(&app_state.heartbeat);
+    let mut ping_interval = tokio::time::interval(app_state.heartbeat.ping_interval);
 
     loop {
         tokio::select! {
             // Outgoing messages from channel
             Some(msg) = rx.recv() => {
-                if ws_write.send(msg).await.is_err() {
+                // A close frame here means a newer connection replaced this one.
+                let replaced = msg.is_close();
+                if ws_write.send(msg).await.is_err() || replaced {
                     break;
                 }
             }
@@ -404,6 +402,10 @@ async fn handle_host(
     let game_state = {
         let mut games_map = app_state.games.lock().await;
         if let Some(game) = games_map.get_mut(&game_code) {
+            if !game.is_current_host(&host_tx) {
+                info!("Host's old connection to {game_code} closed; a newer one is active");
+                return;
+            }
             game.clear_host_tx();
             Some(game.to_game_state())
         } else {

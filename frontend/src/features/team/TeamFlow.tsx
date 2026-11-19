@@ -72,6 +72,7 @@ export default function TeamFlow() {
             validateJoin: {
               gameCode: rejoinData.gameCode,
               teamName: rejoinData.teamName,
+              rejoin: true,
             },
           },
         });
@@ -93,6 +94,17 @@ export default function TeamFlow() {
       saveTeamRejoin({
         gameCode: gameCode.trim(),
         teamName: teamName.trim(),
+      });
+      // From now on, reconnecting means taking this team back, not joining
+      // fresh (which the server refuses while it thinks the team is online).
+      webSocketService.setReplayMessage({
+        team: {
+          validateJoin: {
+            gameCode: gameCode.trim(),
+            teamName: teamName.trim(),
+            rejoin: true,
+          },
+        },
       });
       setIsRejoining(false);
     }

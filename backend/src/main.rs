@@ -8,6 +8,7 @@ use tower_http::cors::{Any, CorsLayer};
 
 use backend::{
     auth,
+    heartbeat::HeartbeatConfig,
     infra::{self, ServiceDiscovery},
     persistence::PersistenceClient,
     server::start_ws_server,
@@ -53,7 +54,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         auth::create_validator_from_env()
     };
     let persistence = Arc::new(PersistenceClient::new().await);
-    let ws_server = start_ws_server(ws_listener, timer, validator, persistence);
+    let ws_server = start_ws_server(
+        ws_listener,
+        timer,
+        validator,
+        persistence,
+        HeartbeatConfig::default(),
+    );
 
     let health_app = Router::new()
         .route("/health", get(health_check))

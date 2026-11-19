@@ -127,10 +127,12 @@ test.describe('Inspector', () => {
     await expect.poll(() => storedYaml(page, 'deck0001')).toBe(DECK.replace('  timer: 45\n', ''));
 
     // The edits are ordinary editor edits: undo brings them back.
-    // (Playwright's desktop profiles report a Windows user agent, which is
-    // what the editor reads to pick Ctrl over Cmd.)
+    // The editor picks Cmd vs Ctrl from the user agent, not the host OS, and
+    // Playwright's Desktop Safari profile reports a Mac UA while Chrome and
+    // Firefox report Windows — so match the page's UA.
+    const isMacUA = await page.evaluate(() => /Mac/.test(navigator.userAgent));
     await lines(page).getByText('a: 2015').click();
-    await page.keyboard.press('Control+z');
+    await page.keyboard.press(isMacUA ? 'Meta+z' : 'Control+z');
     await expect(sourceOf(page, 'Points')).toHaveText('this question×');
   });
 

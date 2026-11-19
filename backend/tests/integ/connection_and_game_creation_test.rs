@@ -28,6 +28,7 @@ async fn team_joins_nonexistent_game_receives_error() {
     team.send_json(&ClientMessage::Team(TeamAction::ValidateJoin {
         team_name: "mememe".to_string(),
         game_code: "NONE".to_string(),
+        rejoin: false,
     }))
     .await;
     let response: ServerMessage = team.recv_json().await;

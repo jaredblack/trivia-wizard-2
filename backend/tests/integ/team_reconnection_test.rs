@@ -80,6 +80,7 @@ async fn team_reconnects_and_score_persists() {
         .send_json(&ClientMessage::Team(TeamAction::ValidateJoin {
             team_name: "Test Team A".to_lowercase(),
             game_code: game_code.clone(),
+            rejoin: false,
         }))
         .await;
     let response: ServerMessage = team_a_reconnected.recv_json().await;
@@ -146,6 +147,7 @@ async fn reconnect_team(
         .send_json(&ClientMessage::Team(TeamAction::ValidateJoin {
             team_name: team_name.to_string(),
             game_code: game_code.to_string(),
+            rejoin: false,
         }))
         .await;
     let team_msg: ServerMessage = client.recv_json().await;

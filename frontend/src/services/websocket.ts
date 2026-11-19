@@ -9,6 +9,14 @@ export type ConnectionState =
   | "reconnecting"
   | "error";
 
+/**
+ * Close code the server sends when a newer connection for the same team or
+ * host took over (another tab, or this device after a network change). Must
+ * not trigger auto-reconnect, or two tabs would keep taking the game from
+ * each other. Matches REPLACED_CLOSE_CODE in backend/src/server.rs.
+ */
+export const REPLACED_CLOSE_CODE = 4001;
+
 type MessageHandler = (message: ServerMessage) => void;
 type StateChangeHandler = (state: ConnectionState) => void;
 
@@ -137,15 +145,7 @@ class WebSocketService {
         }
       };
 
-      this.ws!.onclose = (event) => {
-        console.log("WebSocket disconnected", event.code, event.reason);
-        this.ws = null;
-        if (!this.intentionalDisconnect) {
-          this.startReconnection();
-        } else {
-          this.setConnectionState("disconnected");
-        }
-      };
+      this.ws!.onclose = (event) => this.handleClose(event);
 
       this.ws!.onerror = (error) => {
         console.error("WebSocket error:", error);
@@ -214,6 +214,29 @@ class WebSocketService {
     this.reconnectAttempt = 0;
   }
 
+  private handleClose(event: CloseEvent): void {
+    console.log("WebSocket disconnected", event.code, event.reason);
+    this.ws = null;
+    if (event.code === REPLACED_CLOSE_CODE) {
+      // Another connection has the game now. Stay out of its way.
+      this.intentionalDisconnect = true;
+      this.initialMessage = null;
+      this.setConnectionState("disconnected");
+    } else if (!this.intentionalDisconnect) {
+      this.startReconnection();
+    } else {
+      this.setConnectionState("disconnected");
+    }
+  }
+
+  /**
+   * Replace the message replayed on automatic reconnection. A team that has
+   * joined uses this to reconnect as a rejoin rather than a fresh join.
+   */
+  setReplayMessage(message: ClientMessage): void {
+    this.initialMessage = message;
+  }
+
   /**
    * Clear the stored initial message (e.g., when leaving a game).
    */
@@ -280,15 +303,7 @@ class WebSocketService {
             };
 
             // Re-attach close handler
-            this.ws!.onclose = (event) => {
-              console.log("WebSocket disconnected", event.code, event.reason);
-              this.ws = null;
-              if (!this.intentionalDisconnect) {
-                this.startReconnection();
-              } else {
-                this.setConnectionState("disconnected");
-              }
-            };
+            this.ws!.onclose = (event) => this.handleClose(event);
 
             this.ws!.onerror = (error) => {
               console.error("WebSocket error:", error);

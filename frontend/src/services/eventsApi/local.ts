@@ -154,6 +154,7 @@ function idb<T>(request: IDBRequest<T>): Promise<T> {
 }
 
 const imageKey = (uuid: string, filename: string) => `${uuid}/${filename}`;
+type StoredImage = { type: string; bytes: ArrayBuffer };
 const objectUrls = new Map<string, string>();
 
 async function uploadEventImage(
@@ -161,9 +162,12 @@ async function uploadEventImage(
   filename: string,
   data: Blob
 ): Promise<void> {
+  // Stored as bytes + type, not as the Blob itself: WebKit can't store Blobs
+  // in IndexedDB in ephemeral contexts (which is what Playwright uses).
+  const stored: StoredImage = { type: data.type, bytes: await data.arrayBuffer() };
   const db = await imageDb();
   await idb(
-    db.transaction(IMAGE_STORE, "readwrite").objectStore(IMAGE_STORE).put(data, imageKey(uuid, filename))
+    db.transaction(IMAGE_STORE, "readwrite").objectStore(IMAGE_STORE).put(stored, imageKey(uuid, filename))
   );
   const stale = objectUrls.get(imageKey(uuid, filename));
   if (stale) {
@@ -183,11 +187,11 @@ async function eventImageUrls(uuid: string): Promise<Record<string, string>> {
     const key = imageKey(uuid, filename);
     let url = objectUrls.get(key);
     if (!url) {
-      const blob = await idb<Blob | undefined>(
+      const stored = await idb<StoredImage | undefined>(
         db.transaction(IMAGE_STORE).objectStore(IMAGE_STORE).get(key)
       );
-      if (!blob) continue;
-      url = URL.createObjectURL(blob);
+      if (!stored) continue;
+      url = URL.createObjectURL(new Blob([stored.bytes], { type: stored.type }));
       objectUrls.set(key, url);
     }
     out[filename] = url;

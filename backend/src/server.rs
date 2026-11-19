@@ -1,6 +1,7 @@
 use crate::{
     auth::{AuthResult, JwtValidator},
     handler::{host, team, watcher},
+    heartbeat::HeartbeatConfig,
     infra,
     model::{
         client_message::{ClientMessage, HostAction, TeamAction, WatcherAction},
@@ -23,17 +24,33 @@ use tokio_tungstenite::{
     tungstenite::{
         Error, Message, Result,
         handshake::server::{Request, Response},
+        protocol::{CloseFrame, frame::coding::CloseCode},
     },
 };
 
 pub type Tx = mpsc::UnboundedSender<Message>;
 pub type Rx = mpsc::UnboundedReceiver<Message>;
 
+/// WebSocket close code sent to a connection that a newer connection for the
+/// same team or host has taken over. Clients must not auto-reconnect on it,
+/// or two tabs would keep taking the game from each other.
+pub const REPLACED_CLOSE_CODE: u16 = 4001;
+
+/// Tell a connection's handler that a newer connection replaced it. The
+/// handler forwards the close frame to its client and stops.
+pub fn send_replaced(tx: &Tx) {
+    let _ = tx.send(Message::Close(Some(CloseFrame {
+        code: CloseCode::from(REPLACED_CLOSE_CODE),
+        reason: "Replaced by a newer connection".into(),
+    })));
+}
+
 pub struct AppState {
     pub games: Mutex<HashMap<String, Game>>,
     pub timer: Mutex<ShutdownTimer>,
     pub validator: Arc<dyn JwtValidator>,
     pub persistence: Arc<PersistenceClient>,
+    pub heartbeat: HeartbeatConfig,
 }
 
 fn generate_code() -> String {
@@ -164,6 +181,7 @@ async fn handle_connection(stream: TcpStream, app_state: Arc<AppState>) -> Resul
                             if let TeamAction::ValidateJoin {
                                 game_code,
                                 team_name,
+                                rejoin,
                             } = action
                             {
                                 // Validate game code and team name
@@ -172,7 +190,7 @@ async fn handle_connection(stream: TcpStream, app_state: Arc<AppState>) -> Resul
                                     if let Some(game) = games_map.get(&game_code) {
                                         // Check if team exists and its connection status
                                         if let Some(team_data) = game.find_team(&team_name) {
-                                            if team_data.connected {
+                                            if team_data.connected && !rejoin {
                                                 ServerMessage::error("Team name already in use")
                                             } else {
                                                 // Rejoin path - return TeamGameState
@@ -284,6 +302,7 @@ pub async fn start_ws_server(
     timer: ShutdownTimer,
     validator: Arc<dyn JwtValidator>,
     persistence: Arc<PersistenceClient>,
+    heartbeat: HeartbeatConfig,
 ) {
     let addr = listener.local_addr().expect("Failed to get local address");
     info!("Listening on: {addr}");
@@ -293,6 +312,7 @@ pub async fn start_ws_server(
         timer: Mutex::new(timer),
         validator,
         persistence,
+        heartbeat,
     });
 
     while let Ok((stream, _)) = listener.accept().await {

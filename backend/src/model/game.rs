@@ -446,6 +446,33 @@ impl Game {
         self.teams_tx.remove(&team_name.to_lowercase());
     }
 
+    /// The connection currently registered for a team, if any.
+    pub fn team_tx(&self, team_name: &str) -> Option<&Tx> {
+        self.teams_tx.get(&team_name.to_lowercase())
+    }
+
+    /// Mark a team disconnected, but only if `team_tx` is still its
+    /// registered connection. A connection that was replaced by a rejoin must
+    /// not disconnect its replacement when it finally shuts down. Returns
+    /// whether anything changed.
+    pub fn disconnect_team_if_current(&mut self, team_name: &str, team_tx: &Tx) -> bool {
+        let is_current = self
+            .team_tx(team_name)
+            .is_some_and(|current| current.same_channel(team_tx));
+        if is_current {
+            self.clear_team_tx(team_name);
+            self.set_team_connected(team_name, false);
+        }
+        is_current
+    }
+
+    /// Whether `host_tx` is the host connection currently registered.
+    pub fn is_current_host(&self, host_tx: &Tx) -> bool {
+        self.host_tx
+            .as_ref()
+            .is_some_and(|current| current.same_channel(host_tx))
+    }
+
     pub fn add_watcher(&mut self, watcher_tx: Tx) {
         self.watchers_tx.push(watcher_tx);
     }

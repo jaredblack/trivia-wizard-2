@@ -119,6 +119,14 @@ pub enum TeamAction {
     ValidateJoin {
         team_name: String,
         game_code: String,
+        /// Set when a client that already joined as this team is reconnecting
+        /// (page reload, network change). A rejoin takes over the team even if
+        /// the server still holds an older connection for it, which happens
+        /// when that connection dropped silently and the heartbeat hasn't
+        /// noticed yet. A fresh join from the wizard leaves this false, so a
+        /// different team picking a name that's in use is refused.
+        #[serde(default)]
+        rejoin: bool,
     },
 
     #[serde(rename_all = "camelCase")]
