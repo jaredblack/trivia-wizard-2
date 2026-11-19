@@ -187,6 +187,17 @@ impl JwtValidator for TestValidator {
     }
 }
 
+/// Validator for local dev mode, where `handle_connection` skips auth and
+/// never calls the validator. Lets the server start without Cognito config
+/// (e.g. in CI, which has no .env).
+pub struct LocalDevValidator;
+
+impl JwtValidator for LocalDevValidator {
+    fn validate(&self, _token: &str) -> Result<AuthResult> {
+        Err(anyhow!("Token validation is disabled in local dev mode"))
+    }
+}
+
 /// Helper to create a validator from environment variables
 pub fn create_validator_from_env() -> Arc<dyn JwtValidator> {
     match (

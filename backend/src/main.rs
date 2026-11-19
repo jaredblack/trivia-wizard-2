@@ -47,7 +47,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let ws_listener = TcpListener::bind("0.0.0.0:80").await?;
     let timer = ShutdownTimer::new(shutdown_tx.clone(), Duration::from_secs(SHUTDOWN_MINS * 60));
-    let validator = auth::create_validator_from_env();
+    let validator: Arc<dyn auth::JwtValidator> = if infra::is_local() {
+        Arc::new(auth::LocalDevValidator)
+    } else {
+        auth::create_validator_from_env()
+    };
     let persistence = Arc::new(PersistenceClient::new().await);
     let ws_server = start_ws_server(ws_listener, timer, validator, persistence);
 
