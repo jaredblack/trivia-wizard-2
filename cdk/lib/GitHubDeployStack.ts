@@ -3,7 +3,12 @@ import { Construct } from "constructs";
 import * as iam from "aws-cdk-lib/aws-iam";
 
 const GITHUB_REPO = "jaredblack/trivia-wizard-2";
-const DEPLOY_BRANCH = "main";
+// The deploy job runs in this GitHub environment. When a job declares an
+// environment, its OIDC `sub` claim is `repo:<repo>:environment:<name>`
+// (not `ref:refs/heads/<branch>`), so that's what the trust policy matches.
+// Restrict which branches can use the environment in the GitHub
+// environment's deployment-branch settings.
+const DEPLOY_ENVIRONMENT = "production";
 
 /**
  * Lets GitHub Actions deploy the app stacks via OIDC (no long-lived keys).
@@ -27,7 +32,7 @@ export class GitHubDeployStack extends cdk.Stack {
       assumedBy: new iam.WebIdentityPrincipal(provider.oidcProviderArn, {
         StringEquals: {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": `repo:${GITHUB_REPO}:ref:refs/heads/${DEPLOY_BRANCH}`,
+          "token.actions.githubusercontent.com:sub": `repo:${GITHUB_REPO}:environment:${DEPLOY_ENVIRONMENT}`,
         },
       }),
     });
